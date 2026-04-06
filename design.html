@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>snonux.foo • NEON NEXUS 3D</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&display=swap');
+        
+        :root {
+            --neon-cyan: #00f5ff;
+            --neon-magenta: #ff00cc;
+            --neon-yellow: #ffe700;
+        }
+        
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background: #0b001a;
+            color: #e0f8ff;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #three-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+        }
+        
+        .overlay {
+            position: relative;
+            z-index: 10;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(11, 0, 26, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 2px solid rgba(255, 231, 0, 0.3);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo-circle {
+            width: 56px;
+            height: 56px;
+            background: radial-gradient(circle, #ffe700, #ff00cc);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 700;
+            color: #0b001a;
+            box-shadow: 
+                0 0 30px var(--neon-yellow),
+                0 0 60px var(--neon-magenta),
+                inset 0 0 20px rgba(255,255,255,0.6);
+        }
+        
+        h1 {
+            font-size: 2.3rem;
+            font-weight: 700;
+            letter-spacing: -4px;
+            text-shadow: 0 0 25px var(--neon-cyan);
+        }
+        
+        .nav {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+        
+        .nav a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 0.95rem;
+            letter-spacing: 2px;
+            transition: all 0.3s;
+        }
+        
+        .nav a:hover {
+            color: var(--neon-cyan);
+            text-shadow: 0 0 15px var(--neon-cyan);
+        }
+        
+        .transmit-btn {
+            background: transparent;
+            border: 3px solid var(--neon-yellow);
+            color: var(--neon-yellow);
+            padding: 14px 32px;
+            border-radius: 9999px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 0 30px var(--neon-yellow);
+            transition: all 0.3s;
+        }
+        
+        .transmit-btn:hover {
+            background: var(--neon-yellow);
+            color: #0b001a;
+            transform: scale(1.08);
+        }
+        
+        .content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #ffe700 #1a0033;
+        }
+        
+        .post {
+            background: rgba(20, 5, 45, 0.9);
+            border: 2px solid transparent;
+            border-image: linear-gradient(45deg, var(--neon-cyan), var(--neon-magenta)) 1;
+            border-radius: 24px;
+            padding: 28px;
+            margin-bottom: 28px;
+            box-shadow: 0 0 35px rgba(0, 245, 255, 0.5);
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        
+        .post:hover {
+            transform: translateY(-8px) rotate(1deg);
+            box-shadow: 0 0 50px rgba(255, 231, 0, 0.6);
+        }
+        
+        .post-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            font-size: 0.95rem;
+        }
+        
+        .post-time {
+            font-family: monospace;
+            color: var(--neon-yellow);
+            text-shadow: 0 0 12px var(--neon-yellow);
+        }
+        
+        .post-text {
+            font-size: 1.25rem;
+            line-height: 1.55;
+            margin-bottom: 24px;
+        }
+        
+        .post-actions {
+            display: flex;
+            gap: 32px;
+            font-size: 1.05rem;
+        }
+        
+        .post-actions button {
+            background: none;
+            border: none;
+            color: #e0f8ff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        
+        .post-actions button:hover {
+            color: var(--neon-magenta);
+        }
+        
+        @media (max-width: 640px) {
+            h1 { font-size: 1.85rem; }
+            .logo-circle { width: 48px; height: 48px; font-size: 24px; }
+            .post { padding: 22px; margin-bottom: 22px; }
+            .content { padding: 20px; }
+            header { padding: 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- WebGL Canvas -->
+    <canvas id="three-canvas"></canvas>
+    
+    <!-- HTML Overlay -->
+    <div class="overlay">
+        <header>
+            <div class="logo">
+                <div class="logo-circle">SN</div>
+                <h1>snonux.foo</h1>
+            </div>
+            
+            <div class="nav">
+                <a href="#">ARCHIVE</a>
+                <button onclick="composePost()" class="transmit-btn">
+                    <i class="fa-solid fa-feather-pointed"></i>
+                    TRANSMIT TO NEXUS
+                </button>
+            </div>
+        </header>
+        
+        <div class="content">
+            <!-- Post 1 -->
+            <div class="post">
+                <div class="post-header">
+                    <div><strong>@snonux</strong></div>
+                    <div class="post-time">04.06.26 • 17:33 UTC</div>
+                </div>
+                <div class="post-text">
+                    Entered the Neon Nexus. The core is pulsing. 
+                    Built this entire 3D microblog with a living central orb + orbiting rings. 
+                    Pure WebGL soul.
+                </div>
+                <div class="post-actions">
+                    <button onclick="this.style.color='#ff00cc';this.querySelector('i').classList.add('fa-beat')"><i class="fa-solid fa-heart"></i> 2.1k</button>
+                    <button onclick="this.style.color='#00f5ff'"><i class="fa-solid fa-comment-dots"></i> 114</button>
+                    <button><i class="fa-solid fa-share-from-square"></i> REBROADCAST</button>
+                </div>
+            </div>
+            
+            <!-- Post 2 -->
+            <div class="post">
+                <div class="post-header">
+                    <div><strong>@snonux</strong></div>
+                    <div class="post-time">04.06.26 • 15:19 UTC</div>
+                </div>
+                <div class="post-text">
+                    The rings are in perfect sync. 
+                    Orbiting the core of snonux.foo — this is what 2077 microblogging feels like.
+                </div>
+                <div class="post-actions">
+                    <button onclick="this.style.color='#ff00cc';this.querySelector('i').classList.add('fa-beat')"><i class="fa-solid fa-heart"></i> 1.3k</button>
+                    <button onclick="this.style.color='#00f5ff'"><i class="fa-solid fa-comment-dots"></i> 68</button>
+                </div>
+            </div>
+            
+            <!-- Post 3 -->
+            <div class="post">
+                <div class="post-header">
+                    <div><strong>@snonux</strong></div>
+                    <div class="post-time">04.06.26 • 12:44 UTC</div>
+                </div>
+                <div class="post-text">
+                    The nexus is alive. Every ring carries a new thought. 
+                    WebGL never looked this electric.
+                </div>
+                <div class="post-actions">
+                    <button onclick="this.style.color='#ff00cc';this.querySelector('i').classList.add('fa-beat')"><i class="fa-solid fa-heart"></i> 489</button>
+                    <button onclick="this.style.color='#00f5ff'"><i class="fa-solid fa-comment-dots"></i> 27</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === THREE.JS NEON NEXUS SCENE ===
+        let scene, camera, renderer;
+        let centralSphere, rings = [], particles;
+        
+        function initThree() {
+            const canvas = document.getElementById('three-canvas');
+            renderer = new THREE.WebGLRenderer({ 
+                canvas: canvas, 
+                antialias: true,
+                alpha: true 
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x0b001a, 15, 80);
+            
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(0, 12, 35);
+            
+            // Core lighting
+            const ambient = new THREE.AmbientLight(0x00f5ff, 0.8);
+            scene.add(ambient);
+            
+            const coreLight = new THREE.PointLight(0xff00cc, 4, 100);
+            coreLight.position.set(0, 0, 0);
+            scene.add(coreLight);
+            
+            // === CENTRAL GLOWING NEXUS SPHERE ===
+            const sphereGeo = new THREE.SphereGeometry(6, 64, 64);
+            const sphereMat = new THREE.MeshPhongMaterial({
+                color: 0x00f5ff,
+                emissive: 0xff00cc,
+                emissiveIntensity: 1.8,
+                shininess: 100,
+                transparent: true,
+                opacity: 0.95
+            });
+            centralSphere = new THREE.Mesh(sphereGeo, sphereMat);
+            scene.add(centralSphere);
+            
+            // Inner glow sphere (smaller)
+            const innerGlow = new THREE.Mesh(
+                new THREE.SphereGeometry(4.5, 64, 64),
+                new THREE.MeshBasicMaterial({
+                    color: 0x00f5ff,
+                    transparent: true,
+                    opacity: 0.4,
+                    blending: THREE.AdditiveBlending
+                })
+            );
+            scene.add(innerGlow);
+            
+            // === ORBITING NEON RINGS ===
+            const ringColors = [0x00f5ff, 0xff00cc, 0x00f5ff, 0xffe700];
+            for (let i = 0; i < 14; i++) {
+                const radius = 12 + i * 2.2;
+                const ringGeo = new THREE.TorusGeometry(radius, 0.35, 32, 128);
+                const ringMat = new THREE.MeshPhongMaterial({
+                    color: ringColors[i % ringColors.length],
+                    emissive: ringColors[i % ringColors.length],
+                    emissiveIntensity: 2.5,
+                    shininess: 80,
+                    transparent: true,
+                    opacity: 0.9,
+                    side: THREE.DoubleSide
+                });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.random() * Math.PI;
+                ring.userData = {
+                    speed: 0.008 + (i * 0.003),
+                    axisTilt: Math.random() * 0.6,
+                    radius: radius
+                };
+                scene.add(ring);
+                rings.push(ring);
+            }
+            
+            // === PARTICLE FIELD (energy streams) ===
+            const particleCount = 2200;
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            
+            for (let i = 0; i < particleCount * 3; i += 3) {
+                const radius = 30 + Math.random() * 40;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                
+                positions[i]     = radius * Math.sin(phi) * Math.cos(theta);
+                positions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
+                positions[i + 2] = radius * Math.cos(phi);
+                
+                const c = new THREE.Color().setHSL(Math.random() > 0.5 ? 0.55 : 0.8, 1, 1);
+                colors[i] = c.r; colors[i+1] = c.g; colors[i+2] = c.b;
+            }
+            
+            const particleGeo = new THREE.BufferGeometry();
+            particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            
+            const particleMat = new THREE.PointsMaterial({
+                size: 0.22,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending
+            });
+            
+            particles = new THREE.Points(particleGeo, particleMat);
+            scene.add(particles);
+            
+            // Gentle mouse interaction
+            let mouseX = 0;
+            window.addEventListener('mousemove', (e) => {
+                mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            });
+            
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                // Slow orbit camera around the nexus
+                const time = Date.now() * 0.0004;
+                camera.position.x = Math.sin(time) * 35;
+                camera.position.z = Math.cos(time) * 35 + 10;
+                camera.lookAt(0, 4, 0);
+                
+                // Mouse influence
+                camera.position.x += mouseX * 6;
+                
+                // Rotate central sphere
+                centralSphere.rotation.y += 0.003;
+                
+                // Animate orbiting rings
+                rings.forEach((ring, i) => {
+                    ring.rotation.y += ring.userData.speed;
+                    ring.rotation.x = Math.sin(time * 1.5 + i) * ring.userData.axisTilt;
+                });
+                
+                // Particles gently swirl around center
+                particles.rotation.y += 0.0008;
+                
+                renderer.render(scene, camera);
+            }
+            
+            animate();
+        }
+        
+        window.addEventListener('resize', () => {
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        function composePost() {
+            alert("🌐 TRANSMISSION TO THE NEXUS OPEN — your new 3D compose window would appear here ✨");
+        }
+        
+        window.onload = initThree;
+        
+        console.log("%c🌐 snonux.foo NEON NEXUS 3D online — central orb + orbiting rings ready", "color:#ffe700; font-family:monospace; font-size:11px;");
+    </script>
+</body>
+</html>
