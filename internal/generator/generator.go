@@ -1,5 +1,3 @@
-// Package generator reads all post directories from outdir/posts/, sorts them by
-// timestamp descending, paginates them into HTML pages, and writes atom.xml.
 package generator
 
 import (
@@ -13,14 +11,15 @@ import (
 	"time"
 
 	"codeberg.org/snonux/snonux/internal/config"
+	"codeberg.org/snonux/snonux/internal/generator/atom"
 	"codeberg.org/snonux/snonux/internal/post"
 )
 
 // pageData holds the template variables for a single HTML page.
 type pageData struct {
-	Posts       []postView
-	PrevPage    string // URL of the newer page, empty if none
-	NextPage    string // URL of the older page, empty if none
+	Posts        []postView
+	PrevPage     string // URL of the newer page, empty if none
+	NextPage     string // URL of the older page, empty if none
 	PrevPageJSON template.JS
 	NextPageJSON template.JS
 }
@@ -59,7 +58,7 @@ func Run(cfg *config.Config) error {
 		}
 	}
 
-	return generateAtom(posts, cfg)
+	return atom.Generate(posts, cfg)
 }
 
 // loadAllPosts walks outdir/posts/ and deserialises every post.json found.
