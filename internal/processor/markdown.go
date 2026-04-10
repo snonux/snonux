@@ -17,7 +17,10 @@ import (
 // We use it to discover local asset references that must be copied.
 var imageRefPattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)]+)\)`)
 
-// processMd converts a Markdown file to an HTML snippet.
+// processMd converts a Markdown file to an HTML snippet for a trusted inbox source.
+// The markdown (including any raw HTML blocks) is treated as author-controlled
+// content, not user-generated input from strangers; see the package comment.
+//
 // Returns the HTML and a list of local image filenames referenced in the document.
 // Referenced images that exist alongside the source file are returned so the
 // caller can copy them into the post asset directory.
@@ -33,7 +36,8 @@ func processMd(path string) (htmlContent string, localImages []string, err error
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithRendererOptions(
-			html.WithUnsafe(), // Allow raw HTML in markdown (user-controlled content).
+			// Trusted inbox: preserve raw HTML in markdown (see package comment).
+			html.WithUnsafe(),
 		),
 	)
 

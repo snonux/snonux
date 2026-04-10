@@ -2,6 +2,13 @@
 // each one into a self-contained post directory under outdir/posts/.
 // Supported formats: .txt, .md, .png, .jpg, .jpeg, .gif, .mp3.
 // Each processed source file is deleted from the input directory afterward.
+//
+// Markdown trust boundary: .md files are expected only from a trusted personal
+// inbox (the operator’s own email or equivalent). Goldmark is configured with
+// html.WithUnsafe so raw HTML and GFM features in those files pass through to
+// post HTML intentionally. This is not a multi-tenant or public-submission
+// pipeline; do not point an untrusted drop folder at the same input directory
+// without replacing that rendering path with sanitization or a stricter parser.
 package processor
 
 import (
