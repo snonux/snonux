@@ -42,6 +42,9 @@ const auroraTemplate = `<!DOCTYPE html>
         .page-nav a { border:1px solid var(--teal); color:var(--teal); padding:8px 20px;
                       border-radius:20px; text-decoration:none; font-size:0.82rem; letter-spacing:1px; }
         .page-nav a:hover { background:var(--teal); color:var(--navy); }
+        .page-nav-footer { flex-shrink:0; padding:8px 28px; display:flex; justify-content:center;
+            background:rgba(5,13,26,0.78); backdrop-filter:blur(14px);
+            border-top:1px solid rgba(0,255,179,0.25); }
         .post { background:rgba(5,20,35,0.72); border:1px solid rgba(0,255,179,0.2); border-radius:10px;
                 padding:20px; margin-bottom:14px; cursor:pointer;
                 transition:all 0.25s; backdrop-filter:blur(6px); }
@@ -141,13 +144,15 @@ const auroraTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if or .PrevPage .NextPage}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
             <div class="page-nav page-nav-dual">
                 {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; Newer</a>{{end}}
                 {{if .NextPage}}<a href="{{.NextPage}}">Older &rarr;</a>{{end}}
             </div>
-            {{end}}
-        </div>
+        </footer>
+        {{end}}
     </div>
     {{template "navmodal" .}}
     <script>

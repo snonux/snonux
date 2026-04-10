@@ -86,6 +86,23 @@ func TestJSONStringOrNull(t *testing.T) {
 	}
 }
 
+func TestThemeSoundPresetsMatchRegistry(t *testing.T) {
+	t.Parallel()
+	for name := range themeRegistry {
+		if _, ok := themeSoundPresets[name]; !ok {
+			t.Errorf("theme %q has no sound preset in themeSoundPresets", name)
+		}
+	}
+}
+
+func TestThemeSoundsJSONNonEmpty(t *testing.T) {
+	t.Parallel()
+	j := themeSoundsJSON("neon")
+	if len(j) < 50 {
+		t.Fatalf("themeSoundsJSON too short: %q", j)
+	}
+}
+
 func TestFormatPostTime(t *testing.T) {
 	t.Parallel()
 
@@ -161,7 +178,7 @@ func TestBuildPageData_navLinks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			data := buildPageData([]*post.Post{p}, tt.pageIndex, tt.totalPages)
+			data := buildPageData([]*post.Post{p}, tt.pageIndex, tt.totalPages, "neon")
 			if data.PrevPage != tt.wantPrev {
 				t.Fatalf("PrevPage=%q; want %q", data.PrevPage, tt.wantPrev)
 			}

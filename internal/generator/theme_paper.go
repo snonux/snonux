@@ -41,6 +41,9 @@ const volcanoTemplate = `<!DOCTYPE html>
         .page-nav a { border:1px solid var(--ember); color:var(--ember); padding:8px 20px;
                       border-radius:4px; text-decoration:none; font-size:0.82rem; }
         .page-nav a:hover { background:var(--lava); color:var(--bg); }
+        .page-nav-footer { flex-shrink:0; padding:7px 28px; display:flex; justify-content:center;
+            background:rgba(13,8,2,0.82); backdrop-filter:blur(12px);
+            border-top:1px solid rgba(255,68,0,0.3); }
         .post { background:rgba(20,8,2,0.72); border:1px solid rgba(255,68,0,0.2); border-radius:8px;
                 padding:20px; margin-bottom:14px; cursor:pointer;
                 transition:all 0.25s; backdrop-filter:blur(4px); }
@@ -140,13 +143,15 @@ const volcanoTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if or .PrevPage .NextPage}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
             <div class="page-nav page-nav-dual">
                 {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; Newer</a>{{end}}
                 {{if .NextPage}}<a href="{{.NextPage}}">Older &rarr;</a>{{end}}
             </div>
-            {{end}}
-        </div>
+        </footer>
+        {{end}}
     </div>
     {{template "navmodal" .}}
     <script>

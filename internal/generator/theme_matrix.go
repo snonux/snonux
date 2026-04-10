@@ -52,6 +52,8 @@ const matrixTemplate = `<!DOCTYPE html>
         .page-nav a { border:1px solid var(--g2); color:var(--g); padding:7px 20px;
                       text-decoration:none; font-size:0.82rem; letter-spacing:2px; }
         .page-nav a:hover { background:var(--g); color:var(--bg); }
+        .page-nav-footer { flex-shrink:0; padding:6px 24px; display:flex; justify-content:center;
+            background:#000; border-top:1px solid var(--g2); }
         .post { background:#000; border:1px solid var(--g3); padding:16px 18px;
                 margin-bottom:10px; cursor:pointer; transition:border-color 0.15s; }
         .post:hover { border-color:var(--g2); box-shadow:0 0 8px rgba(0,255,65,0.2); }
@@ -151,13 +153,15 @@ const matrixTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if or .PrevPage .NextPage}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
             <div class="page-nav page-nav-dual">
                 {{if .PrevPage}}<a href="{{.PrevPage}}">&lt;-- NEWER</a>{{end}}
                 {{if .NextPage}}<a href="{{.NextPage}}">OLDER --&gt;</a>{{end}}
             </div>
-            {{end}}
-        </div>
+        </footer>
+        {{end}}
     </div>
     {{template "navmodal" .}}
     <script>

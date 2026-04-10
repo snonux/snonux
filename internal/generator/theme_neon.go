@@ -40,6 +40,9 @@ const neonTemplate = `<!DOCTYPE html>
                       padding:10px 28px; border-radius:9999px; font-size:0.85rem; letter-spacing:2px;
                       text-decoration:none; transition:all 0.3s; }
         .page-nav a:hover { background:var(--neon-cyan); color:#0b001a; }
+        .page-nav-footer { flex-shrink:0; padding:8px 30px; display:flex; justify-content:center;
+            background:rgba(11,0,26,0.8); backdrop-filter:blur(12px);
+            border-top:2px solid rgba(255,231,0,0.3); }
         .post { background:rgba(20,5,45,0.9); border:2px solid transparent;
                 border-image:linear-gradient(45deg,var(--neon-cyan),var(--neon-magenta)) 1;
                 border-radius:24px; padding:28px; margin-bottom:28px;
@@ -197,13 +200,15 @@ const neonTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if or .PrevPage .NextPage}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
             <div class="page-nav page-nav-dual">
                 {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; NEWER TRANSMISSIONS</a>{{end}}
                 {{if .NextPage}}<a href="{{.NextPage}}">OLDER TRANSMISSIONS &rarr;</a>{{end}}
             </div>
-            {{end}}
-        </div>
+        </footer>
+        {{end}}
     </div>
     {{template "navmodal" .}}
     <script>

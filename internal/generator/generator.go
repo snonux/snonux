@@ -17,11 +17,12 @@ import (
 
 // pageData holds the template variables for a single HTML page.
 type pageData struct {
-	Posts        []postView
-	PrevPage     string // URL of the newer page, empty if none
-	NextPage     string // URL of the older page, empty if none
-	PrevPageJSON template.JS
-	NextPageJSON template.JS
+	Posts           []postView
+	PrevPage        string // URL of the newer page, empty if none
+	NextPage        string // URL of the older page, empty if none
+	PrevPageJSON    template.JS
+	NextPageJSON    template.JS
+	ThemeSoundsJSON template.JS // Web Audio preset for this theme (splash + nav)
 }
 
 // postView is a render-friendly representation of a post for the HTML template.
@@ -121,7 +122,7 @@ const indexPageNavURL = "index.html?splash=0"
 
 // writePage renders one HTML page and writes it to cfg.OutputDir.
 func writePage(tmpl *template.Template, posts []*post.Post, pageIndex, totalPages int, cfg *config.Config) error {
-	data := buildPageData(posts, pageIndex, totalPages)
+	data := buildPageData(posts, pageIndex, totalPages, cfg.Theme)
 
 	filename := pageFilename(pageIndex)
 	path := filepath.Join(cfg.OutputDir, filename)
@@ -140,7 +141,7 @@ func writePage(tmpl *template.Template, posts []*post.Post, pageIndex, totalPage
 }
 
 // buildPageData constructs the template data for a single page.
-func buildPageData(posts []*post.Post, pageIndex, totalPages int) pageData {
+func buildPageData(posts []*post.Post, pageIndex, totalPages int, theme string) pageData {
 	views := make([]postView, len(posts))
 	for i, p := range posts {
 		views[i] = postView{
@@ -166,11 +167,12 @@ func buildPageData(posts []*post.Post, pageIndex, totalPages int) pageData {
 	}
 
 	return pageData{
-		Posts:        views,
-		PrevPage:     prevPage,
-		NextPage:     nextPage,
-		PrevPageJSON: jsonStringOrNull(prevPage),
-		NextPageJSON: jsonStringOrNull(nextPage),
+		Posts:           views,
+		PrevPage:        prevPage,
+		NextPage:        nextPage,
+		PrevPageJSON:    jsonStringOrNull(prevPage),
+		NextPageJSON:    jsonStringOrNull(nextPage),
+		ThemeSoundsJSON: themeSoundsJSON(theme),
 	}
 }
 

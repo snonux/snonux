@@ -13,6 +13,8 @@
 //     {{template "navscript" .}}.
 //   - shared.go — navDefs: shared {{define}} blocks merged at parse time with
 //     the chosen theme so a single html/template parse sees every name.
+//   - theme_sounds.go — Per-theme Web Audio parameters (splash arpeggio, nav blip,
+//     modal open/close); embedded in pages as ThemeSoundsJSON for navscript.
 //   - templates.go — Short pointer: where templates and registry live.
 //
 // Dependency direction: themes and shared nav templates are composed only for

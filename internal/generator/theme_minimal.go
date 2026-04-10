@@ -43,6 +43,9 @@ const plasmaTemplate = `<!DOCTYPE html>
         .page-nav a { border:1px solid var(--cyan); color:var(--cyan); padding:8px 20px;
                       border-radius:20px; text-decoration:none; font-size:0.82rem; }
         .page-nav a:hover { background:var(--cyan); color:var(--bg); }
+        .page-nav-footer { flex-shrink:0; padding:8px 28px; display:flex; justify-content:center;
+            background:rgba(5,0,8,0.8); backdrop-filter:blur(14px);
+            border-top:1px solid rgba(0,240,255,0.2); }
         .post { background:rgba(10,0,20,0.75); border:1px solid rgba(0,240,255,0.18); border-radius:10px;
                 padding:20px; margin-bottom:14px; cursor:pointer;
                 transition:all 0.25s; backdrop-filter:blur(6px); }
@@ -146,13 +149,15 @@ const plasmaTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if or .PrevPage .NextPage}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
             <div class="page-nav page-nav-dual">
                 {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; Newer</a>{{end}}
                 {{if .NextPage}}<a href="{{.NextPage}}">Older &rarr;</a>{{end}}
             </div>
-            {{end}}
-        </div>
+        </footer>
+        {{end}}
     </div>
     {{template "navmodal" .}}
     <script>

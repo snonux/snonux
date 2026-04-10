@@ -44,6 +44,8 @@ const brutalistTemplate = `<!DOCTYPE html>
                       border-radius:0; text-decoration:none; font-family:Impact;
                       font-size:1rem; letter-spacing:2px; }
         .page-nav a:hover { background:#fff; color:#000; }
+        .page-nav-footer { flex-shrink:0; padding:6px 24px; display:flex; justify-content:center;
+            background:#000; border-top:4px solid #fff; }
         .post { background:#000; border:3px solid #fff; border-radius:0;
                 padding:20px 22px; margin-bottom:14px; cursor:pointer;
                 transition:border-color 0.1s,background 0.1s; }
@@ -82,7 +84,7 @@ const brutalistTemplate = `<!DOCTYPE html>
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-inner splash-frame">
             <div class="splash-title">SNONUX.FOO</div>
-            <div class="splash-tag">Brutalist channel</div>
+            <div class="splash-tag">Brutalist theme</div>
             <div class="splash-hint">[ CLICK OR ENTER TO TRANSMIT ]</div>
         </div>
     </div>
@@ -131,13 +133,15 @@ const brutalistTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if or .PrevPage .NextPage}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
             <div class="page-nav page-nav-dual">
                 {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; NEWER</a>{{end}}
                 {{if .NextPage}}<a href="{{.NextPage}}">OLDER &rarr;</a>{{end}}
             </div>
-            {{end}}
-        </div>
+        </footer>
+        {{end}}
     </div>
     {{template "navmodal" .}}
     <script>

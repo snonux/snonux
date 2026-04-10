@@ -51,6 +51,8 @@ const terminalTemplate = `<!DOCTYPE html>
         .page-nav a { border:1px solid var(--dim); color:var(--p); padding:7px 20px;
                       border-radius:0; text-decoration:none; letter-spacing:2px; font-size:0.82rem; }
         .page-nav a:hover { background:var(--p); color:var(--bg); border-color:var(--p); }
+        .page-nav-footer { flex-shrink:0; padding:6px 24px; display:flex; justify-content:center;
+            background:var(--bg2); border-top:2px solid var(--p); }
         .post { background:var(--bg); border:1px solid var(--dim); border-radius:0;
                 padding:18px 20px; margin-bottom:12px; cursor:pointer; transition:border-color 0.15s; }
         .post:hover { border-color:var(--p); box-shadow:0 0 8px rgba(51,255,51,0.3); }
@@ -137,13 +139,15 @@ const terminalTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if or .PrevPage .NextPage}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
             <div class="page-nav page-nav-dual">
                 {{if .PrevPage}}<a href="{{.PrevPage}}">&lt;-- NEWER</a>{{end}}
                 {{if .NextPage}}<a href="{{.NextPage}}">OLDER --&gt;</a>{{end}}
             </div>
-            {{end}}
-        </div>
+        </footer>
+        {{end}}
     </div>
     {{template "navmodal" .}}
     <script>

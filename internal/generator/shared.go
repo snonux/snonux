@@ -6,7 +6,7 @@ package generator
 //     splash should not run (?splash=0, not index.html, or Referer from same-site index/pageN).
 //   - "navhints"  — keyboard shortcut hint bar HTML
 //   - "navmodal"  — full-screen expanded-post modal HTML + image-sizing CSS
-//   - "navscript" — keyboard navigation JavaScript with distinct sounds per action
+//   - "navscript" — keyboard navigation + Web Audio; splash/nav/modal sounds from themeSoundsJSON (per theme)
 //
 // Each theme calls {{template "splashGate"}}, {{template "navhints" .}}, {{template "navmodal" .}},
 // and {{template "navscript" .}} at the appropriate points in its HTML.
@@ -62,9 +62,15 @@ const navDefs = `
 .post-modal { background:rgba(0,0,0,0.55) !important; backdrop-filter:blur(6px) !important; }
 /* Content area max-width across all themes */
 .overlay { max-width:1200px; margin-left:auto; margin-right:auto; }
-/* Pagination: newer + older side by side at the bottom of the feed */
+/* Pagination: newer + older in a footer bar (below scrollable posts, like the header) */
 .page-nav-dual { display:flex; justify-content:center; align-items:center; flex-wrap:wrap;
                 gap:clamp(16px,4vw,48px); }
+/* Flex column layout: let #post-content shrink so overflow-y scrolls; footer stays visible */
+#post-content.content { min-height:0; }
+.page-nav-footer { flex-shrink:0; width:100%; box-sizing:border-box; }
+.page-nav-footer .page-nav { margin:0; }
+/* ~Half-height footer bar vs default .page-nav padding */
+.page-nav-footer .page-nav a { padding-top:4px; padding-bottom:4px; }
 /* Host note under the site subtitle (all themes) */
 .logo-host { font-size:0.65rem; opacity:0.55; margin-top:4px; letter-spacing:0.3px; line-height:1.3; }
 /* Atom feed link in header (paired with transmit in .nav) */
@@ -104,6 +110,12 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
 
 {{define "navscript"}}
 <script>
+    const SNONUX_SOUNDS = {{.ThemeSoundsJSON}};
+    function snonuxWaveType(w) {
+        if (w === 'square') return 'square';
+        if (w === 'triangle') return 'triangle';
+        return 'sine';
+    }
     (function splashSetup() {
         var el = document.getElementById('splash-overlay');
         if (!el) return;
@@ -117,7 +129,6 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         }
         var splashAudioCtx = null;
         var splashChimePlayed = false;
-        // Soft major arpeggio (G4 → C5 → E5 → G5); works once autopolicy allows audio.
         function playSplashChime() {
             if (splashChimePlayed) return;
             try {
@@ -128,18 +139,22 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
                 function ring() {
                     splashChimePlayed = true;
                     var now = ctx.currentTime;
-                    var freqs = [392, 523.25, 659.25, 783.99];
+                    var sp = SNONUX_SOUNDS.splash;
+                    var freqs = sp.freqs;
+                    var spacing = sp.spacing != null ? sp.spacing : 0.075;
+                    var gainAm = sp.gain != null ? sp.gain : 0.1;
+                    var wave = snonuxWaveType(sp.wave);
                     var i, osc, g, t0;
                     for (i = 0; i < freqs.length; i++) {
                         osc = ctx.createOscillator();
                         g = ctx.createGain();
                         osc.connect(g);
                         g.connect(ctx.destination);
-                        osc.type = 'sine';
+                        osc.type = wave;
                         osc.frequency.value = freqs[i];
-                        t0 = now + i * 0.075;
+                        t0 = now + i * spacing;
                         g.gain.setValueAtTime(0, t0);
-                        g.gain.linearRampToValueAtTime(0.1, t0 + 0.028);
+                        g.gain.linearRampToValueAtTime(gainAm, t0 + 0.028);
                         g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.52);
                         osc.start(t0);
                         osc.stop(t0 + 0.55);
@@ -185,49 +200,56 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         playNavSound();
     }
 
-    // playNavSound: short low beep for post selection (j/k navigation).
     function playNavSound() {
         try {
+            var n = SNONUX_SOUNDS.nav;
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain); gain.connect(ctx.destination);
-            osc.frequency.value = 220; osc.type = 'sine';
-            gain.gain.setValueAtTime(0.12, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
+            osc.frequency.value = n.freq;
+            osc.type = snonuxWaveType(n.wave);
+            var dur = n.dur != null ? n.dur : 0.08;
+            var g = n.gain != null ? n.gain : 0.12;
+            gain.gain.setValueAtTime(g, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur + 0.02);
         } catch (_) {}
     }
 
-    // playOpenSound: bright ascending chime when modal opens (Enter key).
     function playOpenSound() {
         try {
+            var o = SNONUX_SOUNDS.open;
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain); gain.connect(ctx.destination);
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(440, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.14);
-            gain.gain.setValueAtTime(0.10, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.20);
-            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.20);
+            osc.type = snonuxWaveType(o.wave);
+            var dur = o.dur != null ? o.dur : 0.14;
+            var g = o.gain != null ? o.gain : 0.1;
+            osc.frequency.setValueAtTime(o.start, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(o.end, ctx.currentTime + dur);
+            gain.gain.setValueAtTime(g, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur + 0.06);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur + 0.07);
         } catch (_) {}
     }
 
-    // playCloseSound: descending sweep when modal closes (Esc key).
     function playCloseSound() {
         try {
+            var c = SNONUX_SOUNDS.close;
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain); gain.connect(ctx.destination);
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(440, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.15);
-            gain.gain.setValueAtTime(0.10, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.18);
+            osc.type = snonuxWaveType(c.wave);
+            var dur = c.dur != null ? c.dur : 0.15;
+            var g = c.gain != null ? c.gain : 0.1;
+            osc.frequency.setValueAtTime(c.start, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(c.end, ctx.currentTime + dur);
+            gain.gain.setValueAtTime(g, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur + 0.05);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur + 0.06);
         } catch (_) {}
     }
 

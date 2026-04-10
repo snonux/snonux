@@ -53,6 +53,8 @@ const retroTemplate = `<!DOCTYPE html>
         .page-nav a { border:1px solid var(--dim); color:var(--amber); padding:7px 20px;
                       text-decoration:none; font-size:0.82rem; letter-spacing:2px; }
         .page-nav a:hover { background:var(--amber); color:var(--bg); border-color:var(--amber); }
+        .page-nav-footer { flex-shrink:0; padding:6px 24px; display:flex; justify-content:center;
+            background:var(--bg2); border-top:2px solid var(--amber); }
         .post { background:var(--bg); border:1px solid var(--dim); padding:16px 18px;
                 margin-bottom:10px; cursor:pointer; transition:border-color 0.15s; }
         .post:hover { border-color:var(--amber); box-shadow:0 0 8px rgba(255,176,0,0.25); }
@@ -147,13 +149,15 @@ const retroTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if or .PrevPage .NextPage}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
             <div class="page-nav page-nav-dual">
                 {{if .PrevPage}}<a href="{{.PrevPage}}">&lt;-- NEWER</a>{{end}}
                 {{if .NextPage}}<a href="{{.NextPage}}">OLDER --&gt;</a>{{end}}
             </div>
-            {{end}}
-        </div>
+        </footer>
+        {{end}}
     </div>
     {{template "navmodal" .}}
     <script>

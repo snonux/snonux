@@ -46,6 +46,9 @@ const synthwaveTemplate = `<!DOCTYPE html>
         .page-nav a { border:2px solid var(--purple); color:var(--purple); padding:8px 22px;
                       border-radius:4px; text-decoration:none; letter-spacing:2px; font-size:0.82rem; }
         .page-nav a:hover { background:var(--purple); color:#fff; }
+        .page-nav-footer { flex-shrink:0; padding:8px 28px; display:flex; justify-content:center;
+            background:rgba(13,2,33,0.82); backdrop-filter:blur(10px);
+            border-top:2px solid var(--pink); }
         .post { background:rgba(20,5,50,0.85); border:1px solid var(--purple); border-radius:6px;
                 padding:22px; margin-bottom:18px; cursor:pointer; transition:all 0.25s; }
         .post:hover { border-color:var(--pink); box-shadow:0 0 22px rgba(255,45,120,0.35); transform:translateY(-3px); }
@@ -156,13 +159,15 @@ const synthwaveTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if or .PrevPage .NextPage}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
             <div class="page-nav page-nav-dual">
                 {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; NEWER</a>{{end}}
                 {{if .NextPage}}<a href="{{.NextPage}}">OLDER &rarr;</a>{{end}}
             </div>
-            {{end}}
-        </div>
+        </footer>
+        {{end}}
     </div>
     {{template "navmodal" .}}
     <script>
