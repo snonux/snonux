@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"codeberg.org/snonux/snonux/internal"
 	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/generator"
 	"codeberg.org/snonux/snonux/internal/processor"
@@ -36,6 +37,9 @@ func main() {
 // Special theme value "random" picks a theme at random from the registry.
 func parseFlags() (*config.Config, error) {
 	cfg := &config.Config{}
+	var showVersion bool
+	flag.BoolVar(&showVersion, "version", false, "print version and exit")
+	flag.BoolVar(&showVersion, "v", false, "print version and exit")
 	listThemes := flag.Bool("list-themes", false, "print all available theme names and exit")
 
 	flag.StringVar(&cfg.InputDir, "input", "./inbox", "directory containing new source files to process")
@@ -43,6 +47,11 @@ func parseFlags() (*config.Config, error) {
 	flag.StringVar(&cfg.BaseURL, "base-url", "https://snonux.foo", "canonical base URL used in Atom feed links")
 	flag.StringVar(&cfg.Theme, "theme", "random", "visual theme name, or \"random\" to pick one at random")
 	flag.Parse()
+
+	if showVersion {
+		fmt.Println(version.Version)
+		os.Exit(0)
+	}
 
 	if *listThemes {
 		fmt.Println(strings.Join(generator.ListThemes(), "\n"))
