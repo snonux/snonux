@@ -3,7 +3,10 @@ package processor
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+
+	"codeberg.org/snonux/snonux/internal/config"
 )
 
 func TestFindLocalImages(t *testing.T) {
@@ -86,5 +89,37 @@ func TestFindLocalImages(t *testing.T) {
 				t.Fatalf("len(got)=%d; want %d (%v)", len(got), tt.wantLen, got)
 			}
 		})
+	}
+}
+
+func TestRun_UnreadableMarkdownPreScanFails(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod does not reliably deny read for owned files on Windows")
+	}
+
+	base := t.TempDir()
+	inputDir := filepath.Join(base, "inbox")
+	outputDir := filepath.Join(base, "out")
+	if err := os.MkdirAll(inputDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	mdPath := filepath.Join(inputDir, "note.md")
+	if err := os.WriteFile(mdPath, []byte("# x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(mdPath, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(mdPath, 0o644) })
+
+	cfg := &config.Config{InputDir: inputDir, OutputDir: outputDir}
+	_, err := Run(cfg)
+	if err == nil {
+		t.Fatal("Run: expected error when markdown pre-scan cannot read a .md file")
 	}
 }

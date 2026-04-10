@@ -33,7 +33,10 @@ func Run(cfg *config.Config) (int, error) {
 
 	// Pre-scan markdown files to discover which image filenames they claim.
 	// Claimed images are excluded from independent processing.
-	claimed := claimedByMarkdown(entries, cfg.InputDir)
+	claimed, err := claimedByMarkdown(entries, cfg.InputDir)
+	if err != nil {
+		return 0, err
+	}
 
 	count := 0
 
@@ -59,7 +62,7 @@ func Run(cfg *config.Config) (int, error) {
 // claimedByMarkdown scans all .md entries in inputDir and returns a set of
 // image filenames that are referenced within those markdown files.
 // Those images should be embedded in the markdown post, not processed alone.
-func claimedByMarkdown(entries []os.DirEntry, inputDir string) map[string]bool {
+func claimedByMarkdown(entries []os.DirEntry, inputDir string) (map[string]bool, error) {
 	claimed := make(map[string]bool)
 
 	for _, entry := range entries {
@@ -70,7 +73,7 @@ func claimedByMarkdown(entries []os.DirEntry, inputDir string) map[string]bool {
 		mdPath := filepath.Join(inputDir, entry.Name())
 		data, err := os.ReadFile(mdPath)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("read markdown for image claims %s: %w", entry.Name(), err)
 		}
 
 		for _, imgName := range findLocalImages(string(data), inputDir) {
@@ -78,7 +81,7 @@ func claimedByMarkdown(entries []os.DirEntry, inputDir string) map[string]bool {
 		}
 	}
 
-	return claimed
+	return claimed, nil
 }
 
 // processFile processes a single input file into a new post directory.
