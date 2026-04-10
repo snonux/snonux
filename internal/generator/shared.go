@@ -21,10 +21,14 @@ const navDefs = `
 
 {{define "navmodal"}}
 <style>
-/* Thumbnail sizing in list view; modal overrides to full width so images
-   appear larger when a post is expanded with Enter. */
+/* Thumbnail sizing in list view; modal overrides to full width. */
 .post-image { max-height:220px; max-width:100%; object-fit:cover; cursor:pointer; }
 #post-modal .post-image { max-height:none; width:100%; max-width:100%; object-fit:contain; cursor:default; }
+/* Semi-transparent modal backdrop so the WebGL scene stays visible behind
+   the expanded post. Theme-specific modal-inner keeps its own background. */
+.post-modal { background:rgba(0,0,0,0.55) !important; backdrop-filter:blur(6px) !important; }
+/* Content area max-width across all themes */
+.overlay { max-width:1200px; margin-left:auto; margin-right:auto; }
 </style>
 <div class="post-modal" id="post-modal">
     <div class="modal-inner">

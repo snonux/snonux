@@ -14,7 +14,7 @@ var themeRegistry = map[string]string{
 	"matrix":    matrixTemplate,
 	"ocean":     oceanTemplate,
 	"retro":     retroTemplate,
-	"glass":     glassTemplate,
+	"cosmos":    cosmosTemplate,  // replaced "glass" — ringed planet, nebula, asteroids
 }
 
 // getTheme returns the HTML template string for the given theme name.

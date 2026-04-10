@@ -1,7 +1,8 @@
 package generator
 
-// oceanTemplate is a deep-ocean theme — dark navy/midnight blue background,
-// WebGL animated wave surface with per-vertex sine displacement, teal/aqua accents.
+// oceanTemplate is a deep-ocean theme — dramatic animated wave surface with
+// sea rock formations, bioluminescent jellyfish, rising bubble particles,
+// and a whale silhouette cruising through the depths.
 const oceanTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -51,11 +52,10 @@ const oceanTemplate = `<!DOCTYPE html>
         .post-text a:hover { text-shadow:0 0 8px var(--teal); }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
-                      background:rgba(3,4,94,0.96); backdrop-filter:blur(20px);
                       overflow-y:auto; padding:40px 20px; }
         .post-modal.active { display:block; }
-        .modal-inner { max-width:760px; margin:0 auto; background:rgba(2,30,80,0.98);
-                       border:1px solid var(--teal); border-radius:12px;
+        .modal-inner { max-width:760px; margin:0 auto; background:rgba(2,30,80,0.92);
+                       border:1px solid var(--teal); border-radius:12px; backdrop-filter:blur(16px);
                        box-shadow:0 0 60px rgba(0,180,216,0.3); padding:40px; }
         .modal-close { float:right; background:none; border:none; color:var(--teal);
                        font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
@@ -94,19 +94,96 @@ const oceanTemplate = `<!DOCTYPE html>
     </div>
     {{template "navmodal" .}}
     <script>
-    // Ocean WebGL: a large PlaneGeometry wave surface whose vertices are displaced
-    // each frame by two overlapping sine functions, lit by a moving teal point light.
+    // Ocean WebGL: dramatic wave surface + sea rock spires + bioluminescent
+    // jellyfish + rising bubbles + a slow whale cruising the deep.
     (function() {
         var scene, camera, renderer, clock;
-        var waveMesh, waveGeo, pointLight;
+        var waveGeo, waveMesh, sunLight;
+        var whale, jellyfish = [];
+        var BUBBLE_COUNT = 600;
+        var bubblePos, bubbleVY;
+
+        function buildWaves() {
+            // High-density plane for smooth vertex displacement
+            waveGeo = new THREE.PlaneGeometry(300, 300, 100, 100);
+            waveMesh = new THREE.Mesh(waveGeo, new THREE.MeshPhongMaterial({
+                color: 0x0077b6, emissive: 0x023e8a, emissiveIntensity: 0.25,
+                transparent: true, opacity: 0.88, side: THREE.DoubleSide, shininess: 80
+            }));
+            waveMesh.rotation.x = -Math.PI / 2;
+            waveMesh.position.y = 0;
+            scene.add(waveMesh);
+        }
+
+        function buildRocks() {
+            // 5 jagged sea rock spires poking above the wave baseline
+            var rockPositions = [[-30,0,-30],[20,-2,-20],[-15,2,-45],[35,-1,-35],[-45,1,-25]];
+            rockPositions.forEach(function(p) {
+                var h = 8 + Math.random() * 10;
+                var rock = new THREE.Mesh(
+                    new THREE.ConeGeometry(2 + Math.random(), h, 6),
+                    new THREE.MeshPhongMaterial({ color: 0x023e8a, emissive: 0x00b4d8, emissiveIntensity: 0.15 })
+                );
+                rock.position.set(p[0], p[1] + h / 2 - 3, p[2]);
+                scene.add(rock);
+            });
+        }
+
+        function buildJellyfish() {
+            // Bioluminescent jellyfish: torus body + cone cap, additive blending
+            var jPos = [[-12, 6,-15],[18,10,-22],[-25,4,-18],[8,8,-30]];
+            jPos.forEach(function(p) {
+                var body = new THREE.Mesh(
+                    new THREE.TorusGeometry(2.2, 0.5, 12, 24),
+                    new THREE.MeshBasicMaterial({ color: 0x48cae4, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false })
+                );
+                var cap = new THREE.Mesh(
+                    new THREE.SphereGeometry(2.2, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+                    new THREE.MeshBasicMaterial({ color: 0x00b4d8, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+                );
+                cap.position.y = 0.5;
+                body.add(cap);
+                body.position.set(p[0], p[1], p[2]);
+                jellyfish.push({ mesh: body, baseY: p[1], phase: Math.random() * Math.PI * 2 });
+                scene.add(body);
+            });
+        }
+
+        function buildWhale() {
+            // Dark elongated flattened sphere — whale silhouette in the deep
+            var geo = new THREE.SphereGeometry(1, 16, 8);
+            whale = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x011f40, transparent: true, opacity: 0.7 }));
+            whale.scale.set(12, 3, 5);
+            whale.position.set(-60, -8, -20);
+            scene.add(whale);
+        }
+
+        function buildBubbles() {
+            bubblePos = new Float32Array(BUBBLE_COUNT * 3);
+            bubbleVY  = new Float32Array(BUBBLE_COUNT);
+            for (var i = 0; i < BUBBLE_COUNT; i++) {
+                bubblePos[i*3]   = (Math.random() - 0.5) * 100;
+                bubblePos[i*3+1] = -15 - Math.random() * 15;
+                bubblePos[i*3+2] = (Math.random() - 0.5) * 60 - 10;
+                bubbleVY[i] = 0.04 + Math.random() * 0.06;
+            }
+            var geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(bubblePos, 3));
+            scene.add(new THREE.Points(geo, new THREE.PointsMaterial({
+                color: 0xcaf0f8, size: 0.18, transparent: true, opacity: 0.6
+            })));
+            return geo;
+        }
+
+        var bubbleGeo;
 
         function initThree() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x03045e);
-            scene.fog = new THREE.Fog(0x03045e, 30, 120);
+            scene.fog = new THREE.Fog(0x03045e, 40, 130);
 
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
-            camera.position.set(0, 25, 50);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 220);
+            camera.position.set(0, 20, 55);
             camera.lookAt(0, 0, 0);
 
             renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
@@ -114,21 +191,19 @@ const oceanTemplate = `<!DOCTYPE html>
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             clock = new THREE.Clock();
 
-            // Wave surface — high segment count so vertex displacement looks smooth
-            waveGeo = new THREE.PlaneGeometry(200, 200, 80, 80);
-            waveMesh = new THREE.Mesh(waveGeo, new THREE.MeshPhongMaterial({
-                color: 0x0077b6, emissive: 0x023e8a, emissiveIntensity: 0.3,
-                transparent: true, opacity: 0.85, side: THREE.DoubleSide
-            }));
-            waveMesh.rotation.x = -Math.PI / 2;
-            waveMesh.position.y = -5;
-            scene.add(waveMesh);
+            scene.add(new THREE.AmbientLight(0x023e8a, 0.5));
+            sunLight = new THREE.PointLight(0x48cae4, 2.5, 100);
+            sunLight.position.set(0, 30, 10);
+            scene.add(sunLight);
+            var deepLight = new THREE.PointLight(0x0077b6, 1.5, 60);
+            deepLight.position.set(0, -10, 0);
+            scene.add(deepLight);
 
-            // Moving teal light circling above the wave
-            pointLight = new THREE.PointLight(0x48cae4, 2, 80);
-            pointLight.position.set(0, 20, 10);
-            scene.add(pointLight);
-            scene.add(new THREE.AmbientLight(0x023e8a, 0.6));
+            buildWaves();
+            buildRocks();
+            buildJellyfish();
+            buildWhale();
+            bubbleGeo = buildBubbles();
 
             window.addEventListener('resize', onResize);
             animate();
@@ -145,21 +220,44 @@ const oceanTemplate = `<!DOCTYPE html>
             var t = clock.getElapsedTime();
             var pos = waveGeo.attributes.position;
 
-            // Two overlapping sine waves produce realistic ocean surface chop
+            // Dramatic overlapping waves — larger amplitude than before
             for (var i = 0; i < pos.count; i++) {
-                var x = pos.getX(i);
-                var z = pos.getZ(i);
+                var x = pos.getX(i), z = pos.getZ(i);
                 pos.setY(i,
-                    Math.sin(x * 0.05 + t * 1.2) * 1.8 +
-                    Math.cos(z * 0.07 + t * 0.9) * 1.4
+                    Math.sin(x * 0.04 + t * 1.1) * 3.2 +
+                    Math.cos(z * 0.06 + t * 0.85) * 2.4 +
+                    Math.sin((x + z) * 0.025 + t * 0.6) * 1.5
                 );
             }
             pos.needsUpdate = true;
             waveGeo.computeVertexNormals();
 
-            // Light orbits lazily
-            pointLight.position.x = Math.cos(t * 0.3) * 30;
-            pointLight.position.z = Math.sin(t * 0.3) * 30;
+            // Jellyfish bob and slowly drift horizontally
+            jellyfish.forEach(function(j) {
+                j.mesh.position.y = j.baseY + Math.sin(t * 0.8 + j.phase) * 1.2;
+                j.mesh.position.x += 0.005 * Math.sin(t * 0.3 + j.phase);
+                j.mesh.rotation.y += 0.006;
+            });
+
+            // Whale cruises across at depth, wraps around
+            whale.position.x += 0.04;
+            if (whale.position.x > 80) whale.position.x = -80;
+            whale.position.y = -8 + Math.sin(t * 0.15) * 2;
+
+            // Rising bubbles — reset when they reach the surface
+            var bp = bubbleGeo.attributes.position;
+            for (var bi = 0; bi < BUBBLE_COUNT; bi++) {
+                bubblePos[bi*3+1] += bubbleVY[bi];
+                if (bubblePos[bi*3+1] > 8) {
+                    bubblePos[bi*3]   = (Math.random() - 0.5) * 100;
+                    bubblePos[bi*3+1] = -15 - Math.random() * 10;
+                }
+            }
+            bp.needsUpdate = true;
+
+            // Sunlight orbits above
+            sunLight.position.x = Math.cos(t * 0.2) * 35;
+            sunLight.position.z = Math.sin(t * 0.2) * 35;
 
             renderer.render(scene, camera);
         }

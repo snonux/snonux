@@ -1,8 +1,8 @@
 package generator
 
-// volcanoTemplate is a dark volcanic theme — ember and spark particles rise from
-// below the screen, glowing orange/red/yellow with additive blending, set against
-// a deep dark-rock background with a warm lava glow at the horizon.
+// volcanoTemplate is a dark volcanic theme — rising ember particles, a glowing
+// lava plane at the base, molten rock boulders, smoke plumes, and a deep
+// underground furnace glow on the horizon.
 const volcanoTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -52,11 +52,10 @@ const volcanoTemplate = `<!DOCTYPE html>
         .post-text a:hover { text-shadow:0 0 8px var(--lava); }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
-                      background:rgba(13,8,2,0.96); backdrop-filter:blur(20px);
                       overflow-y:auto; padding:40px 20px; }
         .post-modal.active { display:block; }
-        .modal-inner { max-width:760px; margin:0 auto; background:rgba(20,8,2,0.98);
-                       border:1px solid var(--lava); border-radius:10px;
+        .modal-inner { max-width:760px; margin:0 auto; background:rgba(20,8,2,0.92);
+                       border:1px solid var(--lava); border-radius:10px; backdrop-filter:blur(16px);
                        box-shadow:0 0 60px rgba(255,68,0,0.3); padding:40px; }
         .modal-close { float:right; background:none; border:none; color:var(--ember);
                        font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
@@ -95,63 +94,128 @@ const volcanoTemplate = `<!DOCTYPE html>
     </div>
     {{template "navmodal" .}}
     <script>
-    // Volcano WebGL: 2000 ember particles emitted from the bottom, rising with
-    // drift and fade. Each particle has a randomised lifetime, speed, and hue
-    // shifting from hot yellow through orange to red as it rises and cools.
+    // Volcano WebGL: glowing lava floor, molten rock boulders, smoke plumes,
+    // underground furnace glow sphere, and 3000 rising ember particles.
     (function() {
-        var N = 2000;
+        var N_EMBER = 3000;
+        var N_SMOKE = 800;
         var scene, camera, renderer, clock;
-        var points;
-        var posArr, colArr, alpArr;
+        var emberPoints, smokePoints;
+        var ePosArr, eColArr, sPosArr;
+        var ePX, ePY, ePZ, eVX, eVY, eLife, eMaxLife;
+        var sPX, sPY, sPZ, sSVY, sSLife, sSMaxLife;
+        var lavaGeo, lavaFloor;
 
-        // Per-particle state
-        var px = new Float32Array(N);
-        var py = new Float32Array(N);
-        var pz = new Float32Array(N);
-        var vx = new Float32Array(N); // horizontal drift
-        var vy = new Float32Array(N); // rise speed
-        var life = new Float32Array(N);   // 0..1, resets at 0
-        var maxLife = new Float32Array(N);
+        function resetEmber(i) {
+            ePX[i] = (Math.random() - 0.5) * 70;
+            ePY[i] = -22 + (Math.random() - 0.5) * 4;
+            ePZ[i] = (Math.random() - 0.5) * 30 - 5;
+            eVX[i] = (Math.random() - 0.5) * 0.08;
+            eVY[i] = 0.07 + Math.random() * 0.14;
+            eMaxLife[i] = 0.4 + Math.random() * 0.6;
+            eLife[i] = Math.random();
+        }
 
-        function resetParticle(i) {
-            // Spawn along a wide base strip at the bottom
-            px[i] = (Math.random() - 0.5) * 60;
-            py[i] = -25 + (Math.random() - 0.5) * 4;
-            pz[i] = (Math.random() - 0.5) * 20 - 5;
-            vx[i] = (Math.random() - 0.5) * 0.06;
-            vy[i] = 0.06 + Math.random() * 0.12;
-            maxLife[i] = 0.5 + Math.random() * 0.5;
-            life[i] = Math.random(); // stagger initial phases
+        function resetSmoke(i) {
+            sPX[i] = (Math.random() - 0.5) * 40;
+            sPY[i] = -18 + Math.random() * 5;
+            sPZ[i] = (Math.random() - 0.5) * 20 - 5;
+            sSVY[i] = 0.015 + Math.random() * 0.025;
+            sSMaxLife[i] = 1.5 + Math.random() * 2.0;
+            sSLife[i] = Math.random();
+        }
+
+        function buildLavaFloor() {
+            lavaGeo = new THREE.PlaneGeometry(200, 200, 60, 60);
+            lavaFloor = new THREE.Mesh(lavaGeo, new THREE.MeshPhongMaterial({
+                color: 0x8b1000, emissive: 0xff2200, emissiveIntensity: 0.6,
+                shininess: 120
+            }));
+            lavaFloor.rotation.x = -Math.PI / 2;
+            lavaFloor.position.y = -22;
+            scene.add(lavaFloor);
+        }
+
+        function buildBoulders() {
+            // Molten rock boulders with glowing emissive cores
+            var boulderData = [
+                [-18,-16,-15, 5], [20,-15,-20, 7], [-8,-14,-30, 4],
+                [30,-16,-12, 6], [-28,-15,-25, 5]
+            ];
+            boulderData.forEach(function(b) {
+                var mesh = new THREE.Mesh(
+                    new THREE.IcosahedronGeometry(b[3], 1),
+                    new THREE.MeshPhongMaterial({ color: 0x1a0500, emissive: 0xff4400, emissiveIntensity: 0.7, shininess: 20 })
+                );
+                mesh.position.set(b[0], b[1], b[2]);
+                mesh.rotation.set(Math.random(), Math.random(), Math.random());
+                scene.add(mesh);
+            });
+        }
+
+        function buildFurnaceGlow() {
+            // Underground furnace: massive low-opacity emissive sphere below the lava
+            var glow = new THREE.Mesh(
+                new THREE.SphereGeometry(45, 16, 16),
+                new THREE.MeshBasicMaterial({ color: 0xff3300, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false })
+            );
+            glow.position.set(0, -60, -30);
+            scene.add(glow);
+        }
+
+        function buildParticles() {
+            ePX = new Float32Array(N_EMBER); ePY = new Float32Array(N_EMBER);
+            ePZ = new Float32Array(N_EMBER); eVX = new Float32Array(N_EMBER);
+            eVY = new Float32Array(N_EMBER); eLife = new Float32Array(N_EMBER);
+            eMaxLife = new Float32Array(N_EMBER);
+            ePosArr = new Float32Array(N_EMBER * 3);
+            eColArr = new Float32Array(N_EMBER * 3);
+            for (var i = 0; i < N_EMBER; i++) resetEmber(i);
+            var eGeo = new THREE.BufferGeometry();
+            eGeo.setAttribute('position', new THREE.BufferAttribute(ePosArr, 3));
+            eGeo.setAttribute('color',    new THREE.BufferAttribute(eColArr, 3));
+            emberPoints = new THREE.Points(eGeo, new THREE.PointsMaterial({
+                size: 0.3, vertexColors: true,
+                transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false
+            }));
+            scene.add(emberPoints);
+
+            sPX = new Float32Array(N_SMOKE); sPY = new Float32Array(N_SMOKE);
+            sPZ = new Float32Array(N_SMOKE); sSVY = new Float32Array(N_SMOKE);
+            sSLife = new Float32Array(N_SMOKE); sSMaxLife = new Float32Array(N_SMOKE);
+            sPosArr = new Float32Array(N_SMOKE * 3);
+            for (var j = 0; j < N_SMOKE; j++) resetSmoke(j);
+            var sGeo = new THREE.BufferGeometry();
+            sGeo.setAttribute('position', new THREE.BufferAttribute(sPosArr, 3));
+            smokePoints = new THREE.Points(sGeo, new THREE.PointsMaterial({
+                color: 0x444444, size: 1.8, transparent: true, opacity: 0.15, depthWrite: false
+            }));
+            scene.add(smokePoints);
         }
 
         function initThree() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x0d0802);
-            scene.fog = new THREE.Fog(0x0d0802, 30, 80);
+            scene.fog = new THREE.Fog(0x0d0802, 35, 100);
 
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 120);
-            camera.position.set(0, 0, 45);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 150);
+            camera.position.set(0, 8, 50);
+            camera.lookAt(0, -5, 0);
 
             renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: false });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             clock = new THREE.Clock();
 
-            posArr = new Float32Array(N * 3);
-            colArr = new Float32Array(N * 3);
+            scene.add(new THREE.AmbientLight(0x220800, 1.0));
+            var lavaLight = new THREE.PointLight(0xff4400, 4, 80);
+            lavaLight.position.set(0, -15, 0);
+            scene.add(lavaLight);
 
-            for (var i = 0; i < N; i++) resetParticle(i);
-
-            var geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
-            geo.setAttribute('color',    new THREE.BufferAttribute(colArr, 3));
-
-            points = new THREE.Points(geo, new THREE.PointsMaterial({
-                size: 0.25, vertexColors: true,
-                transparent: true, opacity: 0.9,
-                blending: THREE.AdditiveBlending, depthWrite: false
-            }));
-            scene.add(points);
+            buildLavaFloor();
+            buildBoulders();
+            buildFurnaceGlow();
+            buildParticles();
 
             window.addEventListener('resize', onResize);
             animate();
@@ -166,29 +230,44 @@ const volcanoTemplate = `<!DOCTYPE html>
         function animate() {
             requestAnimationFrame(animate);
             var dt = clock.getDelta();
+            var t  = clock.getElapsedTime();
 
-            for (var i = 0; i < N; i++) {
-                life[i] += dt / maxLife[i];
-                if (life[i] > 1.0) resetParticle(i);
+            // Pulse the lava floor emissive intensity
+            lavaFloor.material.emissiveIntensity = 0.4 + 0.25 * Math.sin(t * 1.8);
 
-                py[i] += vy[i];
-                px[i] += vx[i];
-
-                var idx = i * 3;
-                posArr[idx]   = px[i];
-                posArr[idx+1] = py[i];
-                posArr[idx+2] = pz[i];
-
-                // Colour: young embers are yellow/hot, older ones shift to orange then red
-                var t = life[i];
-                var fade = Math.max(0, 1 - t * 1.4);
-                colArr[idx]   = fade;                            // R: always full
-                colArr[idx+1] = fade * Math.max(0, 1 - t * 2); // G: fades fast
-                colArr[idx+2] = 0;                              // B: never
+            // Animate lava floor vertices
+            var lp = lavaGeo.attributes.position;
+            for (var i = 0; i < lp.count; i++) {
+                var lx = lp.getX(i), lz = lp.getZ(i);
+                lp.setY(i, Math.sin(lx * 0.08 + t * 0.7) * 0.8 + Math.cos(lz * 0.1 + t * 0.5) * 0.6);
             }
+            lp.needsUpdate = true;
 
-            points.geometry.attributes.position.needsUpdate = true;
-            points.geometry.attributes.color.needsUpdate    = true;
+            // Embers
+            for (var ei = 0; ei < N_EMBER; ei++) {
+                eLife[ei] += dt / eMaxLife[ei];
+                if (eLife[ei] > 1.0) resetEmber(ei);
+                ePY[ei] += eVY[ei];
+                ePX[ei] += eVX[ei];
+                var idx = ei * 3, te = eLife[ei];
+                ePosArr[idx] = ePX[ei]; ePosArr[idx+1] = ePY[ei]; ePosArr[idx+2] = ePZ[ei];
+                var fade = Math.max(0, 1 - te * 1.3);
+                eColArr[idx] = fade; eColArr[idx+1] = fade * Math.max(0, 1 - te * 2.2); eColArr[idx+2] = 0;
+            }
+            emberPoints.geometry.attributes.position.needsUpdate = true;
+            emberPoints.geometry.attributes.color.needsUpdate    = true;
+
+            // Smoke
+            for (var si = 0; si < N_SMOKE; si++) {
+                sSLife[si] += dt / sSMaxLife[si];
+                if (sSLife[si] > 1.0) resetSmoke(si);
+                sPY[si] += sSVY[si];
+                sPX[si] += (Math.random() - 0.5) * 0.04;
+                var si3 = si * 3;
+                sPosArr[si3] = sPX[si]; sPosArr[si3+1] = sPY[si]; sPosArr[si3+2] = sPZ[si];
+            }
+            smokePoints.geometry.attributes.position.needsUpdate = true;
+
             renderer.render(scene, camera);
         }
 

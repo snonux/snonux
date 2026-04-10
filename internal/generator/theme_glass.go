@@ -1,72 +1,66 @@
 package generator
 
-// glassTemplate is a glassmorphism theme — semi-transparent frosted panels over
-// a WebGL background of slowly drifting crystal icosahedron shards.
-// CSS gradient blobs are replaced by the WebGL scene.
-const glassTemplate = `<!DOCTYPE html>
+// cosmosTemplate is a deep-space theme — a large ringed planet dominates the
+// background, surrounded by swirling nebula clouds, an asteroid belt, and
+// thousands of stars. Dark navy-black palette with golden/purple accents.
+const cosmosTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>snonux.foo · glass</title>
+    <title>snonux.foo ✧ COSMOS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
-        :root { --blue:#6366f1; --purple:#a855f7; --pink:#ec4899; --text:#1e1b4b; }
+        :root { --gold:#ffd166; --purple:#9b5de5; --blue:#4cc9f0; --bg:#020214; }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; height:100vh;
-               background:#f0f4ff; color:var(--text); }
+        body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg);
+               color:#d4e8ff; overflow:hidden; height:100vh; }
         #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
         .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
-        header { padding:16px 28px; background:rgba(255,255,255,0.55); backdrop-filter:blur(20px);
-                 border-bottom:1px solid rgba(255,255,255,0.6); display:flex; align-items:center; justify-content:space-between;
-                 box-shadow:0 2px 12px rgba(99,102,241,0.08); }
+        header { padding:16px 28px; background:rgba(2,2,20,0.78); backdrop-filter:blur(14px);
+                 border-bottom:1px solid rgba(255,209,102,0.2); display:flex; align-items:center; justify-content:space-between; }
         .logo { display:flex; align-items:center; gap:14px; }
         .logo-mark { font-size:2rem; font-weight:800;
-                     background:linear-gradient(135deg,var(--blue),var(--purple));
+                     background:linear-gradient(90deg,var(--gold),var(--purple));
                      -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-        .logo-title h1 { font-size:1.5rem; font-weight:700; color:var(--text); }
-        .logo-title .subtitle { font-size:0.75rem; color:#6b7280; margin-top:1px; }
-        .logo-title .subtitle a { color:var(--blue); text-decoration:none; }
-        .logo-title .subtitle a:hover { text-decoration:underline; }
-        .transmit-btn { border:1px solid rgba(99,102,241,0.4); color:var(--blue); padding:9px 20px;
-                        border-radius:20px; text-decoration:none; font-size:0.85rem;
-                        background:rgba(255,255,255,0.5); backdrop-filter:blur(8px); transition:all 0.2s; }
-        .transmit-btn:hover { background:var(--blue); color:#fff; border-color:var(--blue); }
-        .nav-hints { background:rgba(255,255,255,0.35); backdrop-filter:blur(10px);
-                     border-bottom:1px solid rgba(255,255,255,0.5); color:#6b7280;
-                     padding:4px 28px; display:flex; gap:18px; font-size:0.68rem; flex-wrap:wrap; }
-        .nav-hints kbd { background:rgba(255,255,255,0.7); border:1px solid rgba(99,102,241,0.25);
-                         color:var(--blue); border-radius:4px; padding:0 5px; margin:0 2px; font-size:0.68rem; }
+        .logo-title h1 { font-size:1.5rem; font-weight:700; color:#d4e8ff; }
+        .logo-title .subtitle { font-size:0.75rem; color:rgba(212,232,255,0.5); margin-top:2px; }
+        .logo-title .subtitle a { color:var(--gold); text-decoration:none; }
+        .logo-title .subtitle a:hover { text-shadow:0 0 8px var(--gold); }
+        .transmit-btn { border:1px solid var(--gold); color:var(--gold); padding:9px 20px;
+                        border-radius:20px; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
+        .transmit-btn:hover { background:var(--gold); color:var(--bg); }
+        .nav-hints { background:rgba(2,2,20,0.6); border-bottom:1px solid rgba(255,209,102,0.12);
+                     color:rgba(212,232,255,0.4); padding:5px 28px; display:flex; gap:18px;
+                     font-size:0.68rem; flex-wrap:wrap; }
+        .nav-hints kbd { background:rgba(255,209,102,0.1); border:1px solid rgba(255,209,102,0.3);
+                         color:var(--gold); border-radius:3px; padding:0 5px; margin:0 2px; }
         .content { flex:1; overflow-y:auto; padding:20px 28px;
-                   scrollbar-width:thin; scrollbar-color:rgba(99,102,241,0.4) transparent; }
+                   scrollbar-width:thin; scrollbar-color:var(--purple) var(--bg); }
         .page-nav { display:flex; justify-content:center; margin:14px 0; }
-        .page-nav a { border:1px solid rgba(99,102,241,0.35); color:var(--blue); padding:8px 20px;
-                      border-radius:20px; text-decoration:none; font-size:0.82rem;
-                      background:rgba(255,255,255,0.45); backdrop-filter:blur(8px); }
-        .page-nav a:hover { background:var(--blue); color:#fff; }
-        .post { background:rgba(255,255,255,0.45); backdrop-filter:blur(18px);
-                border:1px solid rgba(255,255,255,0.6); border-radius:14px;
-                padding:22px; margin-bottom:14px; cursor:pointer;
-                box-shadow:0 4px 20px rgba(99,102,241,0.08); transition:all 0.25s; }
-        .post:hover { background:rgba(255,255,255,0.6); box-shadow:0 8px 30px rgba(99,102,241,0.18); transform:translateY(-2px); }
-        .post-active { border-color:var(--blue) !important; background:rgba(238,240,255,0.75) !important;
-                       box-shadow:0 0 0 2px rgba(99,102,241,0.3),0 8px 30px rgba(99,102,241,0.2),
-                                  inset 3px 0 0 var(--blue) !important; }
+        .page-nav a { border:1px solid var(--purple); color:var(--purple); padding:8px 20px;
+                      border-radius:20px; text-decoration:none; font-size:0.82rem; }
+        .page-nav a:hover { background:var(--purple); color:#fff; }
+        .post { background:rgba(5,5,30,0.72); border:1px solid rgba(155,93,229,0.22); border-radius:10px;
+                padding:20px; margin-bottom:14px; cursor:pointer;
+                transition:all 0.25s; backdrop-filter:blur(6px); }
+        .post:hover { border-color:var(--gold); box-shadow:0 0 22px rgba(255,209,102,0.18); transform:translateY(-2px); }
+        .post-active { border-color:var(--gold) !important; background:rgba(10,5,35,0.9) !important;
+                       box-shadow:0 0 28px rgba(255,209,102,0.35),inset 3px 0 0 var(--gold) !important; }
         .post-header { display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.88rem; }
-        .post-time { color:#9ca3af; font-family:monospace; font-size:0.8rem; }
+        .post-time { color:var(--blue); font-family:monospace; font-size:0.8rem; }
         .post-text { line-height:1.65; font-size:0.95rem; }
         .post-text a { color:var(--blue); text-decoration:none; }
-        .post-text a:hover { text-decoration:underline; }
+        .post-text a:hover { text-shadow:0 0 8px var(--blue); }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
-                      background:rgba(240,244,255,0.85); backdrop-filter:blur(28px);
                       overflow-y:auto; padding:40px 20px; }
         .post-modal.active { display:block; }
-        .modal-inner { max-width:760px; margin:0 auto; background:rgba(255,255,255,0.7);
-                       backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.75);
-                       border-radius:16px; box-shadow:0 20px 60px rgba(99,102,241,0.18); padding:40px; }
-        .modal-close { float:right; background:none; border:none; color:#9ca3af;
-                       font-size:0.9rem; cursor:pointer; }
+        .modal-inner { max-width:760px; margin:0 auto; background:rgba(5,5,30,0.92);
+                       border:1px solid var(--gold); border-radius:12px;
+                       box-shadow:0 0 60px rgba(255,209,102,0.25); padding:40px; backdrop-filter:blur(16px); }
+        .modal-close { float:right; background:none; border:none; color:var(--gold);
+                       font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} }
     </style>
 </head>
@@ -102,59 +96,118 @@ const glassTemplate = `<!DOCTYPE html>
     </div>
     {{template "navmodal" .}}
     <script>
-    // Glass WebGL: 8 crystal icosahedron shards, each rendered as a semi-transparent
-    // solid mesh with a wireframe overlay, drifting and rotating slowly in the light bg.
-    // alpha:true so the light body background (#f0f4ff) shows through the canvas.
+    // Cosmos WebGL: ringed planet, swirling nebula blobs, asteroid belt, and stars.
+    // The planet sits at lower-right and slowly rotates; asteroids orbit it;
+    // nebula clouds drift with additive blending for a deep-space glow.
     (function() {
         var scene, camera, renderer, clock;
-        var shards = [];
+        var planet, planetRings = [];
+        var asteroids = [];
+        var ASTEROID_COUNT = 300;
+        var asteroidAngles, asteroidRadii, asteroidSpeeds, asteroidY;
+
+        function buildPlanet() {
+            // Planet body — warm golden tone
+            planet = new THREE.Mesh(
+                new THREE.SphereGeometry(14, 48, 48),
+                new THREE.MeshPhongMaterial({
+                    color: 0xc8853a, emissive: 0x3a1800, emissiveIntensity: 0.4, shininess: 60
+                })
+            );
+            planet.position.set(28, -18, -55);
+            scene.add(planet);
+
+            // Ring system — 5 tilted torus rings in gold/purple
+            var ringCols = [0xffd166, 0xc07c30, 0xffd166, 0x9b5de5, 0xffd166];
+            for (var i = 0; i < 5; i++) {
+                var ring = new THREE.Mesh(
+                    new THREE.TorusGeometry(18 + i * 2.5, 0.5 - i * 0.06, 8, 128),
+                    new THREE.MeshBasicMaterial({ color: ringCols[i], transparent: true, opacity: 0.55 - i * 0.08, side: THREE.DoubleSide })
+                );
+                ring.position.copy(planet.position);
+                ring.rotation.x = Math.PI / 2.4;
+                ring.rotation.z = 0.2;
+                scene.add(ring);
+                planetRings.push(ring);
+            }
+        }
+
+        function buildNebula() {
+            // Large translucent additive blobs for the nebula cloud
+            var nCols = [0x9b5de5, 0x4cc9f0, 0x7b2fff, 0x4cc9f0, 0x9b5de5];
+            var nPos  = [[-30,20,-80],[-10,-10,-90],[20,30,-70],[-20,-25,-95],[10,15,-85]];
+            nCols.forEach(function(c, i) {
+                var mesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(22 + i * 4, 16, 16),
+                    new THREE.MeshBasicMaterial({
+                        color: c, transparent: true, opacity: 0.09,
+                        blending: THREE.AdditiveBlending, depthWrite: false
+                    })
+                );
+                mesh.position.set(nPos[i][0], nPos[i][1], nPos[i][2]);
+                scene.add(mesh);
+            });
+        }
+
+        function buildAsteroids() {
+            asteroidAngles = new Float32Array(ASTEROID_COUNT);
+            asteroidRadii  = new Float32Array(ASTEROID_COUNT);
+            asteroidSpeeds = new Float32Array(ASTEROID_COUNT);
+            asteroidY      = new Float32Array(ASTEROID_COUNT);
+
+            var geo = new THREE.BufferGeometry();
+            var pos = new Float32Array(ASTEROID_COUNT * 3);
+            for (var i = 0; i < ASTEROID_COUNT; i++) {
+                asteroidAngles[i] = Math.random() * Math.PI * 2;
+                asteroidRadii[i]  = 20 + Math.random() * 12;
+                asteroidSpeeds[i] = 0.003 + Math.random() * 0.004;
+                asteroidY[i]      = (Math.random() - 0.5) * 3;
+                pos[i*3] = pos[i*3+1] = pos[i*3+2] = 0;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            asteroids = new THREE.Points(geo, new THREE.PointsMaterial({
+                color: 0xaaaaaa, size: 0.3, transparent: true, opacity: 0.7
+            }));
+            // Asteroids orbit the planet — they live in planet-relative coords
+            planet.add(asteroids);
+        }
+
+        function buildStars() {
+            var pos = new Float32Array(2500 * 3);
+            for (var i = 0; i < 2500 * 3; i += 3) {
+                var r = 100 + Math.random() * 80, t = Math.random() * Math.PI * 2, p = Math.acos(2 * Math.random() - 1);
+                pos[i]   = r * Math.sin(p) * Math.cos(t);
+                pos[i+1] = r * Math.sin(p) * Math.sin(t);
+                pos[i+2] = r * Math.cos(p);
+            }
+            var geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, transparent: true, opacity: 0.85 })));
+        }
 
         function initThree() {
             scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020214);
+            scene.fog = new THREE.Fog(0x020214, 80, 200);
 
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
-            camera.position.set(0, 0, 40);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 300);
+            camera.position.set(0, 6, 38);
+            camera.lookAt(0, 0, 0);
 
-            renderer = new THREE.WebGLRenderer({
-                canvas: document.getElementById('three-canvas'),
-                antialias: true, alpha: true
-            });
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.setClearColor(0xf0f4ff, 1);
             clock = new THREE.Clock();
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-            var pl = new THREE.PointLight(0x7c3aed, 2, 80);
-            pl.position.set(10, 10, 10);
-            scene.add(pl);
+            scene.add(new THREE.AmbientLight(0x4cc9f0, 0.4));
+            var sun = new THREE.PointLight(0xffd166, 3, 300);
+            sun.position.set(-60, 40, 30);
+            scene.add(sun);
 
-            var colors  = [0x6366f1, 0xa855f7, 0xec4899, 0x6366f1, 0x818cf8, 0xc084fc, 0xf472b6, 0x6366f1];
-            var sizes   = [5, 3.5, 2.5, 4, 3, 2, 4.5, 2.2];
-            var details = [2, 1, 0, 2, 1, 0, 1, 2];
-            var positions = [
-                [-12, 6,-8], [14,-4,-12], [0,12,-6], [-8,-10,-15],
-                [16, 8,-4], [-14,2,-10], [6,-8,-5], [-4,10,-14]
-            ];
-
-            for (var i = 0; i < 8; i++) {
-                var geo = new THREE.IcosahedronGeometry(sizes[i], details[i]);
-                var solid = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
-                    color: colors[i], transparent: true, opacity: 0.12, side: THREE.DoubleSide
-                }));
-                var wire = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-                    color: colors[i], wireframe: true, transparent: true, opacity: 0.28
-                }));
-                solid.position.set(positions[i][0], positions[i][1], positions[i][2]);
-                wire.position.copy(solid.position);
-
-                var rx = (Math.random() - 0.5) * 0.004;
-                var ry = (Math.random() - 0.5) * 0.006;
-                var rz = (Math.random() - 0.5) * 0.003;
-                shards.push({ solid: solid, wire: wire, rx: rx, ry: ry, rz: rz });
-                scene.add(solid);
-                scene.add(wire);
-            }
+            buildPlanet();
+            buildNebula();
+            buildAsteroids();
+            buildStars();
 
             window.addEventListener('resize', onResize);
             animate();
@@ -168,10 +221,23 @@ const glassTemplate = `<!DOCTYPE html>
 
         function animate() {
             requestAnimationFrame(animate);
-            shards.forEach(function(s) {
-                s.solid.rotation.x += s.rx; s.solid.rotation.y += s.ry; s.solid.rotation.z += s.rz;
-                s.wire.rotation.copy(s.solid.rotation);
-            });
+            var t = clock.getElapsedTime();
+
+            planet.rotation.y += 0.0015;
+
+            // Update asteroid belt positions
+            var pos = asteroids.geometry.attributes.position;
+            for (var i = 0; i < ASTEROID_COUNT; i++) {
+                asteroidAngles[i] += asteroidSpeeds[i];
+                var a = asteroidAngles[i], r = asteroidRadii[i];
+                pos.setXYZ(i, Math.cos(a) * r, asteroidY[i], Math.sin(a) * r);
+            }
+            pos.needsUpdate = true;
+
+            // Camera orbits gently
+            camera.position.x = Math.sin(t * 0.06) * 6;
+            camera.position.y = 6 + Math.sin(t * 0.04) * 2;
+
             renderer.render(scene, camera);
         }
 

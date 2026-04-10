@@ -323,7 +323,7 @@ func TestKeyboardNavJS(t *testing.T) {
 // index.html containing core structural elements (post text, nav script).
 func TestThemeSelection(t *testing.T) {
 	themes := []string{
-		"aurora", "brutalist", "glass", "matrix", "neon",
+		"aurora", "brutalist", "cosmos", "matrix", "neon",
 		"ocean", "plasma", "retro", "synthwave", "terminal", "volcano",
 	}
 

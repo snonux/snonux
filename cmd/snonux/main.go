@@ -41,7 +41,7 @@ func parseFlags() (*config.Config, error) {
 	flag.StringVar(&cfg.InputDir, "input", "./inbox", "directory containing new source files to process")
 	flag.StringVar(&cfg.OutputDir, "output", "~/git/snonux.foo/dist", "root directory for generated static site output")
 	flag.StringVar(&cfg.BaseURL, "base-url", "https://snonux.foo", "canonical base URL used in Atom feed links")
-	flag.StringVar(&cfg.Theme, "theme", "neon", "visual theme name, or \"random\" to pick one at random")
+	flag.StringVar(&cfg.Theme, "theme", "random", "visual theme name, or \"random\" to pick one at random")
 	flag.Parse()
 
 	if *listThemes {
