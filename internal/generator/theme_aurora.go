@@ -68,32 +68,52 @@ const auroraTemplate = `<!DOCTYPE html>
                        font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} }
         .splash-overlay.splash-aurora {
-            background: linear-gradient(125deg, var(--navy) 0%, #0a1a2e 40%, #0d2840 70%, var(--navy) 100%);
-            background-size: 200% 200%;
-            animation: splashAuroraShift 8s ease infinite;
+            background: radial-gradient(ellipse 120% 80% at 50% 120%, rgba(0,207,232,0.12) 0%, transparent 45%),
+                radial-gradient(ellipse 90% 60% at 20% 20%, rgba(192,132,252,0.08) 0%, transparent 50%),
+                linear-gradient(165deg, #030811 0%, var(--navy) 35%, #0a1628 70%, #050d1a 100%);
+            background-size: 100% 100%, 100% 100%, 200% 200%;
+            animation: splashAuroraShift 14s ease-in-out infinite;
         }
-        @keyframes splashAuroraShift { 0%,100%{background-position:0% 40%} 50%{background-position:100% 60%} }
-        .splash-aurora .splash-ribbons {
-            width:min(280px,75vw); height:8px; margin:0 auto 1.25rem; border-radius:4px;
-            background: linear-gradient(90deg, transparent, var(--green), var(--teal), var(--purple), transparent);
-            opacity:0.85; animation: splashRibbonFlow 3s ease-in-out infinite alternate;
-            box-shadow: 0 0 24px var(--green), 0 0 40px var(--purple);
+        @keyframes splashAuroraShift { 0%,100%{background-position:0% 0%, 0% 0%, 0% 50%} 50%{background-position:0% 0%, 0% 0%, 100% 50%} }
+        .splash-aurora .splash-aurora-stars {
+            position:absolute; inset:0; pointer-events:none; z-index:0; opacity:0.45;
+            background-image:
+                radial-gradient(1px 1px at 8% 12%, rgba(255,255,255,0.7) 50%, transparent 51%),
+                radial-gradient(1px 1px at 22% 28%, rgba(255,255,255,0.5) 50%, transparent 51%),
+                radial-gradient(1px 1px at 78% 18%, rgba(255,255,255,0.6) 50%, transparent 51%),
+                radial-gradient(1px 1px at 92% 35%, rgba(255,255,255,0.45) 50%, transparent 51%),
+                radial-gradient(1px 1px at 45% 8%, rgba(224,248,240,0.5) 50%, transparent 51%),
+                radial-gradient(1px 1px at 65% 42%, rgba(255,255,255,0.4) 50%, transparent 51%);
         }
-        @keyframes splashRibbonFlow { from { transform: scaleX(0.85); opacity:0.65; } to { transform: scaleX(1); opacity:1; } }
-        .splash-aurora .splash-title { font-size:clamp(1.45rem,4.5vw,2rem); color:#e0f8f0;
-            text-shadow:0 0 20px var(--green); }
-        .splash-aurora .splash-tag { background:linear-gradient(90deg,var(--green),var(--teal));
-            -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-        .splash-aurora .splash-hint { color:rgba(224,248,240,0.88); }
-        .splash-aurora .splash-inner { text-shadow: 0 2px 18px rgba(0,0,0,0.75); }
+        .splash-aurora .splash-aurora-glow {
+            position:absolute; left:50%; bottom:-5vh; transform:translateX(-50%); width:140%; height:55vh;
+            pointer-events:none; z-index:0; opacity:0.55;
+            background: radial-gradient(ellipse 75% 55% at 50% 100%, rgba(0,255,179,0.22) 0%, transparent 62%),
+                radial-gradient(ellipse 55% 40% at 35% 95%, rgba(0,207,232,0.12) 0%, transparent 55%),
+                radial-gradient(ellipse 50% 38% at 70% 92%, rgba(192,132,252,0.14) 0%, transparent 55%);
+            filter: blur(0.5px);
+        }
+        .splash-aurora .splash-title {
+            font-size:clamp(1.5rem,4.8vw,2.15rem); font-weight:700; letter-spacing:0.04em;
+            background: linear-gradient(120deg, #e8fff4 0%, var(--green) 45%, var(--teal) 78%, #e0e8ff 100%);
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+            filter: drop-shadow(0 0 28px rgba(0,255,179,0.35));
+        }
+        .splash-aurora .splash-tag {
+            margin-top:0.5rem; font-size:0.74rem; letter-spacing:0.28em; text-transform:uppercase;
+            color:rgba(0,207,232,0.92); text-shadow:0 0 20px rgba(0,255,179,0.4);
+        }
+        .splash-aurora .splash-hint { color:rgba(224,248,240,0.88); margin-top:1.1rem; }
+        .splash-aurora .splash-inner { position:relative; z-index:2; }
     </style>
 </head>
 <body>
     {{template "splashGate"}}
     <div id="splash-overlay" class="splash-overlay splash-aurora" tabindex="-1" aria-label="Open microblog">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-aurora-stars" aria-hidden="true"></div>
+        <div class="splash-aurora-glow" aria-hidden="true"></div>
         <div class="splash-inner">
-            <div class="splash-ribbons" aria-hidden="true"></div>
             <div class="splash-title">snonux.foo</div>
             <div class="splash-tag">Aurora uplink</div>
             <div class="splash-hint">Click or Enter to open the feed</div>
@@ -104,16 +124,57 @@ const auroraTemplate = `<!DOCTYPE html>
         if(document.documentElement.classList.contains('sno-splash-skip'))return;
         var cv=document.getElementById('splash-gl-canvas');
         if(!cv||typeof THREE==='undefined')return;
-        var raf,ren,sc,ca,g=new THREE.Group(),t0=performance.now(),i,m;
-        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        var raf,ren,sc,ca,clock,ribbons=[],SEG=48;
+        var cols=[0x00ffb3,0x00cfe8,0xc084fc,0x48e8d0,0xa855f7];
+        var yPos=[2,5.5,9,12.5,16], zPos=[-18,-14,-10,-7,-4];
+        function cleanup(){
+            window.removeEventListener('resize',sz);
+            if(raf)cancelAnimationFrame(raf);raf=null;
+            ribbons.forEach(function(rb){rb.geo.dispose();rb.mesh.material.dispose();});
+            ribbons=[];
+            if(ren){ren.dispose();ren=null;}
+            window._snonuxSplashWebGLCleanup=null;
+        }
         window._snonuxSplashWebGLCleanup=cleanup;
-        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
-        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
-        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(50,1,0.1,80);ca.position.set(0,0.3,9);
-        var cols=[0x00ffb3,0x00cfe8,0xc084fc];
-        for(i=0;i<3;i++){m=new THREE.Mesh(new THREE.TorusKnotGeometry(1.05,0.28,48,6,2,3),new THREE.MeshBasicMaterial({color:cols[i],transparent:true,opacity:0.55,wireframe:i===2}));m.rotation.y=i*2.1;m.userData.o=i;g.add(m);}
-        sc.add(g);sz();window.addEventListener('resize',sz);
-        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001;g.rotation.y=t*0.28;g.children.forEach(function(c,ix){c.rotation.x=Math.sin(t*0.8+c.userData.o)*0.35;});ren.render(sc,ca);}
+        function sz(){
+            var w=cv.clientWidth||2,h=cv.clientHeight||2;
+            if(ren)ren.setSize(w,h,false);
+            if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}
+        }
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+        ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();
+        ca=new THREE.PerspectiveCamera(52,1,0.1,120);
+        ca.position.set(0,10,26);ca.lookAt(0,8,-6);
+        clock=new THREE.Clock();
+        for(var r=0;r<5;r++){
+            var geo=new THREE.PlaneGeometry(100,7,SEG,1);
+            var mat=new THREE.MeshBasicMaterial({
+                color:cols[r],transparent:true,opacity:0.26+r*0.02,
+                side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false
+            });
+            var mesh=new THREE.Mesh(geo,mat);
+            mesh.position.set(0,yPos[r],zPos[r]);
+            sc.add(mesh);
+            ribbons.push({mesh:mesh,geo:geo,freq:0.55+0.12*r,phase:r*1.15,amp:2.4+0.2*r});
+        }
+        function loop(){
+            raf=requestAnimationFrame(loop);
+            var t=clock.getElapsedTime();
+            for(var i=0;i<ribbons.length;i++){
+                var rb=ribbons[i],pos=rb.geo.attributes.position;
+                for(var v=0;v<pos.count;v++){
+                    if(pos.getY(v)>0){
+                        var x=pos.getX(v);
+                        pos.setY(v,rb.amp*Math.sin(t*rb.freq+x*0.065+rb.phase)
+                            +rb.amp*0.38*Math.cos(t*rb.freq*0.72+x*0.042));
+                    }
+                }
+                pos.needsUpdate=true;
+            }
+            ren.render(sc,ca);
+        }
+        sz();window.addEventListener('resize',sz);
         raf=requestAnimationFrame(loop);
     })();
     </script>
