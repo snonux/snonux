@@ -92,7 +92,7 @@ func processFile(srcPath, postsDir string) error {
 		return fmt.Errorf("create post dir %s: %w", id, err)
 	}
 
-	p, err := buildPost(srcPath, postDir, id)
+	p, inboxExtras, err := buildPost(srcPath, postDir, id)
 	if err != nil {
 		// Clean up the half-created directory to avoid partial state.
 		_ = os.RemoveAll(postDir)
@@ -104,30 +104,41 @@ func processFile(srcPath, postsDir string) error {
 		return err
 	}
 
+	// Remove markdown-referenced inbox images only after the post is persisted
+	// (same ordering as the main source file below).
+	for _, path := range inboxExtras {
+		_ = os.Remove(path)
+	}
+
 	// Delete the source file only after the post has been successfully persisted.
 	return os.Remove(srcPath)
 }
 
 // buildPost dispatches to the appropriate sub-processor based on file extension
-// and returns a populated Post ready to be saved.
-func buildPost(srcPath, postDir, id string) (*post.Post, error) {
+// and returns a populated Post ready to be saved. inboxExtras lists absolute
+// paths under the input directory to remove after Save succeeds (markdown-local
+// images only); other post types return a nil slice.
+func buildPost(srcPath, postDir, id string) (*post.Post, []string, error) {
 	ext := strings.ToLower(filepath.Ext(srcPath))
 
 	switch ext {
 	case ".txt":
-		return buildTextPost(srcPath, id)
+		p, err := buildTextPost(srcPath, id)
+		return p, nil, err
 
 	case ".md":
 		return buildMarkdownPost(srcPath, postDir, id)
 
 	case ".png", ".jpg", ".jpeg", ".gif":
-		return buildImagePost(srcPath, postDir, id)
+		p, err := buildImagePost(srcPath, postDir, id)
+		return p, nil, err
 
 	case ".mp3":
-		return buildAudioPost(srcPath, postDir, id)
+		p, err := buildAudioPost(srcPath, postDir, id)
+		return p, nil, err
 
 	default:
-		return nil, fmt.Errorf("unsupported file type: %s", ext)
+		return nil, nil, fmt.Errorf("unsupported file type: %s", ext)
 	}
 }
 
@@ -145,23 +156,22 @@ func buildTextPost(srcPath, id string) (*post.Post, error) {
 	}, nil
 }
 
-func buildMarkdownPost(srcPath, postDir, id string) (*post.Post, error) {
+func buildMarkdownPost(srcPath, postDir, id string) (*post.Post, []string, error) {
 	html, localImages, err := processMd(srcPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	sourceDir := filepath.Dir(srcPath)
 
 	assets, err := copyLocalImages(localImages, sourceDir, postDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// Delete the referenced image files from the input dir so they are not
-	// processed again as independent posts.
+	inboxExtras := make([]string, 0, len(localImages))
 	for _, name := range localImages {
-		_ = os.Remove(filepath.Join(sourceDir, name))
+		inboxExtras = append(inboxExtras, filepath.Join(sourceDir, name))
 	}
 
 	return &post.Post{
@@ -170,7 +180,7 @@ func buildMarkdownPost(srcPath, postDir, id string) (*post.Post, error) {
 		PostType:  post.TypeMarkdown,
 		Content:   html,
 		Assets:    assets,
-	}, nil
+	}, inboxExtras, nil
 }
 
 func buildImagePost(srcPath, postDir, id string) (*post.Post, error) {
