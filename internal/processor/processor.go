@@ -3,6 +3,12 @@
 // Supported formats: .txt, .md, .png, .jpg, .jpeg, .gif, .mp3.
 // Each processed source file is deleted from the input directory afterward.
 //
+// Processing is sequential in directory listing order. If one file fails after
+// earlier files succeeded, those earlier sources are already gone from the input
+// directory (and their posts exist under posts/). The error is returned together
+// with the count of posts created in that run; fix or remove the failing file and
+// re-run to continue.
+//
 // Markdown trust boundary: .md files are expected only from a trusted personal
 // inbox (the operator’s own email or equivalent). Goldmark is configured with
 // html.WithUnsafe so raw HTML and GFM features in those files pass through to
@@ -23,7 +29,9 @@ import (
 )
 
 // Run scans cfg.InputDir and processes every eligible file into a post directory
-// under cfg.OutputDir/posts/. Returns the number of posts created.
+// under cfg.OutputDir/posts/. Returns the number of posts successfully created
+// in this invocation. On error, that count includes only files processed before
+// the failure; those sources have already been removed from the input directory.
 //
 // Images referenced by a .md file in the same input directory are consumed by
 // that markdown post and are not processed as independent image posts.
