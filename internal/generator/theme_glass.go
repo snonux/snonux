@@ -1,30 +1,21 @@
 package generator
 
-// glassTemplate is a glassmorphism theme — semi-transparent frosted panels
-// using backdrop-filter:blur over a blurred gradient background.
-// Light mode with subtle purple/blue gradient blobs and white glass cards.
+// glassTemplate is a glassmorphism theme — semi-transparent frosted panels over
+// a WebGL background of slowly drifting crystal icosahedron shards.
+// CSS gradient blobs are replaced by the WebGL scene.
 const glassTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>snonux.foo · glass</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
         :root { --blue:#6366f1; --purple:#a855f7; --pink:#ec4899; --text:#1e1b4b; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; height:100vh;
                background:#f0f4ff; color:var(--text); }
-        /* Blurred gradient blobs that sit behind all glass panels */
-        .bg-blobs { position:fixed; inset:0; z-index:0; overflow:hidden; }
-        .bg-blobs::before { content:''; position:absolute; top:-20%; left:-10%; width:60%; height:70%;
-            border-radius:50%; background:radial-gradient(circle,rgba(99,102,241,0.35),rgba(168,85,247,0.2),transparent 70%);
-            filter:blur(60px); }
-        .bg-blobs::after { content:''; position:absolute; bottom:-10%; right:-10%; width:65%; height:65%;
-            border-radius:50%; background:radial-gradient(circle,rgba(236,72,153,0.28),rgba(99,102,241,0.18),transparent 70%);
-            filter:blur(70px); }
-        .blob3 { position:fixed; top:40%; left:30%; width:40%; height:50%; z-index:0;
-            border-radius:60% 40% 70% 30%; background:radial-gradient(circle,rgba(168,85,247,0.18),transparent 65%);
-            filter:blur(50px); }
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
         .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
         header { padding:16px 28px; background:rgba(255,255,255,0.55); backdrop-filter:blur(20px);
                  border-bottom:1px solid rgba(255,255,255,0.6); display:flex; align-items:center; justify-content:space-between;
@@ -39,8 +30,7 @@ const glassTemplate = `<!DOCTYPE html>
         .logo-title .subtitle a:hover { text-decoration:underline; }
         .transmit-btn { border:1px solid rgba(99,102,241,0.4); color:var(--blue); padding:9px 20px;
                         border-radius:20px; text-decoration:none; font-size:0.85rem;
-                        background:rgba(255,255,255,0.5); backdrop-filter:blur(8px);
-                        transition:all 0.2s; }
+                        background:rgba(255,255,255,0.5); backdrop-filter:blur(8px); transition:all 0.2s; }
         .transmit-btn:hover { background:var(--blue); color:#fff; border-color:var(--blue); }
         .nav-hints { background:rgba(255,255,255,0.35); backdrop-filter:blur(10px);
                      border-bottom:1px solid rgba(255,255,255,0.5); color:#6b7280;
@@ -54,16 +44,12 @@ const glassTemplate = `<!DOCTYPE html>
                       border-radius:20px; text-decoration:none; font-size:0.82rem;
                       background:rgba(255,255,255,0.45); backdrop-filter:blur(8px); }
         .page-nav a:hover { background:var(--blue); color:#fff; }
-        /* Glass card */
         .post { background:rgba(255,255,255,0.45); backdrop-filter:blur(18px);
                 border:1px solid rgba(255,255,255,0.6); border-radius:14px;
                 padding:22px; margin-bottom:14px; cursor:pointer;
-                box-shadow:0 4px 20px rgba(99,102,241,0.08);
-                transition:all 0.25s; }
-        .post:hover { background:rgba(255,255,255,0.6); box-shadow:0 8px 30px rgba(99,102,241,0.18);
-                      transform:translateY(-2px); }
-        .post-active { border-color:var(--blue) !important;
-                       background:rgba(238,240,255,0.75) !important;
+                box-shadow:0 4px 20px rgba(99,102,241,0.08); transition:all 0.25s; }
+        .post:hover { background:rgba(255,255,255,0.6); box-shadow:0 8px 30px rgba(99,102,241,0.18); transform:translateY(-2px); }
+        .post-active { border-color:var(--blue) !important; background:rgba(238,240,255,0.75) !important;
                        box-shadow:0 0 0 2px rgba(99,102,241,0.3),0 8px 30px rgba(99,102,241,0.2),
                                   inset 3px 0 0 var(--blue) !important; }
         .post-header { display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.88rem; }
@@ -71,8 +57,6 @@ const glassTemplate = `<!DOCTYPE html>
         .post-text { line-height:1.65; font-size:0.95rem; }
         .post-text a { color:var(--blue); text-decoration:none; }
         .post-text a:hover { text-decoration:underline; }
-        .post-image { max-width:100%; border-radius:10px; margin-top:10px;
-                      border:1px solid rgba(255,255,255,0.5); }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
                       background:rgba(240,244,255,0.85); backdrop-filter:blur(28px);
@@ -87,8 +71,7 @@ const glassTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="bg-blobs"></div>
-    <div class="blob3"></div>
+    <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
             <div class="logo">
@@ -118,6 +101,83 @@ const glassTemplate = `<!DOCTYPE html>
         </div>
     </div>
     {{template "navmodal" .}}
+    <script>
+    // Glass WebGL: 8 crystal icosahedron shards, each rendered as a semi-transparent
+    // solid mesh with a wireframe overlay, drifting and rotating slowly in the light bg.
+    // alpha:true so the light body background (#f0f4ff) shows through the canvas.
+    (function() {
+        var scene, camera, renderer, clock;
+        var shards = [];
+
+        function initThree() {
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+            camera.position.set(0, 0, 40);
+
+            renderer = new THREE.WebGLRenderer({
+                canvas: document.getElementById('three-canvas'),
+                antialias: true, alpha: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setClearColor(0xf0f4ff, 1);
+            clock = new THREE.Clock();
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            var pl = new THREE.PointLight(0x7c3aed, 2, 80);
+            pl.position.set(10, 10, 10);
+            scene.add(pl);
+
+            var colors  = [0x6366f1, 0xa855f7, 0xec4899, 0x6366f1, 0x818cf8, 0xc084fc, 0xf472b6, 0x6366f1];
+            var sizes   = [5, 3.5, 2.5, 4, 3, 2, 4.5, 2.2];
+            var details = [2, 1, 0, 2, 1, 0, 1, 2];
+            var positions = [
+                [-12, 6,-8], [14,-4,-12], [0,12,-6], [-8,-10,-15],
+                [16, 8,-4], [-14,2,-10], [6,-8,-5], [-4,10,-14]
+            ];
+
+            for (var i = 0; i < 8; i++) {
+                var geo = new THREE.IcosahedronGeometry(sizes[i], details[i]);
+                var solid = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
+                    color: colors[i], transparent: true, opacity: 0.12, side: THREE.DoubleSide
+                }));
+                var wire = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+                    color: colors[i], wireframe: true, transparent: true, opacity: 0.28
+                }));
+                solid.position.set(positions[i][0], positions[i][1], positions[i][2]);
+                wire.position.copy(solid.position);
+
+                var rx = (Math.random() - 0.5) * 0.004;
+                var ry = (Math.random() - 0.5) * 0.006;
+                var rz = (Math.random() - 0.5) * 0.003;
+                shards.push({ solid: solid, wire: wire, rx: rx, ry: ry, rz: rz });
+                scene.add(solid);
+                scene.add(wire);
+            }
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            shards.forEach(function(s) {
+                s.solid.rotation.x += s.rx; s.solid.rotation.y += s.ry; s.solid.rotation.z += s.rz;
+                s.wire.rotation.copy(s.solid.rotation);
+            });
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
     {{template "navscript" .}}
 </body>
 </html>`

@@ -1,69 +1,70 @@
 package generator
 
-// paperTemplate is a warm vintage newspaper theme — Georgia serif, sepia tones,
-// subtle texture simulation via CSS, no animations.
-const paperTemplate = `<!DOCTYPE html>
+// volcanoTemplate is a dark volcanic theme — ember and spark particles rise from
+// below the screen, glowing orange/red/yellow with additive blending, set against
+// a deep dark-rock background with a warm lava glow at the horizon.
+const volcanoTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>snonux.foo — the microblog</title>
+    <title>snonux.foo ▲ VOLCANO</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
-        :root { --ink:#2c1810; --sepia:#c8a96e; --paper:#f5f0e8; --muted:#8b6f47; --accent:#7b2d00; }
+        :root { --lava:#ff4400; --ember:#ff8c00; --hot:#ffcc00; --bg:#0d0802; }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:Georgia,'Times New Roman',serif; background:var(--paper); color:var(--ink);
-               overflow:hidden; height:100vh; }
-        /* subtle paper grain simulation */
-        body::after { content:''; position:fixed; inset:0; pointer-events:none; z-index:999;
-            background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-            opacity:0.4; }
-        .overlay { height:100vh; display:flex; flex-direction:column; max-width:800px; margin:0 auto; }
-        header { padding:18px 28px 14px; border-bottom:3px double var(--ink);
-                 display:flex; align-items:center; justify-content:space-between; }
+        body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg);
+               color:#ffe8cc; overflow:hidden; height:100vh; }
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
+        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        header { padding:16px 28px; background:rgba(13,8,2,0.82); backdrop-filter:blur(12px);
+                 border-bottom:1px solid rgba(255,68,0,0.3); display:flex; align-items:center; justify-content:space-between; }
         .logo { display:flex; align-items:center; gap:14px; }
-        .logo-mark { font-size:2.6rem; font-weight:700; color:var(--accent); line-height:1; font-style:italic; }
-        .logo-title h1 { font-size:1.6rem; font-weight:700; color:var(--ink); letter-spacing:1px; font-variant:small-caps; }
-        .logo-title .subtitle { font-size:0.78rem; color:var(--muted); margin-top:2px; font-style:italic; }
-        .logo-title .subtitle a { color:var(--accent); text-decoration:none; }
-        .logo-title .subtitle a:hover { text-decoration:underline; }
-        .transmit-btn { border:2px solid var(--ink); color:var(--ink); padding:8px 16px;
-                        text-decoration:none; font-size:0.82rem; font-variant:small-caps; letter-spacing:1px;
-                        transition:all 0.15s; }
-        .transmit-btn:hover { background:var(--ink); color:var(--paper); }
-        .nav-hints { background:transparent; border-bottom:1px solid var(--sepia); color:var(--muted);
-                     padding:4px 28px; display:flex; gap:18px; font-size:0.68rem; font-family:monospace; flex-wrap:wrap; }
-        .nav-hints kbd { background:transparent; border:1px solid var(--muted); color:var(--ink);
-                         padding:0 4px; font-size:0.68rem; margin:0 1px; }
-        .content { flex:1; overflow-y:auto; padding:16px 28px;
-                   scrollbar-width:thin; scrollbar-color:var(--sepia) var(--paper); }
+        .logo-mark { font-size:2rem; font-weight:800; color:var(--ember); text-shadow:0 0 16px var(--lava); }
+        .logo-title h1 { font-size:1.5rem; font-weight:700; color:#ffe8cc; }
+        .logo-title .subtitle { font-size:0.75rem; color:rgba(255,232,204,0.5); margin-top:2px; }
+        .logo-title .subtitle a { color:var(--ember); text-decoration:none; }
+        .logo-title .subtitle a:hover { text-shadow:0 0 8px var(--lava); }
+        .transmit-btn { border:1px solid var(--lava); color:var(--lava); padding:9px 20px;
+                        border-radius:4px; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
+        .transmit-btn:hover { background:var(--lava); color:var(--bg); }
+        .nav-hints { background:rgba(13,8,2,0.7); border-bottom:1px solid rgba(255,68,0,0.15);
+                     color:rgba(255,232,204,0.4); padding:5px 28px; display:flex; gap:18px;
+                     font-size:0.68rem; flex-wrap:wrap; }
+        .nav-hints kbd { background:rgba(255,68,0,0.12); border:1px solid rgba(255,68,0,0.35);
+                         color:var(--ember); border-radius:3px; padding:0 5px; margin:0 2px; }
+        .content { flex:1; overflow-y:auto; padding:20px 28px;
+                   scrollbar-width:thin; scrollbar-color:var(--lava) var(--bg); }
         .page-nav { display:flex; justify-content:center; margin:14px 0; }
-        .page-nav a { border:1px solid var(--ink); color:var(--ink); padding:7px 20px;
-                      text-decoration:none; font-size:0.82rem; font-variant:small-caps; letter-spacing:1px; }
-        .page-nav a:hover { background:var(--ink); color:var(--paper); }
-        .post { border-bottom:1px solid var(--sepia); padding:18px 0; cursor:pointer;
-                transition:background 0.12s; }
-        .post:hover { background:#ede8dc; padding-left:8px; }
-        .post-active { background:#e8e0cc !important; border-left:4px solid var(--accent) !important;
-                       padding-left:12px !important; }
-        .post-header { display:flex; justify-content:space-between; margin-bottom:10px; font-size:0.85rem; }
-        .post-time { color:var(--muted); font-family:monospace; font-size:0.78rem; }
-        .post-text { line-height:1.7; font-size:1rem; }
-        .post-text a { color:var(--accent); text-decoration:none; }
-        .post-text a:hover { text-decoration:underline; }
-        .post-image { max-width:100%; margin-top:10px; border:1px solid var(--sepia); }
+        .page-nav a { border:1px solid var(--ember); color:var(--ember); padding:8px 20px;
+                      border-radius:4px; text-decoration:none; font-size:0.82rem; }
+        .page-nav a:hover { background:var(--lava); color:var(--bg); }
+        .post { background:rgba(20,8,2,0.72); border:1px solid rgba(255,68,0,0.2); border-radius:8px;
+                padding:20px; margin-bottom:14px; cursor:pointer;
+                transition:all 0.25s; backdrop-filter:blur(4px); }
+        .post:hover { border-color:var(--ember); box-shadow:0 0 20px rgba(255,68,0,0.25); transform:translateY(-2px); }
+        .post-active { border-color:var(--hot) !important; background:rgba(30,8,2,0.9) !important;
+                       box-shadow:0 0 24px rgba(255,140,0,0.4),inset 3px 0 0 var(--hot) !important; }
+        .post-header { display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.88rem; }
+        .post-time { color:var(--ember); font-family:monospace; font-size:0.8rem; }
+        .post-text { line-height:1.65; font-size:0.95rem; }
+        .post-text a { color:var(--ember); text-decoration:none; }
+        .post-text a:hover { text-shadow:0 0 8px var(--lava); }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
-                      background:rgba(245,240,232,0.97); overflow-y:auto; padding:40px 20px; }
+                      background:rgba(13,8,2,0.96); backdrop-filter:blur(20px);
+                      overflow-y:auto; padding:40px 20px; }
         .post-modal.active { display:block; }
-        .modal-inner { max-width:720px; margin:0 auto; background:var(--paper);
-                       border:2px solid var(--ink); padding:40px;
-                       box-shadow:4px 4px 0 var(--sepia); }
-        .modal-close { float:right; background:none; border:none; color:var(--muted);
-                       font-size:0.9rem; cursor:pointer; font-variant:small-caps; letter-spacing:1px; }
-        @media(max-width:640px) { .nav-hints{display:none;} .overlay{max-width:100%;} header{padding:14px 16px;} .content{padding:12px 16px;} }
+        .modal-inner { max-width:760px; margin:0 auto; background:rgba(20,8,2,0.98);
+                       border:1px solid var(--lava); border-radius:10px;
+                       box-shadow:0 0 60px rgba(255,68,0,0.3); padding:40px; }
+        .modal-close { float:right; background:none; border:none; color:var(--ember);
+                       font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} }
     </style>
 </head>
 <body>
+    <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
             <div class="logo">
@@ -93,6 +94,107 @@ const paperTemplate = `<!DOCTYPE html>
         </div>
     </div>
     {{template "navmodal" .}}
+    <script>
+    // Volcano WebGL: 2000 ember particles emitted from the bottom, rising with
+    // drift and fade. Each particle has a randomised lifetime, speed, and hue
+    // shifting from hot yellow through orange to red as it rises and cools.
+    (function() {
+        var N = 2000;
+        var scene, camera, renderer, clock;
+        var points;
+        var posArr, colArr, alpArr;
+
+        // Per-particle state
+        var px = new Float32Array(N);
+        var py = new Float32Array(N);
+        var pz = new Float32Array(N);
+        var vx = new Float32Array(N); // horizontal drift
+        var vy = new Float32Array(N); // rise speed
+        var life = new Float32Array(N);   // 0..1, resets at 0
+        var maxLife = new Float32Array(N);
+
+        function resetParticle(i) {
+            // Spawn along a wide base strip at the bottom
+            px[i] = (Math.random() - 0.5) * 60;
+            py[i] = -25 + (Math.random() - 0.5) * 4;
+            pz[i] = (Math.random() - 0.5) * 20 - 5;
+            vx[i] = (Math.random() - 0.5) * 0.06;
+            vy[i] = 0.06 + Math.random() * 0.12;
+            maxLife[i] = 0.5 + Math.random() * 0.5;
+            life[i] = Math.random(); // stagger initial phases
+        }
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0d0802);
+            scene.fog = new THREE.Fog(0x0d0802, 30, 80);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 120);
+            camera.position.set(0, 0, 45);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            clock = new THREE.Clock();
+
+            posArr = new Float32Array(N * 3);
+            colArr = new Float32Array(N * 3);
+
+            for (var i = 0; i < N; i++) resetParticle(i);
+
+            var geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+            geo.setAttribute('color',    new THREE.BufferAttribute(colArr, 3));
+
+            points = new THREE.Points(geo, new THREE.PointsMaterial({
+                size: 0.25, vertexColors: true,
+                transparent: true, opacity: 0.9,
+                blending: THREE.AdditiveBlending, depthWrite: false
+            }));
+            scene.add(points);
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            var dt = clock.getDelta();
+
+            for (var i = 0; i < N; i++) {
+                life[i] += dt / maxLife[i];
+                if (life[i] > 1.0) resetParticle(i);
+
+                py[i] += vy[i];
+                px[i] += vx[i];
+
+                var idx = i * 3;
+                posArr[idx]   = px[i];
+                posArr[idx+1] = py[i];
+                posArr[idx+2] = pz[i];
+
+                // Colour: young embers are yellow/hot, older ones shift to orange then red
+                var t = life[i];
+                var fade = Math.max(0, 1 - t * 1.4);
+                colArr[idx]   = fade;                            // R: always full
+                colArr[idx+1] = fade * Math.max(0, 1 - t * 2); // G: fades fast
+                colArr[idx+2] = 0;                              // B: never
+            }
+
+            points.geometry.attributes.position.needsUpdate = true;
+            points.geometry.attributes.color.needsUpdate    = true;
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
     {{template "navscript" .}}
 </body>
 </html>`

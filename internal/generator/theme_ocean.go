@@ -1,25 +1,20 @@
 package generator
 
 // oceanTemplate is a deep-ocean theme — dark navy/midnight blue background,
-// teal/aqua/seafoam accents, subtle wave gradient at the bottom.
+// WebGL animated wave surface with per-vertex sine displacement, teal/aqua accents.
 const oceanTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>snonux.foo ~ OCEAN</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
         :root { --teal:#00b4d8; --aqua:#48cae4; --deep:#023e8a; --navy:#03045e; --foam:#caf0f8; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--navy);
                color:var(--foam); overflow:hidden; height:100vh; }
-        /* Deep ocean gradient base */
-        body { background:linear-gradient(180deg,#03045e 0%,#023e8a 60%,#0077b6 100%); }
-        /* Animated wave shimmer at bottom */
-        @keyframes wave { 0%,100%{transform:translateX(0)} 50%{transform:translateX(-30px)} }
-        .wave-bottom { position:fixed; bottom:0; left:-5%; width:110%; height:120px; z-index:1;
-            background:radial-gradient(ellipse 80% 60% at 50% 100%,rgba(0,180,216,0.22),transparent);
-            animation:wave 8s ease-in-out infinite; }
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
         .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
         header { padding:16px 28px; background:rgba(3,4,94,0.82); backdrop-filter:blur(12px);
                  border-bottom:1px solid rgba(0,180,216,0.3); display:flex; align-items:center; justify-content:space-between; }
@@ -30,8 +25,7 @@ const oceanTemplate = `<!DOCTYPE html>
         .logo-title .subtitle a { color:var(--aqua); text-decoration:none; }
         .logo-title .subtitle a:hover { text-shadow:0 0 8px var(--teal); }
         .transmit-btn { border:1px solid var(--teal); color:var(--teal); padding:9px 20px;
-                        border-radius:20px; text-decoration:none; font-size:0.85rem;
-                        transition:all 0.2s; }
+                        border-radius:20px; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
         .transmit-btn:hover { background:var(--teal); color:var(--navy); }
         .nav-hints { background:rgba(3,4,94,0.65); border-bottom:1px solid rgba(0,180,216,0.18);
                      color:rgba(202,240,248,0.45); padding:5px 28px; display:flex; gap:18px;
@@ -55,7 +49,6 @@ const oceanTemplate = `<!DOCTYPE html>
         .post-text { line-height:1.65; font-size:0.95rem; }
         .post-text a { color:var(--aqua); text-decoration:none; }
         .post-text a:hover { text-shadow:0 0 8px var(--teal); }
-        .post-image { max-width:100%; border-radius:8px; margin-top:10px; }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
                       background:rgba(3,4,94,0.96); backdrop-filter:blur(20px);
@@ -70,7 +63,7 @@ const oceanTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="wave-bottom"></div>
+    <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
             <div class="logo">
@@ -100,6 +93,80 @@ const oceanTemplate = `<!DOCTYPE html>
         </div>
     </div>
     {{template "navmodal" .}}
+    <script>
+    // Ocean WebGL: a large PlaneGeometry wave surface whose vertices are displaced
+    // each frame by two overlapping sine functions, lit by a moving teal point light.
+    (function() {
+        var scene, camera, renderer, clock;
+        var waveMesh, waveGeo, pointLight;
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x03045e);
+            scene.fog = new THREE.Fog(0x03045e, 30, 120);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+            camera.position.set(0, 25, 50);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            clock = new THREE.Clock();
+
+            // Wave surface — high segment count so vertex displacement looks smooth
+            waveGeo = new THREE.PlaneGeometry(200, 200, 80, 80);
+            waveMesh = new THREE.Mesh(waveGeo, new THREE.MeshPhongMaterial({
+                color: 0x0077b6, emissive: 0x023e8a, emissiveIntensity: 0.3,
+                transparent: true, opacity: 0.85, side: THREE.DoubleSide
+            }));
+            waveMesh.rotation.x = -Math.PI / 2;
+            waveMesh.position.y = -5;
+            scene.add(waveMesh);
+
+            // Moving teal light circling above the wave
+            pointLight = new THREE.PointLight(0x48cae4, 2, 80);
+            pointLight.position.set(0, 20, 10);
+            scene.add(pointLight);
+            scene.add(new THREE.AmbientLight(0x023e8a, 0.6));
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            var t = clock.getElapsedTime();
+            var pos = waveGeo.attributes.position;
+
+            // Two overlapping sine waves produce realistic ocean surface chop
+            for (var i = 0; i < pos.count; i++) {
+                var x = pos.getX(i);
+                var z = pos.getZ(i);
+                pos.setY(i,
+                    Math.sin(x * 0.05 + t * 1.2) * 1.8 +
+                    Math.cos(z * 0.07 + t * 0.9) * 1.4
+                );
+            }
+            pos.needsUpdate = true;
+            waveGeo.computeVertexNormals();
+
+            // Light orbits lazily
+            pointLight.position.x = Math.cos(t * 0.3) * 30;
+            pointLight.position.z = Math.sin(t * 0.3) * 30;
+
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
     {{template "navscript" .}}
 </body>
 </html>`

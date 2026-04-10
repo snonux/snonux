@@ -2,24 +2,29 @@ package generator
 
 // terminalTemplate is the green phosphor CRT terminal theme.
 // Monospace throughout, scanline overlay via CSS, no external dependencies.
+// WebGL scene: large IcosahedronGeometry wireframe with orbiting torus particles,
+// giving a rotating phosphor-green 3D orb behind the terminal interface.
 const terminalTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>snonux.foo // TERMINAL</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
         :root { --p:#33ff33; --dim:#1a7a1a; --bg:#0a0a0a; --bg2:#050505; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Courier New',Courier,monospace; background:var(--bg); color:var(--p);
                overflow:hidden; height:100vh; position:relative; }
-        /* CRT scanlines */
+        /* CRT scanlines sit above the WebGL canvas */
         body::before { content:''; position:fixed; inset:0; z-index:999; pointer-events:none;
             background:repeating-linear-gradient(0deg,transparent,transparent 2px,
                 rgba(0,0,0,0.12) 2px,rgba(0,0,0,0.12) 4px); }
         /* Subtle screen flicker */
         @keyframes flicker { 0%,100%{opacity:1} 93%{opacity:0.97} 95%{opacity:0.91} 97%{opacity:0.98} }
         body { animation:flicker 9s infinite; }
+        /* WebGL background canvas — fills the viewport behind everything */
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
         .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
         header { padding:12px 24px; background:var(--bg2); border-bottom:2px solid var(--p);
                  display:flex; align-items:center; justify-content:space-between; }
@@ -67,6 +72,7 @@ const terminalTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
+    <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
             <div class="logo">
@@ -96,6 +102,76 @@ const terminalTemplate = `<!DOCTYPE html>
         </div>
     </div>
     {{template "navmodal" .}}
+    <script>
+    // Terminal WebGL scene: phosphor-green icosahedron wireframe + torus particle ring.
+    // The scene sits behind the CRT scanline overlay (z-index:999) and the UI (z-index:10).
+    (function() {
+        var scene, camera, renderer, icosa, particles;
+        var clock = new THREE.Clock();
+
+        function initThree() {
+            // Scene with pure-black background and distance fog
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+            scene.fog = new THREE.Fog(0x000000, 20, 80);
+
+            // Perspective camera positioned in front of the orb
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(0, 0, 30);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // Large green phosphor wireframe icosahedron — the central CRT orb
+            var icoGeo = new THREE.IcosahedronGeometry(8, 2);
+            var icoMat = new THREE.MeshBasicMaterial({ color: 0x33ff33, wireframe: true });
+            icosa = new THREE.Mesh(icoGeo, icoMat);
+            scene.add(icosa);
+
+            // 400 dim particles arranged on a torus path around the icosahedron
+            var torusGeo = new THREE.TorusGeometry(14, 3, 16, 100);
+            var positions = torusGeo.attributes.position;
+            var ptGeo = new THREE.BufferGeometry();
+            var pts = new Float32Array(400 * 3);
+            for (var i = 0; i < 400; i++) {
+                // Sample vertices from the torus geometry to place particles on its surface
+                var idx = Math.floor(Math.random() * positions.count);
+                pts[i * 3]     = positions.getX(idx);
+                pts[i * 3 + 1] = positions.getY(idx);
+                pts[i * 3 + 2] = positions.getZ(idx);
+            }
+            ptGeo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+            var ptMat = new THREE.PointsMaterial({ color: 0x1a7a1a, size: 0.18 });
+            particles = new THREE.Points(ptGeo, ptMat);
+            scene.add(particles);
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            var t = clock.getElapsedTime();
+            // Slow multi-axis rotation for the phosphor orb
+            icosa.rotation.x = t * 0.12;
+            icosa.rotation.y = t * 0.18;
+            icosa.rotation.z = t * 0.07;
+            // Counter-rotate particles for visual contrast
+            particles.rotation.y = -t * 0.08;
+            particles.rotation.x =  t * 0.04;
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
     {{template "navscript" .}}
 </body>
 </html>`

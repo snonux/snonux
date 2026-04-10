@@ -3,22 +3,27 @@ package generator
 // matrixTemplate is a hacker-style theme inspired by The Matrix — black
 // background, bright matrix-green (#00ff41) text, monospace throughout,
 // no decorations beyond a faint scanline overlay.
+// WebGL scene: digital rain particle columns that simulate the iconic falling
+// green characters, with vertex-colour fading from bright head to dark tail.
 const matrixTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>snonux.foo // MATRIX</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
         :root { --g:#00ff41; --g2:#008f11; --g3:#003b00; --bg:#000; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Courier New',Courier,monospace; background:var(--bg); color:var(--g);
                overflow:hidden; height:100vh; }
-        /* scanline overlay */
+        /* scanline overlay sits above WebGL */
         body::before { content:''; position:fixed; inset:0; z-index:999; pointer-events:none;
             background:repeating-linear-gradient(0deg,transparent,transparent 3px,
                 rgba(0,0,0,0.08) 3px,rgba(0,0,0,0.08) 4px); }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        /* WebGL background canvas */
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
         .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
         header { padding:12px 24px; background:#000; border-bottom:1px solid var(--g2);
                  display:flex; align-items:center; justify-content:space-between; }
@@ -68,6 +73,7 @@ const matrixTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
+    <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
             <div class="logo">
@@ -97,6 +103,100 @@ const matrixTemplate = `<!DOCTYPE html>
         </div>
     </div>
     {{template "navmodal" .}}
+    <script>
+    // Matrix WebGL scene: 80 columns of falling particles with per-vertex colour.
+    // Each column has a "head" that falls at a random speed; particles near the head
+    // are bright green and fade to near-black further behind, simulating digital rain.
+    (function() {
+        var NUM_COLS   = 80;   // number of rain columns
+        var COL_LEN    = 25;   // particles per column
+        var SPACING    = 2.2;  // vertical gap between particles in a column
+        var Y_TOP      = 30;   // world-space top of the rain field
+        var Y_BOTTOM   = -30;  // world-space bottom
+
+        var scene, camera, renderer;
+        var points;
+        var posArr, colArr;
+        // Per-column state: x position, head y, and fall speed
+        var colX = [], headY = [], speed = [];
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(0, 0, 50);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            var totalPts = NUM_COLS * COL_LEN;
+            posArr = new Float32Array(totalPts * 3);
+            colArr = new Float32Array(totalPts * 3);
+
+            // Spread columns across x: -50..50; initialise heads at random y positions
+            for (var c = 0; c < NUM_COLS; c++) {
+                colX[c]  = -50 + (c / (NUM_COLS - 1)) * 100;
+                headY[c] = Y_TOP - Math.random() * (Y_TOP - Y_BOTTOM);
+                speed[c] = 0.08 + Math.random() * 0.07; // 0.08–0.15 units per frame
+            }
+
+            var geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+            geo.setAttribute('color',    new THREE.BufferAttribute(colArr, 3));
+
+            var mat = new THREE.PointsMaterial({ size: 0.35, vertexColors: true });
+            points = new THREE.Points(geo, mat);
+            scene.add(points);
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            for (var c = 0; c < NUM_COLS; c++) {
+                // Advance the head downward each frame
+                headY[c] -= speed[c];
+                // When the head exits the bottom, reset to a random point above the top
+                if (headY[c] < Y_BOTTOM - COL_LEN * SPACING) {
+                    headY[c] = Y_TOP + Math.random() * 20;
+                }
+
+                var base = c * COL_LEN;
+                for (var p = 0; p < COL_LEN; p++) {
+                    var i = base + p;
+                    var y = headY[c] + p * SPACING; // particles trail upward from head
+                    posArr[i * 3]     = colX[c];
+                    posArr[i * 3 + 1] = y;
+                    posArr[i * 3 + 2] = 0;
+
+                    // Brightness falls off with distance behind the head:
+                    // p=0 is the head (bright), p=COL_LEN-1 is the tail (dim)
+                    var bright = Math.max(0, 1 - p / (COL_LEN * 0.7));
+                    // Head particle: #00ff41, tail: #003b00
+                    colArr[i * 3]     = 0;
+                    colArr[i * 3 + 1] = bright * (p === 0 ? 1.0 : 0.88);
+                    colArr[i * 3 + 2] = bright * (p === 0 ? 0.255 : 0.04);
+                }
+            }
+
+            points.geometry.attributes.position.needsUpdate = true;
+            points.geometry.attributes.color.needsUpdate    = true;
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
     {{template "navscript" .}}
 </body>
 </html>`

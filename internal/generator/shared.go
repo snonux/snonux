@@ -3,13 +3,12 @@ package generator
 // navDefs is appended to every theme template when parsing.
 // It defines three named sub-templates shared across all themes:
 //   - "navhints"  — keyboard shortcut hint bar HTML
-//   - "navmodal"  — full-screen expanded-post modal HTML
-//   - "navscript" — keyboard navigation JavaScript
+//   - "navmodal"  — full-screen expanded-post modal HTML + image-sizing CSS
+//   - "navscript" — keyboard navigation JavaScript with distinct sounds per action
 //
 // Each theme calls {{template "navhints" .}}, {{template "navmodal" .}}, and
 // {{template "navscript" .}} at the appropriate points in its HTML.
-// All CSS for these elements (colours, borders, backdrop) lives in each theme
-// so themes remain self-contained and independently styled.
+// All theme-specific CSS lives in each theme file so themes stay self-contained.
 const navDefs = `
 {{define "navhints"}}
 <div class="nav-hints" aria-label="keyboard shortcuts">
@@ -21,6 +20,12 @@ const navDefs = `
 {{end}}
 
 {{define "navmodal"}}
+<style>
+/* Thumbnail sizing in list view; modal overrides to full width so images
+   appear larger when a post is expanded with Enter. */
+.post-image { max-height:220px; max-width:100%; object-fit:cover; cursor:pointer; }
+#post-modal .post-image { max-height:none; width:100%; max-width:100%; object-fit:contain; cursor:default; }
+</style>
 <div class="post-modal" id="post-modal">
     <div class="modal-inner">
         <button class="modal-close" onclick="closeModal()">[ ESC ] CLOSE</button>
@@ -51,8 +56,7 @@ const navDefs = `
         playNavSound();
     }
 
-    // playNavSound generates a short beep via the Web Audio API.
-    // A fresh AudioContext per call avoids state issues across navigations.
+    // playNavSound: short low beep for post selection (j/k navigation).
     function playNavSound() {
         try {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -60,9 +64,41 @@ const navDefs = `
             const gain = ctx.createGain();
             osc.connect(gain); gain.connect(ctx.destination);
             osc.frequency.value = 220; osc.type = 'sine';
-            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
             osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
+        } catch (_) {}
+    }
+
+    // playOpenSound: bright ascending chime when modal opens (Enter key).
+    function playOpenSound() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(440, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.14);
+            gain.gain.setValueAtTime(0.10, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.20);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.20);
+        } catch (_) {}
+    }
+
+    // playCloseSound: descending sweep when modal closes (Esc key).
+    function playCloseSound() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.10, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.18);
         } catch (_) {}
     }
 
@@ -71,10 +107,12 @@ const navDefs = `
         document.getElementById('modal-content').innerHTML =
             posts[currentIndex].querySelector('.post-text').innerHTML;
         document.getElementById('post-modal').classList.add('active');
+        playOpenSound();
     }
 
     function closeModal() {
         document.getElementById('post-modal').classList.remove('active');
+        playCloseSound();
     }
 
     document.addEventListener('keydown', function(e) {

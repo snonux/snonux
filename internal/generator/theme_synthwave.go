@@ -1,7 +1,8 @@
 package generator
 
-// synthwaveTemplate is the 80s retrowave theme — dark purple sky, CSS perspective
-// grid floor, hot pink/orange accents, Russo One font.
+// synthwaveTemplate is the 80s retrowave theme — dark purple sky, WebGL
+// perspective grid with a glowing sun and scan-line rings, hot pink/orange
+// accents, Russo One font. The CSS sky and grid-floor divs are replaced by WebGL.
 const synthwaveTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,21 +11,13 @@ const synthwaveTemplate = `<!DOCTYPE html>
     <title>snonux.foo ⊕ SYNTHWAVE</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
         :root { --pink:#ff2d78; --purple:#bf3fff; --orange:#ff6b2b; --bg:#0d0221; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Russo One','Arial Black',sans-serif; background:var(--bg);
                color:#fff; overflow:hidden; height:100vh; }
-        /* Sunset sky gradient */
-        .sky { position:fixed; inset:0; z-index:0;
-               background:linear-gradient(180deg,#0d0221 0%,#1a0533 45%,#4a0080 72%,#8b1070 88%,#c8365a 100%); }
-        /* Perspective grid floor */
-        .grid-floor { position:fixed; bottom:0; left:0; width:100%; height:46vh; z-index:1;
-            background-image:linear-gradient(rgba(255,45,120,0.35) 1px,transparent 1px),
-                             linear-gradient(90deg,rgba(255,45,120,0.35) 1px,transparent 1px);
-            background-size:44px 44px;
-            transform:perspective(380px) rotateX(76deg); transform-origin:bottom;
-            mask-image:linear-gradient(to top,rgba(0,0,0,0.85) 0%,transparent 100%); }
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
         .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
         header { padding:16px 28px; background:rgba(13,2,33,0.82); backdrop-filter:blur(10px);
                  border-bottom:2px solid var(--pink); display:flex; align-items:center; justify-content:space-between; }
@@ -61,7 +54,6 @@ const synthwaveTemplate = `<!DOCTYPE html>
         .post-time { color:var(--orange); font-family:'Share Tech Mono',monospace; font-size:0.85rem; }
         .post-text { line-height:1.6; font-size:0.95rem; font-family:'Share Tech Mono',monospace; }
         .post-text a { color:var(--pink); text-decoration:none; }
-        .post-image { max-width:100%; border-radius:6px; margin-top:10px; }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
                       background:rgba(13,2,33,0.96); overflow-y:auto; padding:40px 20px; }
@@ -71,12 +63,11 @@ const synthwaveTemplate = `<!DOCTYPE html>
                        box-shadow:0 0 60px rgba(255,45,120,0.35); padding:38px; }
         .modal-close { float:right; background:none; border:none; color:var(--orange);
                        font-family:'Russo One',sans-serif; font-size:0.9rem; cursor:pointer; letter-spacing:2px; }
-        @media(max-width:640px) { .nav-hints{display:none;} .grid-floor{height:30vh;} header{padding:12px 18px;} }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} }
     </style>
 </head>
 <body>
-    <div class="sky"></div>
-    <div class="grid-floor"></div>
+    <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
             <div class="logo">
@@ -106,6 +97,93 @@ const synthwaveTemplate = `<!DOCTYPE html>
         </div>
     </div>
     {{template "navmodal" .}}
+    <script>
+    // Synthwave WebGL: glowing sunset sphere with horizontal scan-line rings,
+    // a receding grid floor, and pink star particles. Replaces CSS sky/grid.
+    (function() {
+        var scene, camera, renderer, clock;
+        var sun, sunRings = [];
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0d0221);
+            scene.fog = new THREE.Fog(0x0d0221, 60, 180);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 300);
+            camera.position.set(0, 10, 45);
+            camera.lookAt(0, -5, -10);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            clock = new THREE.Clock();
+
+            // Glowing orange sunset sphere
+            sun = new THREE.Mesh(
+                new THREE.SphereGeometry(12, 32, 16),
+                new THREE.MeshBasicMaterial({ color: 0xff6b2b })
+            );
+            sun.position.set(0, -8, -55);
+            scene.add(sun);
+
+            // Horizontal scan-line rings — alternating pink/purple, stacked on the sun
+            var ringColors = [0xff2d78, 0xbf3fff, 0xff2d78, 0xbf3fff, 0xff2d78, 0xbf3fff, 0xff2d78, 0xbf3fff];
+            for (var i = 0; i < 8; i++) {
+                var ring = new THREE.Mesh(
+                    new THREE.TorusGeometry(13 + i * 1.2, 0.09, 8, 64),
+                    new THREE.MeshBasicMaterial({ color: ringColors[i] })
+                );
+                ring.position.copy(sun.position);
+                ring.position.y += -4 + i * 1.1;
+                scene.add(ring);
+                sunRings.push(ring);
+            }
+
+            // Receding grid floor
+            var grid = new THREE.GridHelper(200, 40, 0xff2d78, 0x4a0060);
+            grid.position.set(0, -18, -30);
+            scene.add(grid);
+
+            // 1200 star particles scattered in a sphere shell
+            var starPos = new Float32Array(1200 * 3);
+            for (var j = 0; j < 1200 * 3; j += 3) {
+                var r = 80 + Math.random() * 40;
+                var theta = Math.random() * Math.PI * 2;
+                var phi = Math.acos(2 * Math.random() - 1);
+                starPos[j]   = r * Math.sin(phi) * Math.cos(theta);
+                starPos[j+1] = r * Math.sin(phi) * Math.sin(theta);
+                starPos[j+2] = r * Math.cos(phi);
+            }
+            var starGeo = new THREE.BufferGeometry();
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({
+                color: 0xff88aa, size: 0.2, transparent: true, opacity: 0.7
+            })));
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            var t = clock.getElapsedTime();
+            // Sun pulses subtly; camera drifts sideways for parallax
+            var pulse = 1 + 0.015 * Math.sin(t * 1.5);
+            sun.scale.setScalar(pulse);
+            sunRings.forEach(function(r) { r.scale.setScalar(pulse); });
+            camera.position.x = Math.sin(t * 0.08) * 4;
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
     {{template "navscript" .}}
 </body>
 </html>`

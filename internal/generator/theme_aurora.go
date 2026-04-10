@@ -1,32 +1,21 @@
 package generator
 
-// auroraTemplate is a dark navy theme with a CSS-animated aurora borealis
-// effect — shifting green/purple/teal gradients across the background sky.
+// auroraTemplate is a dark navy theme with a WebGL aurora borealis effect —
+// six wide ribbon meshes whose vertices are animated with overlapping sine waves,
+// rendered with additive blending to create the characteristic glow.
 const auroraTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>snonux.foo ✦ AURORA</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
         :root { --green:#00ffb3; --teal:#00cfe8; --purple:#c084fc; --navy:#050d1a; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--navy);
                color:#e0f8f0; overflow:hidden; height:100vh; }
-        /* Animated aurora bands */
-        @keyframes aurora1 { 0%,100%{opacity:0.18;transform:scaleX(1) translateY(0)} 50%{opacity:0.28;transform:scaleX(1.15) translateY(-14px)} }
-        @keyframes aurora2 { 0%,100%{opacity:0.12;transform:scaleX(1) translateY(0)} 50%{opacity:0.22;transform:scaleX(0.88) translateY(10px)} }
-        @keyframes aurora3 { 0%,100%{opacity:0.10;transform:scaleX(1) skewY(0deg)} 50%{opacity:0.18;transform:scaleX(1.08) skewY(2deg)} }
-        .aurora-bg { position:fixed; inset:0; z-index:0; overflow:hidden; }
-        .aurora-bg::before { content:''; position:absolute; left:-20%; top:5%; width:140%; height:45%;
-            background:radial-gradient(ellipse,rgba(0,255,179,0.38) 0%,rgba(0,207,232,0.22) 40%,transparent 70%);
-            filter:blur(40px); animation:aurora1 12s ease-in-out infinite; }
-        .aurora-bg::after { content:''; position:absolute; left:10%; top:20%; width:120%; height:55%;
-            background:radial-gradient(ellipse,rgba(192,132,252,0.28) 0%,rgba(0,255,179,0.18) 45%,transparent 70%);
-            filter:blur(50px); animation:aurora2 16s ease-in-out infinite; }
-        .aurora-band3 { position:fixed; left:-10%; top:35%; width:130%; height:40%; z-index:0;
-            background:radial-gradient(ellipse,rgba(0,207,232,0.22) 0%,rgba(192,132,252,0.14) 50%,transparent 75%);
-            filter:blur(45px); animation:aurora3 20s ease-in-out infinite; }
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
         .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
         header { padding:16px 28px; background:rgba(5,13,26,0.78); backdrop-filter:blur(14px);
                  border-bottom:1px solid rgba(0,255,179,0.25); display:flex; align-items:center; justify-content:space-between; }
@@ -38,8 +27,7 @@ const auroraTemplate = `<!DOCTYPE html>
         .logo-title .subtitle a { color:var(--green); text-decoration:none; }
         .logo-title .subtitle a:hover { text-shadow:0 0 8px var(--green); }
         .transmit-btn { border:1px solid var(--teal); color:var(--teal); padding:9px 20px;
-                        border-radius:20px; text-decoration:none; font-size:0.85rem;
-                        transition:all 0.2s; }
+                        border-radius:20px; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
         .transmit-btn:hover { background:var(--teal); color:var(--navy); }
         .nav-hints { background:rgba(5,13,26,0.6); border-bottom:1px solid rgba(0,255,179,0.15);
                      color:rgba(224,248,240,0.45); padding:5px 28px; display:flex; gap:18px;
@@ -63,7 +51,6 @@ const auroraTemplate = `<!DOCTYPE html>
         .post-text { line-height:1.65; font-size:0.95rem; }
         .post-text a { color:var(--green); text-decoration:none; }
         .post-text a:hover { text-shadow:0 0 8px var(--green); }
-        .post-image { max-width:100%; border-radius:8px; margin-top:10px; }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
                       background:rgba(5,13,26,0.95); backdrop-filter:blur(20px);
@@ -78,8 +65,7 @@ const auroraTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="aurora-bg"></div>
-    <div class="aurora-band3"></div>
+    <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
             <div class="logo">
@@ -109,6 +95,87 @@ const auroraTemplate = `<!DOCTYPE html>
         </div>
     </div>
     {{template "navmodal" .}}
+    <script>
+    // Aurora WebGL: six wide ribbon meshes whose top-row vertices are animated
+    // with overlapping sine waves, rendered with additive blending so they glow
+    // against the dark navy sky like real aurora curtains.
+    (function() {
+        var RIBBON_COUNT = 6;
+        var SEG_W = 60; // horizontal segments per ribbon
+        var ribbonColors = [0x00ffb3, 0x00cfe8, 0xc084fc, 0x00ffb3, 0x48e8d0, 0xa855f7];
+        var ribbonY     = [-10, -4, 2, 8, 14, 20];
+        var ribbonZ     = [-40, -30, -22, -15, -10, -5];
+        var ribbonFreq  = [0.6, 0.9, 0.7, 1.1, 0.5, 0.8];
+        var ribbonPhase = [0.0, 1.2, 2.4, 0.8, 3.1, 1.7];
+        var ribbonAmp   = [3.0, 2.5, 2.0, 3.5, 2.2, 2.8];
+
+        var scene, camera, renderer, clock;
+        var ribbons = [];
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050d1a);
+            scene.fog = new THREE.Fog(0x050d1a, 40, 120);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+            camera.position.set(0, 5, 30);
+            camera.lookAt(0, 5, 0);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            clock = new THREE.Clock();
+
+            for (var r = 0; r < RIBBON_COUNT; r++) {
+                // Wide shallow plane; we animate the top row of vertices
+                var geo = new THREE.PlaneGeometry(120, 8, SEG_W, 1);
+                var mat = new THREE.MeshBasicMaterial({
+                    color: ribbonColors[r], transparent: true, opacity: 0.32,
+                    side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
+                });
+                var mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(0, ribbonY[r], ribbonZ[r]);
+                scene.add(mesh);
+                ribbons.push({ mesh: mesh, geo: geo, freq: ribbonFreq[r],
+                               phase: ribbonPhase[r], amp: ribbonAmp[r] });
+            }
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            var t = clock.getElapsedTime();
+
+            for (var r = 0; r < ribbons.length; r++) {
+                var rb = ribbons[r];
+                var pos = rb.geo.attributes.position;
+                var count = pos.count;
+                // PlaneGeometry vertices: (SEG_W+1)*2 total; top row is every other vertex
+                for (var i = 0; i < count; i++) {
+                    var x = pos.getX(i);
+                    // Only animate top row (y > 0 in local space) for the waving top edge
+                    if (pos.getY(i) > 0) {
+                        pos.setY(i, rb.amp * Math.sin(t * rb.freq + x * 0.08 + rb.phase)
+                                    + rb.amp * 0.4 * Math.cos(t * rb.freq * 0.7 + x * 0.05));
+                    }
+                }
+                pos.needsUpdate = true;
+            }
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
     {{template "navscript" .}}
 </body>
 </html>`

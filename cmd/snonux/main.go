@@ -11,8 +11,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/generator"
@@ -31,14 +33,28 @@ func main() {
 }
 
 // parseFlags reads CLI flags and returns a validated Config.
+// Special theme value "random" picks a theme at random from the registry.
 func parseFlags() (*config.Config, error) {
 	cfg := &config.Config{}
+	listThemes := flag.Bool("list-themes", false, "print all available theme names and exit")
 
 	flag.StringVar(&cfg.InputDir, "input", "./inbox", "directory containing new source files to process")
 	flag.StringVar(&cfg.OutputDir, "output", "~/git/snonux.foo/dist", "root directory for generated static site output")
 	flag.StringVar(&cfg.BaseURL, "base-url", "https://snonux.foo", "canonical base URL used in Atom feed links")
-	flag.StringVar(&cfg.Theme, "theme", "neon", "visual theme: aurora, brutalist, glass, matrix, minimal, neon, ocean, paper, retro, synthwave, terminal")
+	flag.StringVar(&cfg.Theme, "theme", "neon", "visual theme name, or \"random\" to pick one at random")
 	flag.Parse()
+
+	if *listThemes {
+		fmt.Println(strings.Join(generator.ListThemes(), "\n"))
+		os.Exit(0)
+	}
+
+	// Resolve the special "random" value before any further validation.
+	if cfg.Theme == "random" {
+		themes := generator.ListThemes()
+		cfg.Theme = themes[rand.Intn(len(themes))]
+		log.Printf("random theme selected: %s", cfg.Theme)
+	}
 
 	var err error
 

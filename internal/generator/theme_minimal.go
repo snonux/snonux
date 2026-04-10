@@ -1,67 +1,72 @@
 package generator
 
-// minimalTemplate is a clean white theme — system font, subtle borders,
-// no animations or decorations. Maximum readability.
-const minimalTemplate = `<!DOCTYPE html>
+// plasmaTemplate is a dark psychedelic plasma theme — overlapping translucent
+// spheres with additive blending drift on sine paths, creating lava-lamp-like
+// colour blobs against a near-black background.
+const plasmaTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>snonux.foo</title>
+    <title>snonux.foo ◈ PLASMA</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
-        :root { --accent:#0066cc; --border:#e2e2e2; --muted:#666; }
+        :root { --cyan:#00f0ff; --magenta:#ff00e0; --yellow:#ffee00; --bg:#050008; }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
-               background:#fff; color:#111; overflow:hidden; height:100vh; }
-        .overlay { height:100vh; display:flex; flex-direction:column; max-width:860px;
-                   margin:0 auto; }
-        header { padding:20px 32px; border-bottom:1px solid var(--border);
-                 display:flex; align-items:center; justify-content:space-between; }
+        body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg);
+               color:#e8e0ff; overflow:hidden; height:100vh; }
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
+        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        header { padding:16px 28px; background:rgba(5,0,8,0.8); backdrop-filter:blur(14px);
+                 border-bottom:1px solid rgba(0,240,255,0.2); display:flex; align-items:center; justify-content:space-between; }
         .logo { display:flex; align-items:center; gap:14px; }
-        .logo-mark { font-size:1.5rem; font-weight:800; color:#111; letter-spacing:-1px; }
-        .logo-title h1 { font-size:1.35rem; font-weight:700; color:#111; letter-spacing:-0.5px; }
-        .logo-title .subtitle { font-size:0.78rem; color:var(--muted); margin-top:1px; }
-        .logo-title .subtitle a { color:var(--accent); text-decoration:none; }
-        .logo-title .subtitle a:hover { text-decoration:underline; }
-        .transmit-btn { border:1px solid var(--accent); color:var(--accent); padding:8px 18px;
-                        border-radius:5px; text-decoration:none; font-size:0.88rem;
-                        font-weight:500; transition:all 0.15s; }
-        .transmit-btn:hover { background:var(--accent); color:#fff; }
-        .nav-hints { padding:6px 32px; border-bottom:1px solid var(--border);
-                     display:flex; gap:18px; font-size:0.72rem; color:var(--muted); flex-wrap:wrap; }
-        .nav-hints kbd { background:#f5f5f5; border:1px solid #ccc; border-radius:3px;
-                         padding:1px 5px; font-size:0.72rem; color:#333; margin:0 2px; }
-        .content { flex:1; overflow-y:auto; padding:0 32px;
-                   scrollbar-width:thin; scrollbar-color:#ccc #fff; }
-        .page-nav { display:flex; justify-content:center; margin:16px 0; }
-        .page-nav a { border:1px solid var(--border); color:var(--accent); padding:8px 20px;
-                      border-radius:5px; text-decoration:none; font-size:0.88rem; }
-        .page-nav a:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
-        .post { border-bottom:1px solid var(--border); padding:22px 0; cursor:pointer;
-                transition:background 0.12s; }
-        .post:hover { background:#f8f8f8; padding-left:8px; }
-        .post-active { background:#eef5ff !important; border-left:3px solid var(--accent) !important;
-                       padding-left:16px !important; }
-        .post-header { display:flex; justify-content:space-between; margin-bottom:10px;
-                       font-size:0.88rem; }
-        .post-time { color:var(--muted); font-size:0.82rem; }
-        .post-text { line-height:1.65; font-size:1rem; }
-        .post-text a { color:var(--accent); text-decoration:none; }
-        .post-text a:hover { text-decoration:underline; }
-        .post-image { max-width:100%; border-radius:6px; margin-top:10px; border:1px solid var(--border); }
+        .logo-mark { font-size:2rem; font-weight:800;
+                     background:linear-gradient(90deg,var(--cyan),var(--magenta));
+                     -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .logo-title h1 { font-size:1.5rem; font-weight:700; color:#e8e0ff; }
+        .logo-title .subtitle { font-size:0.75rem; color:rgba(232,224,255,0.5); margin-top:2px; }
+        .logo-title .subtitle a { color:var(--cyan); text-decoration:none; }
+        .logo-title .subtitle a:hover { text-shadow:0 0 8px var(--cyan); }
+        .transmit-btn { border:1px solid var(--magenta); color:var(--magenta); padding:9px 20px;
+                        border-radius:20px; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
+        .transmit-btn:hover { background:var(--magenta); color:var(--bg); }
+        .nav-hints { background:rgba(5,0,8,0.65); border-bottom:1px solid rgba(0,240,255,0.12);
+                     color:rgba(232,224,255,0.4); padding:5px 28px; display:flex; gap:18px;
+                     font-size:0.68rem; flex-wrap:wrap; }
+        .nav-hints kbd { background:rgba(0,240,255,0.1); border:1px solid rgba(0,240,255,0.3);
+                         color:var(--cyan); border-radius:3px; padding:0 5px; margin:0 2px; }
+        .content { flex:1; overflow-y:auto; padding:20px 28px;
+                   scrollbar-width:thin; scrollbar-color:var(--magenta) var(--bg); }
+        .page-nav { display:flex; justify-content:center; margin:14px 0; }
+        .page-nav a { border:1px solid var(--cyan); color:var(--cyan); padding:8px 20px;
+                      border-radius:20px; text-decoration:none; font-size:0.82rem; }
+        .page-nav a:hover { background:var(--cyan); color:var(--bg); }
+        .post { background:rgba(10,0,20,0.75); border:1px solid rgba(0,240,255,0.18); border-radius:10px;
+                padding:20px; margin-bottom:14px; cursor:pointer;
+                transition:all 0.25s; backdrop-filter:blur(6px); }
+        .post:hover { border-color:var(--cyan); box-shadow:0 0 20px rgba(0,240,255,0.2); transform:translateY(-2px); }
+        .post-active { border-color:var(--magenta) !important; background:rgba(20,0,30,0.9) !important;
+                       box-shadow:0 0 24px rgba(255,0,224,0.35),inset 3px 0 0 var(--magenta) !important; }
+        .post-header { display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.88rem; }
+        .post-time { color:var(--cyan); font-family:monospace; font-size:0.8rem; }
+        .post-text { line-height:1.65; font-size:0.95rem; }
+        .post-text a { color:var(--cyan); text-decoration:none; }
+        .post-text a:hover { text-shadow:0 0 8px var(--cyan); }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
-                      background:rgba(255,255,255,0.97); overflow-y:auto; padding:40px 20px; }
+                      background:rgba(5,0,8,0.96); backdrop-filter:blur(20px);
+                      overflow-y:auto; padding:40px 20px; }
         .post-modal.active { display:block; }
-        .modal-inner { max-width:760px; margin:0 auto; background:#fff;
-                       border:1px solid var(--border); border-radius:6px;
-                       box-shadow:0 4px 24px rgba(0,0,0,0.1); padding:40px; }
-        .modal-close { float:right; background:none; border:none; color:var(--muted);
-                       font-size:0.9rem; cursor:pointer; }
-        @media(max-width:640px) { .nav-hints{display:none;} .overlay{max-width:100%;} header{padding:16px 20px;} .content{padding:0 20px;} }
+        .modal-inner { max-width:760px; margin:0 auto; background:rgba(10,0,25,0.98);
+                       border:1px solid var(--magenta); border-radius:12px;
+                       box-shadow:0 0 60px rgba(255,0,224,0.25); padding:40px; }
+        .modal-close { float:right; background:none; border:none; color:var(--cyan);
+                       font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} }
     </style>
 </head>
 <body>
+    <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
             <div class="logo">
@@ -72,7 +77,7 @@ const minimalTemplate = `<!DOCTYPE html>
                 </div>
             </div>
             <div class="nav">
-                <a href="https://foo.zone/about" class="transmit-btn">Transmit to Nexus</a>
+                <a href="https://foo.zone/about" class="transmit-btn">Transmit</a>
             </div>
         </header>
         {{template "navhints" .}}
@@ -91,6 +96,81 @@ const minimalTemplate = `<!DOCTYPE html>
         </div>
     </div>
     {{template "navmodal" .}}
+    <script>
+    // Plasma WebGL: 12 large translucent spheres drifting on independent sine
+    // paths with additive blending — overlapping blobs mix colours and pulse
+    // like a lava lamp or plasma ball. Dark bg, cyan/magenta/yellow palette.
+    (function() {
+        var scene, camera, renderer, clock;
+        var blobs = [];
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050008);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+            camera.position.set(0, 0, 40);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            clock = new THREE.Clock();
+
+            // Each blob: [color, radius, baseX, baseY, baseZ, ampX, ampY, freqX, freqY, phaseX, phaseY]
+            var cfg = [
+                [0x00f0ff, 10, -5,  0, -15, 8,  6, 0.30, 0.40, 0.0, 1.0],
+                [0xff00e0,  9,  8, -4, -18, 7,  8, 0.40, 0.30, 1.5, 0.5],
+                [0xffee00,  8, -8,  6, -20, 6,  7, 0.50, 0.20, 3.0, 2.0],
+                [0x00f0ff,  7,  4,  8, -12, 9,  5, 0.20, 0.50, 0.8, 3.5],
+                [0xff00e0,  9, -6, -8, -16, 8,  6, 0.35, 0.45, 2.2, 1.2],
+                [0xffee00, 11,  2,  2, -22, 7,  9, 0.25, 0.35, 4.0, 0.3],
+                [0x8800ff,  8,-12,  4, -14, 6,  7, 0.45, 0.25, 1.0, 2.5],
+                [0x00ff88,  7, 10, -6, -19, 8,  5, 0.30, 0.40, 3.5, 1.8],
+                [0xff4400,  9,  0, 10, -17, 7,  8, 0.40, 0.30, 0.5, 4.0],
+                [0x00f0ff,  6, -4, -4, -11, 5,  6, 0.55, 0.35, 2.8, 0.9],
+                [0xff00e0, 10,  6,  0, -25, 9,  5, 0.20, 0.50, 1.3, 3.2],
+                [0xffee00,  7,-10, -2, -13, 6,  8, 0.40, 0.30, 4.5, 1.5],
+            ];
+
+            cfg.forEach(function(c) {
+                var geo = new THREE.SphereGeometry(c[1], 24, 24);
+                var mat = new THREE.MeshBasicMaterial({
+                    color: c[0], transparent: true, opacity: 0.18,
+                    blending: THREE.AdditiveBlending, depthWrite: false
+                });
+                var mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(c[2], c[3], c[4]);
+                blobs.push({ mesh: mesh,
+                    bx: c[2], by: c[3],
+                    ax: c[5], ay: c[6],
+                    fx: c[7], fy: c[8],
+                    px: c[9], py: c[10] });
+                scene.add(mesh);
+            });
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            var t = clock.getElapsedTime();
+            blobs.forEach(function(b) {
+                b.mesh.position.x = b.bx + b.ax * Math.sin(t * b.fx + b.px);
+                b.mesh.position.y = b.by + b.ay * Math.cos(t * b.fy + b.py);
+            });
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
     {{template "navscript" .}}
 </body>
 </html>`

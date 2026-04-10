@@ -3,24 +3,29 @@ package generator
 // retroTemplate is an amber DOS terminal theme — black background, amber
 // phosphor (#ffb000) text, monospace throughout, no decorations.
 // Distinct from terminal.go (green) — this one evokes vintage PC monitors.
+// WebGL scene: spinning amber wireframe cube with orbiting octahedrons and
+// dim amber star particles for a retro demo-scene feel.
 const retroTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SNONUX.FOO // RETRO</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
         :root { --amber:#ffb000; --dim:#7a5200; --bg:#0a0800; --bg2:#050300; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Courier New',Courier,monospace; background:var(--bg); color:var(--amber);
                overflow:hidden; height:100vh; }
-        /* Phosphor scanlines */
+        /* Phosphor scanlines overlay — sits above WebGL */
         body::before { content:''; position:fixed; inset:0; z-index:999; pointer-events:none;
             background:repeating-linear-gradient(0deg,transparent,transparent 2px,
                 rgba(0,0,0,0.15) 2px,rgba(0,0,0,0.15) 4px); }
         /* Subtle glow flicker */
         @keyframes amber-flicker { 0%,100%{opacity:1} 94%{opacity:0.98} 96%{opacity:0.93} }
         body { animation:amber-flicker 11s infinite; }
+        /* WebGL background canvas */
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
         .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
         header { padding:12px 24px; background:var(--bg2); border-bottom:2px solid var(--amber);
                  display:flex; align-items:center; justify-content:space-between; }
@@ -71,6 +76,7 @@ const retroTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
+    <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
             <div class="logo">
@@ -100,6 +106,85 @@ const retroTemplate = `<!DOCTYPE html>
         </div>
     </div>
     {{template "navmodal" .}}
+    <script>
+    // Retro WebGL scene: amber demo-scene cube + orbiting octahedrons + star particles.
+    // Evokes classic 80s/90s PC demo aesthetics with amber phosphor colours.
+    (function() {
+        var scene, camera, renderer;
+        var mainCube, orbiters = [];
+        var clock = new THREE.Clock();
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0800);
+            scene.fog = new THREE.Fog(0x0a0800, 25, 90);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(0, 0, 35);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // Central amber wireframe cube — the demo-scene hero piece
+            var boxGeo = new THREE.BoxGeometry(8, 8, 8);
+            var boxMat = new THREE.MeshBasicMaterial({ color: 0xffb000, wireframe: true });
+            mainCube = new THREE.Mesh(boxGeo, boxMat);
+            scene.add(mainCube);
+
+            // 6 small octahedron wireframes evenly spaced on an orbital ring
+            var octoMat = new THREE.MeshBasicMaterial({ color: 0xffb000, wireframe: true });
+            for (var i = 0; i < 6; i++) {
+                var octoGeo = new THREE.OctahedronGeometry(1.5);
+                var octo = new THREE.Mesh(octoGeo, octoMat.clone());
+                var angle = (i / 6) * Math.PI * 2;
+                octo.position.set(Math.cos(angle) * 18, Math.sin(angle) * 5, Math.sin(angle) * 18);
+                orbiters.push({ mesh: octo, baseAngle: angle });
+                scene.add(octo);
+            }
+
+            // 800 dim amber background star particles
+            var starGeo = new THREE.BufferGeometry();
+            var starPos = new Float32Array(800 * 3);
+            for (var j = 0; j < 800 * 3; j++) {
+                starPos[j] = (Math.random() - 0.5) * 120;
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            var starMat = new THREE.PointsMaterial({ color: 0x7a5200, size: 0.15 });
+            scene.add(new THREE.Points(starGeo, starMat));
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            var t = clock.getElapsedTime();
+            // Main cube rotates on Y and X axes for classic demo-scene look
+            mainCube.rotation.y = t * 0.35;
+            mainCube.rotation.x = t * 0.18;
+            // Orbiters revolve around the central cube and spin individually
+            for (var i = 0; i < orbiters.length; i++) {
+                var o = orbiters[i];
+                var angle = o.baseAngle + t * 0.4;
+                o.mesh.position.x = Math.cos(angle) * 18;
+                o.mesh.position.z = Math.sin(angle) * 18;
+                o.mesh.position.y = Math.sin(angle * 0.7) * 4;
+                o.mesh.rotation.x = t * 0.9;
+                o.mesh.rotation.z = t * 0.6;
+            }
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
     {{template "navscript" .}}
 </body>
 </html>`

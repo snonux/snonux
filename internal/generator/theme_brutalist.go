@@ -1,19 +1,22 @@
 package generator
 
 // brutalistTemplate is a raw brutalist theme — pure black, thick white borders,
-// Impact font, red as the only accent. No rounded corners anywhere.
+// Impact font, red as the only accent. WebGL scene: harsh slowly-rotating boxes,
+// wireframe red and solid white, no fog — brutal clarity.
 const brutalistTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SNONUX.FOO</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
         :root { --red:#ff2200; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:Impact,'Arial Narrow',Arial,sans-serif;
                background:#000; color:#fff; overflow:hidden; height:100vh; }
-        .overlay { height:100vh; display:flex; flex-direction:column; }
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
+        .overlay { height:100vh; display:flex; flex-direction:column; position:relative; z-index:10; }
         header { padding:14px 24px; background:#000; border-bottom:4px solid #fff;
                  display:flex; align-items:center; justify-content:space-between; }
         .logo { display:flex; align-items:center; gap:16px; }
@@ -49,7 +52,6 @@ const brutalistTemplate = `<!DOCTYPE html>
         .post-time { color:#aaa; font-family:'Courier New',monospace; font-size:0.82rem; }
         .post-text { font-family:'Arial',sans-serif; font-size:1rem; line-height:1.5; }
         .post-text a { color:var(--red); text-decoration:underline; }
-        .post-image { max-width:100%; margin-top:10px; border:3px solid #fff; }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
                       background:rgba(0,0,0,0.98); overflow-y:auto; padding:40px 20px; }
@@ -63,6 +65,7 @@ const brutalistTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
+    <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
             <div class="logo">
@@ -92,6 +95,65 @@ const brutalistTemplate = `<!DOCTYPE html>
         </div>
     </div>
     {{template "navmodal" .}}
+    <script>
+    // Brutalist WebGL: harsh slowly-rotating boxes — solid white and wireframe red.
+    // No fog, no softness. Pure geometric violence against the black void.
+    (function() {
+        var scene, camera, renderer, clock;
+        var boxes = [];
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+            camera.position.set(0, 0, 40);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            clock = new THREE.Clock();
+
+            // Box configurations: [size, posX, posY, posZ, rotSpeedX, rotSpeedY, wireframe, color]
+            var configs = [
+                [10, 0,   0,  0,   0.002, 0.005, false, 0xffffff],
+                [6,  18, -6,  -8,  0.004, 0.003, true,  0xff2200],
+                [7,  -16, 5, -10,  0.003, 0.006, true,  0xff2200],
+                [5,  8,  12, -5,   0.006, 0.002, false, 0xff2200],
+                [4,  -10,-10, -3,  0.005, 0.004, false, 0xffffff],
+            ];
+
+            configs.forEach(function(c) {
+                var geo = new THREE.BoxGeometry(c[0], c[0], c[0]);
+                var mat = new THREE.MeshBasicMaterial({ color: c[7], wireframe: c[6] });
+                var mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(c[1], c[2], c[3]);
+                boxes.push({ mesh: mesh, rx: c[4], ry: c[5] });
+                scene.add(mesh);
+            });
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            boxes.forEach(function(b) {
+                b.mesh.rotation.x += b.rx;
+                b.mesh.rotation.y += b.ry;
+            });
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
     {{template "navscript" .}}
 </body>
 </html>`

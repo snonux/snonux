@@ -7,9 +7,9 @@ var themeRegistry = map[string]string{
 	"neon":      neonTemplate,
 	"terminal":  terminalTemplate,
 	"synthwave": synthwaveTemplate,
-	"minimal":   minimalTemplate,
+	"plasma":    plasmaTemplate,  // replaced "minimal" — psychedelic drifting blobs
 	"brutalist": brutalistTemplate,
-	"paper":     paperTemplate,
+	"volcano":   volcanoTemplate, // replaced "paper" — rising ember particles
 	"aurora":    auroraTemplate,
 	"matrix":    matrixTemplate,
 	"ocean":     oceanTemplate,
