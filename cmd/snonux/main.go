@@ -8,24 +8,44 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"codeberg.org/snonux/snonux/internal"
 	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/generator"
 	"codeberg.org/snonux/snonux/internal/processor"
+	"codeberg.org/snonux/snonux/internal/version"
+)
+
+// cliMode tells main whether to run the pipeline or print and exit.
+type cliMode int
+
+const (
+	modeRun cliMode = iota
+	modeVersion
+	modeListThemes
 )
 
 func main() {
-	cfg, err := parseFlags()
+	cfg, mode, err := parseFlags(os.Args[1:])
 	if err != nil {
 		log.Fatalf("error: %v", err)
+	}
+
+	switch mode {
+	case modeVersion:
+		fmt.Println(version.Version)
+		return
+	case modeListThemes:
+		fmt.Println(strings.Join(generator.ListThemes(), "\n"))
+		return
 	}
 
 	if err := run(cfg); err != nil {
@@ -33,29 +53,36 @@ func main() {
 	}
 }
 
+// errParseFlags is returned when flag parsing fails (e.g. unknown flag).
+var errParseFlags = errors.New("flag parse error")
+
 // parseFlags reads CLI flags and returns a validated Config.
 // Special theme value "random" picks a theme at random from the registry.
-func parseFlags() (*config.Config, error) {
+func parseFlags(args []string) (*config.Config, cliMode, error) {
 	cfg := &config.Config{}
-	var showVersion bool
-	flag.BoolVar(&showVersion, "version", false, "print version and exit (-version, --version)")
-	flag.BoolVar(&showVersion, "v", false, "print version and exit (shorthand for -version)")
-	listThemes := flag.Bool("list-themes", false, "print all available theme names and exit")
+	fs := flag.NewFlagSet("snonux", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
 
-	flag.StringVar(&cfg.InputDir, "input", "./inbox", "directory containing new source files to process")
-	flag.StringVar(&cfg.OutputDir, "output", "~/git/snonux.foo/dist", "root directory for generated static site output")
-	flag.StringVar(&cfg.BaseURL, "base-url", "https://snonux.foo", "canonical base URL used in Atom feed links")
-	flag.StringVar(&cfg.Theme, "theme", "random", "visual theme name, or \"random\" to pick one at random")
-	flag.Parse()
+	var showVersion bool
+	fs.BoolVar(&showVersion, "version", false, "print version and exit (-version, --version)")
+	fs.BoolVar(&showVersion, "v", false, "print version and exit (shorthand for -version)")
+	listThemes := fs.Bool("list-themes", false, "print all available theme names and exit")
+
+	fs.StringVar(&cfg.InputDir, "input", "./inbox", "directory containing new source files to process")
+	fs.StringVar(&cfg.OutputDir, "output", "~/git/snonux.foo/dist", "root directory for generated static site output")
+	fs.StringVar(&cfg.BaseURL, "base-url", "https://snonux.foo", "canonical base URL used in Atom feed links")
+	fs.StringVar(&cfg.Theme, "theme", "random", "visual theme name, or \"random\" to pick one at random")
+
+	if err := fs.Parse(args); err != nil {
+		return nil, modeRun, fmt.Errorf("%w: %w", errParseFlags, err)
+	}
 
 	if showVersion {
-		fmt.Println(version.Version)
-		os.Exit(0)
+		return nil, modeVersion, nil
 	}
 
 	if *listThemes {
-		fmt.Println(strings.Join(generator.ListThemes(), "\n"))
-		os.Exit(0)
+		return nil, modeListThemes, nil
 	}
 
 	// Resolve the special "random" value before any further validation.
@@ -69,23 +96,23 @@ func parseFlags() (*config.Config, error) {
 
 	cfg.InputDir, err = expandHome(cfg.InputDir)
 	if err != nil {
-		return nil, fmt.Errorf("input dir: %w", err)
+		return nil, modeRun, fmt.Errorf("input dir: %w", err)
 	}
 
 	cfg.OutputDir, err = expandHome(cfg.OutputDir)
 	if err != nil {
-		return nil, fmt.Errorf("output dir: %w", err)
+		return nil, modeRun, fmt.Errorf("output dir: %w", err)
 	}
 
 	if err := ensureDir(cfg.InputDir); err != nil {
-		return nil, fmt.Errorf("input dir: %w", err)
+		return nil, modeRun, fmt.Errorf("input dir: %w", err)
 	}
 
 	if err := ensureDir(cfg.OutputDir); err != nil {
-		return nil, fmt.Errorf("output dir: %w", err)
+		return nil, modeRun, fmt.Errorf("output dir: %w", err)
 	}
 
-	return cfg, nil
+	return cfg, modeRun, nil
 }
 
 // expandHome replaces a leading ~ with the current user's home directory.

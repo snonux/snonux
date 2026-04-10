@@ -2,9 +2,12 @@ package generator
 
 import (
 	"html/template"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/post"
 )
 
@@ -195,5 +198,70 @@ func TestBuildPageData_navLinks(t *testing.T) {
 				t.Fatalf("len(Posts)=%d", len(data.Posts))
 			}
 		})
+	}
+}
+
+func TestGetTheme_unknownFallsBackToNeon(t *testing.T) {
+	t.Parallel()
+	if got, want := getTheme("no-such-theme-"), getTheme("neon"); got != want {
+		t.Fatal("expected neon fallback")
+	}
+}
+
+func TestListThemes_sortedAndComplete(t *testing.T) {
+	t.Parallel()
+	names := ListThemes()
+	if len(names) != len(themeRegistry) {
+		t.Fatalf("len=%d, want %d", len(names), len(themeRegistry))
+	}
+	for i := 1; i < len(names); i++ {
+		if names[i] <= names[i-1] {
+			t.Fatalf("not strictly sorted: %v", names)
+		}
+	}
+}
+
+func TestLoadAllPosts_missingPostsDir(t *testing.T) {
+	t.Parallel()
+	posts, err := loadAllPosts(t.TempDir())
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if posts != nil {
+		t.Fatalf("want nil slice, got %v", posts)
+	}
+}
+
+func TestRun_writesPagesAndAtom(t *testing.T) {
+	t.Parallel()
+
+	out := t.TempDir()
+	postDir := filepath.Join(out, "posts", "a1")
+	if err := os.MkdirAll(postDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := &post.Post{
+		ID:        "a1",
+		Timestamp: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
+		PostType:  post.TypeText,
+		Content:   "<p>hello</p>",
+	}
+	if err := p.Save(postDir); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		OutputDir: out,
+		BaseURL:   "https://example.test",
+		Theme:     "neon",
+	}
+	if err := Run(cfg); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "index.html")); err != nil {
+		t.Fatalf("index.html: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "atom.xml")); err != nil {
+		t.Fatalf("atom.xml: %v", err)
 	}
 }
