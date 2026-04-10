@@ -82,11 +82,12 @@ const terminalTemplate = `<!DOCTYPE html>
         .splash-terminal .splash-tag { color:rgba(51,255,51,0.85); letter-spacing:0.25em; }
         .splash-terminal .splash-hint { color:rgba(51,255,51,0.8); }
         .splash-terminal .splash-inner { text-shadow: 0 0 8px #000, 0 2px 12px #000; }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-terminal" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-terminal" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-inner">
             <div class="splash-prompt">&gt; ./snonux --boot</div>

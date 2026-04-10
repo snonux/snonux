@@ -80,11 +80,12 @@ const volcanoTemplate = `<!DOCTYPE html>
         .splash-volcano .splash-tag { color:var(--ember); letter-spacing:0.15em; }
         .splash-volcano .splash-hint { color:rgba(255,232,204,0.88); }
         .splash-volcano .splash-inner { text-shadow: 0 2px 18px rgba(0,0,0,0.85); }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-volcano" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-volcano" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-inner">
             <div class="splash-ember" aria-hidden="true"></div>

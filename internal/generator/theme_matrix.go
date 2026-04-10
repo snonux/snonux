@@ -89,11 +89,12 @@ const matrixTemplate = `<!DOCTYPE html>
         @keyframes splashMatrixGlow { from { opacity:0.85; } to { opacity:1; text-shadow:0 0 28px var(--g); } }
         .splash-matrix .splash-tag { position:relative; z-index:1; color:rgba(0,255,65,0.88); }
         .splash-matrix .splash-hint { position:relative; z-index:1; color:rgba(0,255,65,0.82); }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-matrix" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-matrix" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-rain" aria-hidden="true">01001110 01000101 01001111
 10101010 11001100 00110011

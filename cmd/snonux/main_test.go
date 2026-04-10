@@ -104,6 +104,28 @@ func TestParseFlags_run(t *testing.T) {
 	}
 }
 
+func TestParseFlags_sync(t *testing.T) {
+	t.Parallel()
+
+	in := t.TempDir()
+	out := t.TempDir()
+	cfg, mode, err := parseFlags([]string{
+		"-input", in,
+		"-output", out,
+		"-theme", "neon",
+		"-sync",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode != modeRun {
+		t.Fatalf("mode %v", mode)
+	}
+	if !cfg.Sync {
+		t.Fatal("expected cfg.Sync")
+	}
+}
+
 func TestParseFlags_randomTheme(t *testing.T) {
 	t.Parallel()
 

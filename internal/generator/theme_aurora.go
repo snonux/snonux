@@ -105,11 +105,12 @@ const auroraTemplate = `<!DOCTYPE html>
         }
         .splash-aurora .splash-hint { color:rgba(224,248,240,0.88); margin-top:1.1rem; }
         .splash-aurora .splash-inner { position:relative; z-index:2; }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-aurora" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-aurora" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-aurora-stars" aria-hidden="true"></div>
         <div class="splash-aurora-glow" aria-hidden="true"></div>

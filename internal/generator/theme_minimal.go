@@ -89,11 +89,12 @@ const plasmaTemplate = `<!DOCTYPE html>
         .splash-plasma .splash-hint { color:rgba(232,224,255,0.86); }
         .splash-plasma .splash-blobs { z-index:1; }
         .splash-plasma .splash-inner { text-shadow: 0 2px 22px rgba(0,0,0,0.9); }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-plasma" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-plasma" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-blobs" aria-hidden="true"></div>
         <div class="splash-inner">

@@ -92,11 +92,12 @@ const retroTemplate = `<!DOCTYPE html>
         .splash-retro .splash-tag { color:#d4a020; }
         .splash-retro .splash-hint { color:#c99528; }
         .splash-retro .splash-inner { text-shadow: 0 0 10px #000, 0 2px 8px #000; }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-retro" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-retro" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-inner">
             <div class="splash-title">*** SNONUX BBS ***</div>

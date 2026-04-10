@@ -3,12 +3,14 @@ package generator
 // navDefs is appended to every theme template when parsing.
 // It defines named sub-templates shared across all themes:
 //   - "splashGate" — synchronous script: first child of <body>; sets html.sno-splash-skip when
-//     splash should not run (?splash=0, not index.html, or Referer from same-site index/pageN).
+//     splash should not run (?splash=0, not index path, or Referer from same-site index/pageN).
 //   - "navhints"  — keyboard shortcut hint bar HTML
-//   - "navmodal"  — full-screen expanded-post modal HTML + image-sizing CSS
+//   - "navSharedCSSInner" — shared CSS (injected inside each theme’s <style> in <head>)
+//   - "navmodal"  — full-screen expanded-post modal HTML (no <style>; CSS lives in head)
 //   - "navscript" — keyboard navigation + Web Audio; splash/nav/modal sounds from themeSoundsJSON (per theme)
 //
-// Each theme calls {{template "splashGate"}}, {{template "navhints" .}}, {{template "navmodal" .}},
+// Each theme ends its <style> with {{template "navSharedCSSInner"}} then calls
+// {{template "splashGate"}}, {{template "navhints" .}}, {{template "navmodal" .}},
 // and {{template "navscript" .}} at the appropriate points in its HTML.
 // All theme-specific CSS lives in each theme file so themes stay self-contained.
 const navDefs = `
@@ -22,20 +24,27 @@ const navDefs = `
       return;
     }
   } catch (_) {}
-  var parts = location.pathname.split('/').filter(function(s) { return s.length; });
-  var seg = (parts.length ? parts[parts.length - 1] : '').toLowerCase();
-  var onIndex = (!seg || seg === 'index.html');
+  function isIndexLikePath(pathname) {
+    var p = pathname || '/';
+    if (p === '' || p === '/') return true;
+    var parts = p.split('/').filter(function(s) { return s.length; });
+    if (parts.length === 0) return true;
+    var last = parts[parts.length - 1].toLowerCase();
+    if (last === 'index.html' || last === 'index.htm') return true;
+    if (p.endsWith('/') && parts.length === 1) return true;
+    return false;
+  }
+  var onIndex = isIndexLikePath(location.pathname);
   var ref = document.referrer;
   function refIsSameSiteBlogPage(url) {
     if (!url) return false;
     try {
       var ru = new URL(url), cu = new URL(location.href);
       if (ru.origin !== cu.origin) return false;
+      if (isIndexLikePath(ru.pathname)) return true;
       var rp = ru.pathname.split('/').filter(function(s) { return s.length; });
       var rs = (rp.length ? rp[rp.length - 1] : '').toLowerCase();
-      if (rs === 'index.html' || rs === '') return true;
-      if (/^page\d+\.html$/.test(rs)) return true;
-      return false;
+      return /^page\d+\.html$/.test(rs);
     } catch (_) { return false; }
   }
   if (!onIndex || refIsSameSiteBlogPage(ref)) document.documentElement.classList.add('sno-splash-skip');
@@ -44,7 +53,7 @@ const navDefs = `
 {{end}}
 
 {{define "navhints"}}
-<div class="nav-hints" aria-label="keyboard shortcuts">
+<div class="nav-hints" role="region" aria-label="Keyboard shortcuts">
     <span><kbd>j</kbd><kbd>k</kbd> or <kbd>↑</kbd><kbd>↓</kbd> select post</span>
     <span><kbd>PgUp</kbd><kbd>PgDn</kbd> scroll</span>
     <span><kbd>Enter</kbd> expand</span>
@@ -53,8 +62,7 @@ const navDefs = `
 </div>
 {{end}}
 
-{{define "navmodal"}}
-<style>
+{{define "navSharedCSSInner"}}
 /* Thumbnail sizing in list view; modal overrides to full width. */
 .post-image { max-height:220px; max-width:100%; object-fit:cover; cursor:pointer; }
 #post-modal .post-image { max-height:none; width:100%; max-width:100%; object-fit:contain; cursor:default; }
@@ -100,8 +108,10 @@ a.header-feed-link:hover { opacity:1; text-decoration:underline; }
 #splash-overlay.splash-brutalist .splash-inner.splash-frame {
   padding: clamp(1.4rem, 4.5vw, 2.25rem) clamp(1.1rem, 3.5vw, 1.9rem); background: rgba(0, 0, 0, 0.78); }
 html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidden !important; pointer-events:none !important; }
-</style>
-<div class="post-modal" id="post-modal">
+{{end}}
+
+{{define "navmodal"}}
+<div class="post-modal" id="post-modal" role="dialog" aria-modal="true" aria-label="Expanded post">
     <div class="modal-inner">
         <button class="modal-close" onclick="closeModal()">[ ESC ] CLOSE</button>
         <div id="modal-content"></div>
@@ -184,7 +194,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
     // === KEYBOARD NAVIGATION ===
     // j / ArrowDown  → next post       k / ArrowUp    → previous post
     // h / ArrowLeft  → previous page   l / ArrowRight → next page
-    // PageUp/PageDown → scroll the post list (viewport step on #post-content)
+    // PageUp/PageDown → scroll the post list; re-highlight post at top of visible area
     // Enter          → expand modal    Esc            → close modal
     const posts = document.querySelectorAll('.post');
     let currentIndex = posts.length > 0 ? 0 : -1;
@@ -193,13 +203,45 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
 
     if (currentIndex >= 0) selectPost(0);
 
-    function selectPost(index) {
+    function setActiveHighlight(index, playSound, scrollIntoView) {
         if (posts.length === 0) return;
         if (currentIndex >= 0) posts[currentIndex].classList.remove('post-active');
         currentIndex = Math.max(0, Math.min(index, posts.length - 1));
         posts[currentIndex].classList.add('post-active');
-        posts[currentIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        playNavSound();
+        if (scrollIntoView) {
+            posts[currentIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        if (playSound) playNavSound();
+    }
+
+    function selectPost(index) {
+        setActiveHighlight(index, true, true);
+    }
+
+    /** Pick the post that should be active for the current viewport (anchor near top of visible area). */
+    function activeIndexForVisibleRegion(sc) {
+        if (posts.length === 0) return -1;
+        var scrTop, scrBot, anchorY;
+        if (sc) {
+            var scr = sc.getBoundingClientRect();
+            scrTop = scr.top;
+            scrBot = scr.bottom;
+            anchorY = scr.top + Math.min(scr.height * 0.18, 100);
+        } else {
+            scrTop = 0;
+            scrBot = window.innerHeight;
+            anchorY = window.innerHeight * 0.15;
+        }
+        var i, pr;
+        for (i = 0; i < posts.length; i++) {
+            pr = posts[i].getBoundingClientRect();
+            if (pr.top <= anchorY && anchorY < pr.bottom) return i;
+        }
+        for (i = 0; i < posts.length; i++) {
+            pr = posts[i].getBoundingClientRect();
+            if (pr.bottom > scrTop && pr.top < scrBot) return i;
+        }
+        return posts.length - 1;
     }
 
     function playNavSound() {
@@ -293,7 +335,8 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
                 } else {
                     window.scrollBy(0, dy);
                 }
-                playNavSound();
+                var idx = activeIndexForVisibleRegion(sc);
+                if (idx >= 0) setActiveHighlight(idx, true, false);
                 e.preventDefault();
                 break;
             }

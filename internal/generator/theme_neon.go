@@ -7,7 +7,7 @@ const neonTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>snonux.foo • NEON NEXUS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -106,11 +106,12 @@ const neonTemplate = `<!DOCTYPE html>
         .splash-neon .splash-tag { color: var(--neon-yellow); }
         .splash-neon .splash-hint { color: rgba(224,248,255,0.9); font-family: 'Orbitron', sans-serif; }
         .splash-neon .splash-inner { text-shadow: 0 2px 24px rgba(0,0,0,0.85), 0 0 40px rgba(11,0,26,0.9); }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-neon" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-neon" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-inner">
             <div class="splash-deco" aria-hidden="true"></div>

@@ -4,7 +4,7 @@
 //
 // Usage:
 //
-//	snonux --input ./inbox --output ./outdir [--base-url https://snonux.foo]
+//	snonux [--input ./inbox] [--output ./dist] [--base-url https://snonux.foo]
 package main
 
 import (
@@ -51,6 +51,12 @@ func main() {
 	if err := run(cfg); err != nil {
 		log.Fatalf("error: %v", err)
 	}
+
+	if cfg.Sync {
+		if err := syncOutput(cfg.OutputDir); err != nil {
+			log.Fatalf("error: %v", err)
+		}
+	}
 }
 
 // errParseFlags is returned when flag parsing fails (e.g. unknown flag).
@@ -69,9 +75,10 @@ func parseFlags(args []string) (*config.Config, cliMode, error) {
 	listThemes := fs.Bool("list-themes", false, "print all available theme names and exit")
 
 	fs.StringVar(&cfg.InputDir, "input", "./inbox", "directory containing new source files to process")
-	fs.StringVar(&cfg.OutputDir, "output", "~/git/snonux.foo/dist", "root directory for generated static site output")
+	fs.StringVar(&cfg.OutputDir, "output", "./dist", "root directory for generated static site output")
 	fs.StringVar(&cfg.BaseURL, "base-url", "https://snonux.foo", "canonical base URL used in Atom feed links")
 	fs.StringVar(&cfg.Theme, "theme", "random", "visual theme name, or \"random\" to pick one at random")
+	fs.BoolVar(&cfg.Sync, "sync", false, "after a successful run, rsync -output to pi0/pi1 when both are pingable (SSH user: SNONUX_SYNC_USER or login name)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, modeRun, fmt.Errorf("%w: %w", errParseFlags, err)

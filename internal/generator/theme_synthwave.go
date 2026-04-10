@@ -98,11 +98,12 @@ const synthwaveTemplate = `<!DOCTYPE html>
         .splash-synthwave .splash-tag { font-family:'Share Tech Mono',monospace; color:var(--purple); }
         .splash-synthwave .splash-hint { font-family:'Share Tech Mono',monospace; color:rgba(255,255,255,0.88); }
         .splash-synthwave .splash-inner { text-shadow: 0 2px 20px rgba(13,2,33,0.95); }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-synthwave" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-synthwave" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-grid" aria-hidden="true"></div>
         <div class="splash-inner">

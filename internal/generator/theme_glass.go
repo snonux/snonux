@@ -92,11 +92,12 @@ const cosmosTemplate = `<!DOCTYPE html>
         .splash-cosmos .splash-hint { color:rgba(212,232,255,0.88); }
         .splash-cosmos .splash-stars { z-index:1; }
         .splash-cosmos .splash-inner { text-shadow: 0 2px 20px rgba(0,0,0,0.85); }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-cosmos" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-cosmos" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-stars" aria-hidden="true"></div>
         <div class="splash-inner">

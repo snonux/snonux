@@ -76,11 +76,12 @@ const brutalistTemplate = `<!DOCTYPE html>
         .splash-brutalist .splash-tag { font-family:'Courier New',monospace; color:var(--red); }
         .splash-brutalist .splash-hint { font-family:'Courier New',monospace; color:#c8c8c8; }
         .splash-brutalist .splash-inner { text-shadow: 0 0 12px #000, 0 2px 8px #000; }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-brutalist" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-brutalist" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-inner splash-frame">
             <div class="splash-title">SNONUX.FOO</div>

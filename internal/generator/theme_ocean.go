@@ -80,11 +80,12 @@ const oceanTemplate = `<!DOCTYPE html>
         .splash-ocean .splash-tag { color:var(--aqua); letter-spacing:0.2em; }
         .splash-ocean .splash-hint { color:rgba(202,240,248,0.88); }
         .splash-ocean .splash-inner { text-shadow: 0 2px 16px rgba(3,4,94,0.9); }
+{{template "navSharedCSSInner"}}
     </style>
 </head>
 <body>
     {{template "splashGate"}}
-    <div id="splash-overlay" class="splash-overlay splash-ocean" tabindex="-1" aria-label="Open microblog">
+    <div id="splash-overlay" class="splash-overlay splash-ocean" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
         <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
         <div class="splash-inner">
             <div class="splash-wave" aria-hidden="true"></div>

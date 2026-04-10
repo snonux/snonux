@@ -1,7 +1,8 @@
 package generator
 
 // themeRegistry maps theme names to their HTML template strings.
-// Each template must use {{template "navhints" .}}, {{template "navmodal" .}},
+// Each template must end its <style> with {{template "navSharedCSSInner"}}, then use
+// {{template "navhints" .}}, {{template "navmodal" .}},
 // and {{template "navscript" .}} — these are defined in shared.go (navDefs).
 var themeRegistry = map[string]string{
 	"neon":      neonTemplate,

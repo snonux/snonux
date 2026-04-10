@@ -23,4 +23,7 @@ type Config struct {
 	// Theme selects the visual style for generated HTML pages.
 	// Defaults to "neon". Run with --help to see all available themes.
 	Theme string
+
+	// Sync, when true, rsyncs OutputDir to fixed mirror hosts after a successful run.
+	Sync bool
 }
