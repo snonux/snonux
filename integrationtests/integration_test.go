@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/color/palette"
+	"image/gif"
+	"image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -133,19 +136,18 @@ func TestMarkdownInput(t *testing.T) {
 	assertContains(t, index, "<h1>", "index.html markdown h1")
 }
 
-// TestImageInput verifies image files are processed and embedded in pages.
-func TestImageInput(t *testing.T) {
-	inputDir, outputDir := makeDirs(t)
-
-	writeSamplePNG(t, filepath.Join(inputDir, "photo.png"))
-	runPipeline(t, inputDir, outputDir)
+// assertStandaloneImagePost checks index.html and posts/<id>/image.jpg after a lone image input.
+func assertStandaloneImagePost(t *testing.T, outputDir string) {
+	t.Helper()
 
 	index := readFile(t, filepath.Join(outputDir, "index.html"))
 	assertContains(t, index, `<img`, "index.html image tag")
 	assertContains(t, index, `image.jpg`, "index.html image filename")
 
-	// Converted JPEG should exist in the post asset dir.
-	postDirs, _ := os.ReadDir(filepath.Join(outputDir, "posts"))
+	postDirs, err := os.ReadDir(filepath.Join(outputDir, "posts"))
+	if err != nil {
+		t.Fatalf("read posts dir: %v", err)
+	}
 	if len(postDirs) != 1 {
 		t.Fatalf("expected 1 post, got %d", len(postDirs))
 	}
@@ -153,6 +155,42 @@ func TestImageInput(t *testing.T) {
 	if _, err := os.Stat(imgPath); err != nil {
 		t.Errorf("expected image.jpg in post dir: %v", err)
 	}
+}
+
+// TestPNGInput verifies .png files are converted to JPEG posts and embedded in pages.
+func TestPNGInput(t *testing.T) {
+	inputDir, outputDir := makeDirs(t)
+
+	writeSamplePNG(t, filepath.Join(inputDir, "photo.png"))
+	runPipeline(t, inputDir, outputDir)
+	assertStandaloneImagePost(t, outputDir)
+}
+
+// TestJPGInput verifies .jpg files are processed the same way as PNG.
+func TestJPGInput(t *testing.T) {
+	inputDir, outputDir := makeDirs(t)
+
+	writeSampleJPEG(t, filepath.Join(inputDir, "photo.jpg"))
+	runPipeline(t, inputDir, outputDir)
+	assertStandaloneImagePost(t, outputDir)
+}
+
+// TestJPEGInput verifies the .jpeg extension is accepted.
+func TestJPEGInput(t *testing.T) {
+	inputDir, outputDir := makeDirs(t)
+
+	writeSampleJPEG(t, filepath.Join(inputDir, "snapshot.jpeg"))
+	runPipeline(t, inputDir, outputDir)
+	assertStandaloneImagePost(t, outputDir)
+}
+
+// TestGIFInput verifies .gif files are decoded (first frame) and output as JPEG.
+func TestGIFInput(t *testing.T) {
+	inputDir, outputDir := makeDirs(t)
+
+	writeSampleGIF(t, filepath.Join(inputDir, "anim.gif"))
+	runPipeline(t, inputDir, outputDir)
+	assertStandaloneImagePost(t, outputDir)
 }
 
 // TestAudioInput verifies .mp3 files are copied and an audio element is generated.
@@ -359,14 +397,55 @@ func TestThemeSelection(t *testing.T) {
 	}
 }
 
-// writeSamplePNG writes a small 10×10 solid-colour PNG to path.
-func writeSamplePNG(t *testing.T, path string) {
-	t.Helper()
-
+func sampleRGBAImage() *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
 	for y := 0; y < 10; y++ {
 		for x := 0; x < 10; x++ {
 			img.Set(x, y, color.RGBA{R: 0, G: 245, B: 255, A: 255})
+		}
+	}
+	return img
+}
+
+// writeSamplePNG writes a small 10×10 solid-colour PNG to path.
+func writeSamplePNG(t *testing.T, path string) {
+	t.Helper()
+
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	if err := png.Encode(f, sampleRGBAImage()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeSampleJPEG writes a small valid JPEG to path.
+func writeSampleJPEG(t *testing.T, path string) {
+	t.Helper()
+
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	if err := jpeg.Encode(f, sampleRGBAImage(), &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeSampleGIF writes a small single-frame GIF to path.
+func writeSampleGIF(t *testing.T, path string) {
+	t.Helper()
+
+	bounds := image.Rect(0, 0, 10, 10)
+	paletted := image.NewPaletted(bounds, palette.Plan9)
+	for y := 0; y < 10; y++ {
+		for x := 0; x < 10; x++ {
+			paletted.SetColorIndex(x, y, 1)
 		}
 	}
 
@@ -376,7 +455,7 @@ func writeSamplePNG(t *testing.T, path string) {
 	}
 	defer f.Close()
 
-	if err := png.Encode(f, img); err != nil {
+	if err := gif.Encode(f, paletted, &gif.Options{}); err != nil {
 		t.Fatal(err)
 	}
 }
