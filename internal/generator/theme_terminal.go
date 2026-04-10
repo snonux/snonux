@@ -39,6 +39,8 @@ const terminalTemplate = `<!DOCTYPE html>
                               border-radius:0; text-decoration:none; letter-spacing:2px; font-size:0.85rem;
                               transition:all 0.2s; }
         .nav a.transmit-btn:hover { background:var(--p); color:var(--bg); }
+        a.header-feed-link { color:var(--dim); }
+        a.header-feed-link:hover { color:var(--p); }
         .nav-hints { background:var(--bg2); border-bottom:1px solid var(--dim); color:var(--dim);
                      padding:5px 24px; display:flex; gap:18px; font-size:0.68rem; flex-wrap:wrap; }
         .nav-hints kbd { background:transparent; border:1px solid var(--dim); color:var(--p);
@@ -69,9 +71,45 @@ const terminalTemplate = `<!DOCTYPE html>
         .modal-close { float:right; background:none; border:none; color:var(--p);
                        font-family:monospace; font-size:0.9rem; cursor:pointer; letter-spacing:2px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:12px 16px;} }
+        .splash-overlay.splash-terminal { background: var(--bg); font-family:'Courier New',monospace; }
+        .splash-terminal .splash-prompt { text-align:left; font-size:0.9rem; color:rgba(51,255,51,0.78); margin-bottom:0.5rem; }
+        .splash-terminal .splash-title { font-size:clamp(1.2rem,4vw,1.65rem); color:var(--p);
+            text-shadow:0 0 12px var(--p); letter-spacing:0.15em; }
+        .splash-terminal .splash-cursor::after { content:'█'; animation: splashTermBlink 1s step-end infinite; color:var(--p); }
+        @keyframes splashTermBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+        .splash-terminal .splash-tag { color:rgba(51,255,51,0.85); letter-spacing:0.25em; }
+        .splash-terminal .splash-hint { color:rgba(51,255,51,0.8); }
+        .splash-terminal .splash-inner { text-shadow: 0 0 8px #000, 0 2px 12px #000; }
     </style>
 </head>
 <body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-terminal" tabindex="-1" aria-label="Open microblog">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-inner">
+            <div class="splash-prompt">&gt; ./snonux --boot</div>
+            <div class="splash-title splash-cursor">LINK ESTABLISHED</div>
+            <div class="splash-tag">TERMINAL SESSION</div>
+            <div class="splash-hint">[ click / enter to continue ]</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,m,t0=performance.now();
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(48,1,0.1,60);ca.position.z=7;
+        m=new THREE.Mesh(new THREE.IcosahedronGeometry(2.3,1),new THREE.MeshBasicMaterial({color:0x33ff33,wireframe:true,transparent:true,opacity:0.88}));
+        sc.add(m);sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001;m.rotation.x=t*0.62;m.rotation.y=t*0.88;ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
     <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
@@ -80,15 +118,16 @@ const terminalTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>snonux.foo</h1>
                     <p class="subtitle">microblog / <a href="https://foo.zone">foo.zone</a> is the real blog</p>
+                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">atom.xml</a>
                 <a href="https://foo.zone/about" class="transmit-btn">&gt; TRANSMIT</a>
             </div>
         </header>
         {{template "navhints" .}}
         <div class="content" id="post-content">
-            {{if .PrevPage}}<div class="page-nav"><a href="{{.PrevPage}}">&lt;-- NEWER</a></div>{{end}}
             {{range $i, $post := .Posts}}
             <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
                 <div class="post-header">
@@ -98,7 +137,12 @@ const terminalTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if .NextPage}}<div class="page-nav"><a href="{{.NextPage}}">OLDER --&gt;</a></div>{{end}}
+            {{if or .PrevPage .NextPage}}
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&lt;-- NEWER</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">OLDER --&gt;</a>{{end}}
+            </div>
+            {{end}}
         </div>
     </div>
     {{template "navmodal" .}}

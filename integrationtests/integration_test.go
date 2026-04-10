@@ -118,6 +118,8 @@ func TestTxtInput(t *testing.T) {
 	// index.html must contain the post text.
 	index := readFile(t, filepath.Join(outputDir, "index.html"))
 	assertContains(t, index, "Hello, Nexus!", "index.html")
+	assertContains(t, index, "splash-gl-canvas", "index.html splash WebGL canvas")
+	assertContains(t, index, `href="atom.xml"`, "index.html atom feed link")
 }
 
 // TestMarkdownInput verifies Markdown files are converted to HTML.
@@ -282,7 +284,8 @@ func TestPaginationNavLinks(t *testing.T) {
 	}
 
 	page2 := readFile(t, filepath.Join(outputDir, "page2.html"))
-	// page2.html should have a prev link (index.html) and no next.
+	// page2.html should have a prev link to index with splash=0 (keyboard nav has no reliable Referer).
+	assertContains(t, page2, `href="index.html?splash=0"`, "page2.html prev href skips splash")
 	assertContains(t, page2, "NEWER TRANSMISSIONS", "page2.html prev link")
 	if strings.Contains(page2, "OLDER TRANSMISSIONS") {
 		t.Error("page2.html should not have a next-page link")

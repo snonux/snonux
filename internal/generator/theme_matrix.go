@@ -40,6 +40,8 @@ const matrixTemplate = `<!DOCTYPE html>
                         text-decoration:none; font-size:0.82rem; letter-spacing:2px;
                         transition:all 0.1s; }
         .transmit-btn:hover { background:var(--g); color:var(--bg); }
+        a.header-feed-link { color:var(--g2); }
+        a.header-feed-link:hover { color:var(--g); text-shadow:0 0 8px var(--g); }
         .nav-hints { background:#000; border-bottom:1px solid var(--g3); color:var(--g2);
                      padding:4px 24px; display:flex; gap:18px; font-size:0.68rem; flex-wrap:wrap; }
         .nav-hints kbd { background:transparent; border:1px solid var(--g3); color:var(--g);
@@ -70,9 +72,58 @@ const matrixTemplate = `<!DOCTYPE html>
         .modal-close { float:right; background:none; border:none; color:var(--g2);
                        font-family:monospace; font-size:0.9rem; cursor:pointer; letter-spacing:2px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:10px 16px;} }
+        .splash-overlay.splash-matrix { background: #000; font-family:'Courier New',monospace; }
+        .splash-matrix .splash-rain {
+            position:absolute; inset:0; overflow:hidden; pointer-events:none; opacity:0.35; z-index:1;
+            font-size:11px; line-height:14px; color:var(--g2); text-align:left; padding:8px;
+            white-space:pre; animation: splashMatrixScroll 16s linear infinite;
+        }
+        @keyframes splashMatrixScroll { to { transform: translateY(-24px); } }
+        .splash-matrix .splash-title {
+            position:relative; z-index:1; font-size:clamp(1.1rem,3.5vw,1.5rem); color:var(--g);
+            text-shadow:0 0 20px var(--g); letter-spacing:0.35em;
+            animation: splashMatrixGlow 1.8s ease-in-out infinite alternate;
+        }
+        @keyframes splashMatrixGlow { from { opacity:0.85; } to { opacity:1; text-shadow:0 0 28px var(--g); } }
+        .splash-matrix .splash-tag { position:relative; z-index:1; color:rgba(0,255,65,0.88); }
+        .splash-matrix .splash-hint { position:relative; z-index:1; color:rgba(0,255,65,0.82); }
     </style>
 </head>
 <body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-matrix" tabindex="-1" aria-label="Open microblog">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-rain" aria-hidden="true">01001110 01000101 01001111
+10101010 11001100 00110011
+01110011 01101110 01101111
+11001010 10100101 01011010</div>
+        <div class="splash-inner">
+            <div class="splash-title">SNONUX.FOO</div>
+            <div class="splash-tag">Follow the signal</div>
+            <div class="splash-hint">wake up — click or enter</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,pts,pos,t0=performance.now(),N=28,i,arr;
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(55,1,0.1,80);ca.position.set(0,0.5,10);
+        arr=new Float32Array(N*3*20);for(i=0;i<arr.length;i+=3){arr[i]=(Math.random()-0.5)*16;arr[i+1]=Math.random()*22;arr[i+2]=(Math.random()-0.5)*8;}
+        var geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(arr,3));
+        pts=new THREE.Points(geo,new THREE.PointsMaterial({color:0x00ff41,size:0.14,transparent:true,opacity:0.85,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));
+        sc.add(pts);pos=geo.attributes.position;sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001,j,p;
+            for(j=0;j<pos.count;j++){p=j*3;pos.array[p+1]-=0.045+Math.sin(t+j*0.1)*0.012;if(pos.array[p+1]<-2)pos.array[p+1]=20;}
+            pos.needsUpdate=true;pts.rotation.y=t*0.15;ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
     <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
@@ -81,15 +132,16 @@ const matrixTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>SNONUX.FOO</h1>
                     <p class="subtitle">MICROBLOG / <a href="https://foo.zone">FOO.ZONE</a> IS THE REAL BLOG</p>
+                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">atom.xml</a>
                 <a href="https://foo.zone/about" class="transmit-btn">TRANSMIT</a>
             </div>
         </header>
         {{template "navhints" .}}
         <div class="content" id="post-content">
-            {{if .PrevPage}}<div class="page-nav"><a href="{{.PrevPage}}">&lt;-- NEWER</a></div>{{end}}
             {{range $i, $post := .Posts}}
             <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
                 <div class="post-header">
@@ -99,7 +151,12 @@ const matrixTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if .NextPage}}<div class="page-nav"><a href="{{.NextPage}}">OLDER --&gt;</a></div>{{end}}
+            {{if or .PrevPage .NextPage}}
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&lt;-- NEWER</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">OLDER --&gt;</a>{{end}}
+            </div>
+            {{end}}
         </div>
     </div>
     {{template "navmodal" .}}

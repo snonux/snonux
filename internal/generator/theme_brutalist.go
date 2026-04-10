@@ -30,6 +30,8 @@ const brutalistTemplate = `<!DOCTYPE html>
                         border-radius:0; text-decoration:none; font-family:Impact; font-size:1.05rem;
                         letter-spacing:2px; transition:all 0.1s; }
         .transmit-btn:hover { background:var(--red); color:#000; }
+        a.header-feed-link { color:#aaa; font-family:'Courier New',monospace; font-size:0.78rem; }
+        a.header-feed-link:hover { color:var(--red); }
         .nav-hints { background:#111; border-bottom:2px solid #333; color:#888;
                      padding:5px 24px; display:flex; gap:18px; font-family:'Courier New',monospace;
                      font-size:0.7rem; flex-wrap:wrap; }
@@ -62,9 +64,46 @@ const brutalistTemplate = `<!DOCTYPE html>
         .modal-close { float:right; background:none; border:none; color:var(--red);
                        font-family:Impact; font-size:1.3rem; cursor:pointer; letter-spacing:2px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .logo-mark{font-size:2rem;} }
+        .splash-overlay.splash-brutalist { background:#000; }
+        .splash-brutalist .splash-frame {
+            border:6px solid #fff; padding:clamp(1.5rem,5vw,2.5rem) clamp(1.25rem,4vw,2rem);
+            box-shadow: 12px 12px 0 var(--red); animation: splashBrutalJolt 3s steps(2,end) infinite;
+        }
+        @keyframes splashBrutalJolt { 0%,100% { transform: translate(0,0); } 50% { transform: translate(2px,-2px); } }
+        .splash-brutalist .splash-title { font-family:Impact,sans-serif; font-size:clamp(1.8rem,6vw,2.8rem); color:#fff; }
+        .splash-brutalist .splash-tag { font-family:'Courier New',monospace; color:var(--red); }
+        .splash-brutalist .splash-hint { font-family:'Courier New',monospace; color:#c8c8c8; }
+        .splash-brutalist .splash-inner { text-shadow: 0 0 12px #000, 0 2px 8px #000; }
     </style>
 </head>
 <body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-brutalist" tabindex="-1" aria-label="Open microblog">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-inner splash-frame">
+            <div class="splash-title">SNONUX.FOO</div>
+            <div class="splash-tag">Brutalist channel</div>
+            <div class="splash-hint">[ CLICK OR ENTER TO TRANSMIT ]</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,g=new THREE.Group(),t0=performance.now();
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(50,1,0.1,80);ca.position.z=8;
+        var b1=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(3.4,2.4,2.4)),new THREE.LineBasicMaterial({color:0xffffff}));
+        var b2=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(2.2,1.6,1.6)),new THREE.LineBasicMaterial({color:0xff2200}));
+        b2.position.set(0.3,0.2,0.5);g.add(b1);g.add(b2);sc.add(g);sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001;g.rotation.x=t*0.51;g.rotation.y=t*0.73;ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
     <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
@@ -73,15 +112,16 @@ const brutalistTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>SNONUX.FOO</h1>
                     <p class="subtitle">MICROBLOG &mdash; <a href="https://foo.zone">FOO.ZONE</a> IS THE REAL BLOG</p>
+                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
                 <a href="https://foo.zone/about" class="transmit-btn">TRANSMIT</a>
             </div>
         </header>
         {{template "navhints" .}}
         <div class="content" id="post-content">
-            {{if .PrevPage}}<div class="page-nav"><a href="{{.PrevPage}}">&larr; NEWER</a></div>{{end}}
             {{range $i, $post := .Posts}}
             <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
                 <div class="post-header">
@@ -91,7 +131,12 @@ const brutalistTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if .NextPage}}<div class="page-nav"><a href="{{.NextPage}}">OLDER &rarr;</a></div>{{end}}
+            {{if or .PrevPage .NextPage}}
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; NEWER</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">OLDER &rarr;</a>{{end}}
+            </div>
+            {{end}}
         </div>
     </div>
     {{template "navmodal" .}}

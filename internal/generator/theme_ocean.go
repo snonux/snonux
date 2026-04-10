@@ -28,6 +28,8 @@ const oceanTemplate = `<!DOCTYPE html>
         .transmit-btn { border:1px solid var(--teal); color:var(--teal); padding:9px 20px;
                         border-radius:20px; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
         .transmit-btn:hover { background:var(--teal); color:var(--navy); }
+        a.header-feed-link { color:var(--aqua); }
+        a.header-feed-link:hover { color:var(--foam); }
         .nav-hints { background:rgba(3,4,94,0.65); border-bottom:1px solid rgba(0,180,216,0.18);
                      color:rgba(202,240,248,0.45); padding:5px 28px; display:flex; gap:18px;
                      font-size:0.68rem; flex-wrap:wrap; }
@@ -60,9 +62,54 @@ const oceanTemplate = `<!DOCTYPE html>
         .modal-close { float:right; background:none; border:none; color:var(--teal);
                        font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} }
+        .splash-overlay.splash-ocean {
+            background: linear-gradient(180deg, var(--navy) 0%, var(--deep) 45%, #001a3d 100%);
+        }
+        .splash-ocean .splash-wave {
+            width:min(320px,88vw); height:14px; margin:0 auto 1.2rem; border-radius:50%;
+            background: radial-gradient(ellipse at 50% 0%, var(--aqua), transparent 70%);
+            opacity:0.7; animation: splashWaveBob 2.8s ease-in-out infinite;
+            box-shadow: 0 8px 40px rgba(0,180,216,0.35);
+        }
+        @keyframes splashWaveBob { 0%,100%{ transform: translateY(0) scaleX(1); } 50%{ transform: translateY(-6px) scaleX(1.05); } }
+        .splash-ocean .splash-title { font-size:clamp(1.45rem,4.5vw,2rem); color:var(--foam);
+            text-shadow:0 0 18px var(--teal); }
+        .splash-ocean .splash-tag { color:var(--aqua); letter-spacing:0.2em; }
+        .splash-ocean .splash-hint { color:rgba(202,240,248,0.88); }
+        .splash-ocean .splash-inner { text-shadow: 0 2px 16px rgba(3,4,94,0.9); }
     </style>
 </head>
 <body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-ocean" tabindex="-1" aria-label="Open microblog">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-inner">
+            <div class="splash-wave" aria-hidden="true"></div>
+            <div class="splash-title">snonux.foo</div>
+            <div class="splash-tag">Deep channel</div>
+            <div class="splash-hint">Surface — click or Enter</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,g=new THREE.Group(),t0=performance.now(),i;
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(50,1,0.1,70);ca.position.set(0,0.2,9);
+        for(i=0;i<5;i++){var b=new THREE.Mesh(new THREE.SphereGeometry(0.25+Math.random()*0.35,12,12),new THREE.MeshBasicMaterial({color:0x48cae4,transparent:true,opacity:0.65}));
+            b.position.set((Math.random()-0.5)*7,(Math.random()-0.5)*4,(Math.random()-0.5)*3);b.userData.dy=0.02+Math.random()*0.03;b.userData.x=b.position.x;b.userData.y0=b.position.y;g.add(b);}
+        var jelly=new THREE.Mesh(new THREE.SphereGeometry(1.1,16,16),new THREE.MeshBasicMaterial({color:0x00b4d8,transparent:true,opacity:0.35,wireframe:true}));
+        g.add(jelly);sc.add(g);sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001;jelly.rotation.y=t*0.4;
+            g.children.forEach(function(c){if(c.userData.dy){c.position.y+=Math.sin(t*2+c.userData.x)*0.008;c.position.x=c.userData.x+Math.sin(t+c.userData.y0)*0.15;}});ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
     <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
@@ -71,15 +118,16 @@ const oceanTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>snonux.foo</h1>
                     <p class="subtitle">microblog &mdash; <a href="https://foo.zone">foo.zone</a> is the real blog</p>
+                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
                 <a href="https://foo.zone/about" class="transmit-btn">Transmit</a>
             </div>
         </header>
         {{template "navhints" .}}
         <div class="content" id="post-content">
-            {{if .PrevPage}}<div class="page-nav"><a href="{{.PrevPage}}">&larr; Newer</a></div>{{end}}
             {{range $i, $post := .Posts}}
             <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
                 <div class="post-header">
@@ -89,7 +137,12 @@ const oceanTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if .NextPage}}<div class="page-nav"><a href="{{.NextPage}}">Older &rarr;</a></div>{{end}}
+            {{if or .PrevPage .NextPage}}
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; Newer</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">Older &rarr;</a>{{end}}
+            </div>
+            {{end}}
         </div>
     </div>
     {{template "navmodal" .}}

@@ -30,6 +30,8 @@ const plasmaTemplate = `<!DOCTYPE html>
         .transmit-btn { border:1px solid var(--magenta); color:var(--magenta); padding:9px 20px;
                         border-radius:20px; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
         .transmit-btn:hover { background:var(--magenta); color:var(--bg); }
+        a.header-feed-link { color:var(--cyan); }
+        a.header-feed-link:hover { color:var(--magenta); }
         .nav-hints { background:rgba(5,0,8,0.65); border-bottom:1px solid rgba(0,240,255,0.12);
                      color:rgba(232,224,255,0.4); padding:5px 28px; display:flex; gap:18px;
                      font-size:0.68rem; flex-wrap:wrap; }
@@ -63,9 +65,60 @@ const plasmaTemplate = `<!DOCTYPE html>
         .modal-close { float:right; background:none; border:none; color:var(--cyan);
                        font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} }
+        .splash-overlay.splash-plasma { background: var(--bg); overflow:hidden; }
+        .splash-plasma .splash-blobs {
+            position:absolute; width:140%; height:140%; left:-20%; top:-20%; pointer-events:none;
+            background:
+                radial-gradient(ellipse at 30% 40%, rgba(0,240,255,0.25) 0%, transparent 45%),
+                radial-gradient(ellipse at 70% 60%, rgba(255,0,224,0.22) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(255,238,0,0.12) 0%, transparent 40%);
+            animation: splashPlasmaDrift 10s ease-in-out infinite alternate;
+            filter: blur(2px);
+        }
+        @keyframes splashPlasmaDrift {
+            from { transform: translate(0,0) rotate(0deg); }
+            to { transform: translate(-4%,3%) rotate(8deg); }
+        }
+        .splash-plasma .splash-inner { position:relative; z-index:1; }
+        .splash-plasma .splash-title { font-size:clamp(1.45rem,4.5vw,2rem); color:#e8e0ff;
+            text-shadow:0 0 24px var(--cyan), 0 0 48px rgba(255,0,224,0.35); }
+        .splash-plasma .splash-tag { color:var(--magenta); letter-spacing:0.18em; }
+        .splash-plasma .splash-hint { color:rgba(232,224,255,0.86); }
+        .splash-plasma .splash-blobs { z-index:1; }
+        .splash-plasma .splash-inner { text-shadow: 0 2px 22px rgba(0,0,0,0.9); }
     </style>
 </head>
 <body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-plasma" tabindex="-1" aria-label="Open microblog">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-blobs" aria-hidden="true"></div>
+        <div class="splash-inner">
+            <div class="splash-title">snonux.foo</div>
+            <div class="splash-tag">Plasma lock</div>
+            <div class="splash-hint">Merge — click or Enter</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,g=new THREE.Group(),t0=performance.now(),spec=[[0x00f0ff,1.45,0,0,0],[0xff00e0,1.05,1.2,0.4,0],[0xffee00,0.75,-1.1,-0.3,0]];
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(50,1,0.1,60);ca.position.z=6.5;
+        spec.forEach(function(s){var m=new THREE.Mesh(new THREE.SphereGeometry(s[1],20,20),new THREE.MeshBasicMaterial({color:s[0],transparent:true,opacity:0.42,blending:THREE.AdditiveBlending,depthWrite:false}));
+            m.position.set(s[2],s[3],s[4]);m.userData.ph=s;g.add(m);});
+        sc.add(g);sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001;
+            g.children.forEach(function(c,ix){var ph=c.userData.ph;c.position.x=ph[2]+Math.sin(t*0.9+ix)*0.35;c.position.y=ph[3]+Math.cos(t*0.7+ix*1.3)*0.28;c.scale.setScalar(1+Math.sin(t*1.5+ix)*0.06);});
+            ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
     <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
@@ -74,15 +127,16 @@ const plasmaTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>snonux.foo</h1>
                     <p class="subtitle">microblog &mdash; <a href="https://foo.zone">foo.zone</a> is the real blog</p>
+                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
                 <a href="https://foo.zone/about" class="transmit-btn">Transmit</a>
             </div>
         </header>
         {{template "navhints" .}}
         <div class="content" id="post-content">
-            {{if .PrevPage}}<div class="page-nav"><a href="{{.PrevPage}}">&larr; Newer</a></div>{{end}}
             {{range $i, $post := .Posts}}
             <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
                 <div class="post-header">
@@ -92,7 +146,12 @@ const plasmaTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if .NextPage}}<div class="page-nav"><a href="{{.NextPage}}">Older &rarr;</a></div>{{end}}
+            {{if or .PrevPage .NextPage}}
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; Newer</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">Older &rarr;</a>{{end}}
+            </div>
+            {{end}}
         </div>
     </div>
     {{template "navmodal" .}}

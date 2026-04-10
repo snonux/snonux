@@ -29,6 +29,8 @@ const auroraTemplate = `<!DOCTYPE html>
         .transmit-btn { border:1px solid var(--teal); color:var(--teal); padding:9px 20px;
                         border-radius:20px; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
         .transmit-btn:hover { background:var(--teal); color:var(--navy); }
+        a.header-feed-link { color:var(--green); }
+        a.header-feed-link:hover { color:var(--teal); text-shadow:0 0 8px var(--green); }
         .nav-hints { background:rgba(5,13,26,0.6); border-bottom:1px solid rgba(0,255,179,0.15);
                      color:rgba(224,248,240,0.45); padding:5px 28px; display:flex; gap:18px;
                      font-size:0.68rem; flex-wrap:wrap; }
@@ -62,9 +64,56 @@ const auroraTemplate = `<!DOCTYPE html>
         .modal-close { float:right; background:none; border:none; color:var(--teal);
                        font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} }
+        .splash-overlay.splash-aurora {
+            background: linear-gradient(125deg, var(--navy) 0%, #0a1a2e 40%, #0d2840 70%, var(--navy) 100%);
+            background-size: 200% 200%;
+            animation: splashAuroraShift 8s ease infinite;
+        }
+        @keyframes splashAuroraShift { 0%,100%{background-position:0% 40%} 50%{background-position:100% 60%} }
+        .splash-aurora .splash-ribbons {
+            width:min(280px,75vw); height:8px; margin:0 auto 1.25rem; border-radius:4px;
+            background: linear-gradient(90deg, transparent, var(--green), var(--teal), var(--purple), transparent);
+            opacity:0.85; animation: splashRibbonFlow 3s ease-in-out infinite alternate;
+            box-shadow: 0 0 24px var(--green), 0 0 40px var(--purple);
+        }
+        @keyframes splashRibbonFlow { from { transform: scaleX(0.85); opacity:0.65; } to { transform: scaleX(1); opacity:1; } }
+        .splash-aurora .splash-title { font-size:clamp(1.45rem,4.5vw,2rem); color:#e0f8f0;
+            text-shadow:0 0 20px var(--green); }
+        .splash-aurora .splash-tag { background:linear-gradient(90deg,var(--green),var(--teal));
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .splash-aurora .splash-hint { color:rgba(224,248,240,0.88); }
+        .splash-aurora .splash-inner { text-shadow: 0 2px 18px rgba(0,0,0,0.75); }
     </style>
 </head>
 <body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-aurora" tabindex="-1" aria-label="Open microblog">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-inner">
+            <div class="splash-ribbons" aria-hidden="true"></div>
+            <div class="splash-title">snonux.foo</div>
+            <div class="splash-tag">Aurora uplink</div>
+            <div class="splash-hint">Click or Enter to open the feed</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,g=new THREE.Group(),t0=performance.now(),i,m;
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(50,1,0.1,80);ca.position.set(0,0.3,9);
+        var cols=[0x00ffb3,0x00cfe8,0xc084fc];
+        for(i=0;i<3;i++){m=new THREE.Mesh(new THREE.TorusKnotGeometry(1.05,0.28,48,6,2,3),new THREE.MeshBasicMaterial({color:cols[i],transparent:true,opacity:0.55,wireframe:i===2}));m.rotation.y=i*2.1;m.userData.o=i;g.add(m);}
+        sc.add(g);sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001;g.rotation.y=t*0.28;g.children.forEach(function(c,ix){c.rotation.x=Math.sin(t*0.8+c.userData.o)*0.35;});ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
     <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
@@ -73,15 +122,16 @@ const auroraTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>snonux.foo</h1>
                     <p class="subtitle">microblog &mdash; <a href="https://foo.zone">foo.zone</a> is the real blog</p>
+                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
                 <a href="https://foo.zone/about" class="transmit-btn">Transmit</a>
             </div>
         </header>
         {{template "navhints" .}}
         <div class="content" id="post-content">
-            {{if .PrevPage}}<div class="page-nav"><a href="{{.PrevPage}}">&larr; Newer</a></div>{{end}}
             {{range $i, $post := .Posts}}
             <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
                 <div class="post-header">
@@ -91,7 +141,12 @@ const auroraTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if .NextPage}}<div class="page-nav"><a href="{{.NextPage}}">Older &rarr;</a></div>{{end}}
+            {{if or .PrevPage .NextPage}}
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; Newer</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">Older &rarr;</a>{{end}}
+            </div>
+            {{end}}
         </div>
     </div>
     {{template "navmodal" .}}

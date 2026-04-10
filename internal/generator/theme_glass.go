@@ -30,6 +30,8 @@ const cosmosTemplate = `<!DOCTYPE html>
         .transmit-btn { border:1px solid var(--gold); color:var(--gold); padding:9px 20px;
                         border-radius:20px; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
         .transmit-btn:hover { background:var(--gold); color:var(--bg); }
+        a.header-feed-link { color:var(--blue); }
+        a.header-feed-link:hover { color:var(--gold); }
         .nav-hints { background:rgba(2,2,20,0.6); border-bottom:1px solid rgba(255,209,102,0.12);
                      color:rgba(212,232,255,0.4); padding:5px 28px; display:flex; gap:18px;
                      font-size:0.68rem; flex-wrap:wrap; }
@@ -62,9 +64,65 @@ const cosmosTemplate = `<!DOCTYPE html>
         .modal-close { float:right; background:none; border:none; color:var(--gold);
                        font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} }
+        .splash-overlay.splash-cosmos { background: radial-gradient(ellipse 100% 80% at 50% 100%, rgba(155,93,229,0.2) 0%, transparent 55%), var(--bg); }
+        .splash-cosmos .splash-stars {
+            position:absolute; inset:0; pointer-events:none; opacity:0.5;
+            background-image: radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.9), transparent),
+                radial-gradient(1px 1px at 80% 20%, rgba(255,209,102,0.8), transparent),
+                radial-gradient(1px 1px at 40% 70%, rgba(76,201,240,0.7), transparent),
+                radial-gradient(1px 1px at 65% 55%, rgba(255,255,255,0.6), transparent);
+            background-size: 100% 100%;
+            animation: splashTwinkle 4s ease-in-out infinite alternate;
+        }
+        @keyframes splashTwinkle { from { opacity:0.35; } to { opacity:0.65; } }
+        .splash-cosmos .splash-inner { position:relative; z-index:1; }
+        .splash-cosmos .splash-orbit {
+            width:72px; height:72px; margin:0 auto 1rem; border:2px solid rgba(255,209,102,0.5);
+            border-radius:50%; animation: splashOrbitSpin 12s linear infinite;
+            box-shadow: 0 0 30px rgba(155,93,229,0.4);
+        }
+        @keyframes splashOrbitSpin { to { transform: rotate(360deg); } }
+        .splash-cosmos .splash-title { font-size:clamp(1.45rem,4.5vw,2rem); color:#d4e8ff; }
+        .splash-cosmos .splash-tag {
+            background:linear-gradient(90deg,var(--gold),var(--purple));
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .splash-cosmos .splash-hint { color:rgba(212,232,255,0.88); }
+        .splash-cosmos .splash-stars { z-index:1; }
+        .splash-cosmos .splash-inner { text-shadow: 0 2px 20px rgba(0,0,0,0.85); }
     </style>
 </head>
 <body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-cosmos" tabindex="-1" aria-label="Open microblog">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-stars" aria-hidden="true"></div>
+        <div class="splash-inner">
+            <div class="splash-orbit" aria-hidden="true"></div>
+            <div class="splash-title">snonux.foo</div>
+            <div class="splash-tag">Cosmos gate</div>
+            <div class="splash-hint">Engage — click or Enter</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,g=new THREE.Group(),t0=performance.now();
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(48,1,0.1,90);ca.position.set(0,0.5,10);
+        var planet=new THREE.Mesh(new THREE.SphereGeometry(1.35,24,24),new THREE.MeshBasicMaterial({color:0xc8853a,transparent:true,opacity:0.92}));
+        var ring=new THREE.Mesh(new THREE.TorusGeometry(2.1,0.05,8,64),new THREE.MeshBasicMaterial({color:0xffd166,transparent:true,opacity:0.85}));
+        ring.rotation.x=Math.PI/2.25;var moon=new THREE.Mesh(new THREE.SphereGeometry(0.35,12,12),new THREE.MeshBasicMaterial({color:0x9b5de5,transparent:true,opacity:0.8}));
+        moon.position.set(2.8,0.6,0.5);g.add(planet);g.add(ring);g.add(moon);sc.add(g);sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001;g.rotation.y=t*0.22;planet.rotation.y=t*0.35;
+            moon.position.x=2.6*Math.cos(t*0.7);moon.position.z=2.6*Math.sin(t*0.7);ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
     <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
@@ -73,15 +131,16 @@ const cosmosTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>snonux.foo</h1>
                     <p class="subtitle">microblog &mdash; <a href="https://foo.zone">foo.zone</a> is the real blog</p>
+                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
                 <a href="https://foo.zone/about" class="transmit-btn">Transmit</a>
             </div>
         </header>
         {{template "navhints" .}}
         <div class="content" id="post-content">
-            {{if .PrevPage}}<div class="page-nav"><a href="{{.PrevPage}}">&larr; Newer</a></div>{{end}}
             {{range $i, $post := .Posts}}
             <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
                 <div class="post-header">
@@ -91,7 +150,12 @@ const cosmosTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if .NextPage}}<div class="page-nav"><a href="{{.NextPage}}">Older &rarr;</a></div>{{end}}
+            {{if or .PrevPage .NextPage}}
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; Newer</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">Older &rarr;</a>{{end}}
+            </div>
+            {{end}}
         </div>
     </div>
     {{template "navmodal" .}}

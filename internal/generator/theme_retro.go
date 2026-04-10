@@ -41,6 +41,8 @@ const retroTemplate = `<!DOCTYPE html>
                         text-decoration:none; font-size:0.82rem; letter-spacing:2px;
                         transition:all 0.1s; }
         .transmit-btn:hover { background:var(--amber); color:var(--bg); }
+        a.header-feed-link { color:var(--dim); }
+        a.header-feed-link:hover { color:var(--amber); text-shadow:0 0 6px var(--amber); }
         .nav-hints { background:var(--bg2); border-bottom:1px solid var(--dim); color:var(--dim);
                      padding:4px 24px; display:flex; gap:18px; font-size:0.68rem; flex-wrap:wrap; }
         .nav-hints kbd { background:transparent; border:1px solid var(--dim); color:var(--amber);
@@ -73,9 +75,51 @@ const retroTemplate = `<!DOCTYPE html>
         .modal-close { float:right; background:none; border:none; color:var(--dim);
                        font-family:monospace; font-size:0.9rem; cursor:pointer; letter-spacing:2px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:10px 16px;} }
+        .splash-overlay.splash-retro { background: var(--bg); font-family:'Courier New',monospace; }
+        .splash-retro::after {
+            content:''; position:absolute; inset:0; pointer-events:none; opacity:0.35;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.2) 2px, rgba(0,0,0,0.2) 4px);
+        }
+        .splash-retro .splash-inner { position:relative; z-index:1; }
+        .splash-retro .splash-title {
+            font-size:clamp(1.15rem,3.8vw,1.55rem); color:var(--amber);
+            text-shadow:0 0 14px var(--amber); letter-spacing:0.3em;
+            animation: splashRetroFlicker 4s ease-in-out infinite;
+        }
+        @keyframes splashRetroFlicker { 0%,100%{opacity:1} 50%{opacity:0.92} }
+        .splash-retro .splash-tag { color:#d4a020; }
+        .splash-retro .splash-hint { color:#c99528; }
+        .splash-retro .splash-inner { text-shadow: 0 0 10px #000, 0 2px 8px #000; }
     </style>
 </head>
 <body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-retro" tabindex="-1" aria-label="Open microblog">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-inner">
+            <div class="splash-title">*** SNONUX BBS ***</div>
+            <div class="splash-tag">Amber phosphor mode</div>
+            <div class="splash-hint">Press Enter or click to connect</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,g=new THREE.Group(),t0=performance.now();
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(48,1,0.1,60);ca.position.z=7.5;
+        var bx=new THREE.Mesh(new THREE.BoxGeometry(2.6,2.6,2.6),new THREE.MeshBasicMaterial({color:0xffb000,wireframe:true,transparent:true,opacity:0.9}));
+        var oc=new THREE.Mesh(new THREE.OctahedronGeometry(1.35,0),new THREE.MeshBasicMaterial({color:0xffb000,wireframe:true,transparent:true,opacity:0.55}));
+        g.add(bx);g.add(oc);sc.add(g);sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001;g.rotation.x=t*0.44;g.rotation.y=t*0.71;oc.rotation.z=t*0.9;ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
     <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
@@ -84,15 +128,16 @@ const retroTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>SNONUX.FOO</h1>
                     <p class="subtitle">MICROBLOG / <a href="https://foo.zone">FOO.ZONE</a> IS THE REAL BLOG</p>
+                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
                 <a href="https://foo.zone/about" class="transmit-btn">TRANSMIT</a>
             </div>
         </header>
         {{template "navhints" .}}
         <div class="content" id="post-content">
-            {{if .PrevPage}}<div class="page-nav"><a href="{{.PrevPage}}">&lt;-- NEWER</a></div>{{end}}
             {{range $i, $post := .Posts}}
             <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
                 <div class="post-header">
@@ -102,7 +147,12 @@ const retroTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if .NextPage}}<div class="page-nav"><a href="{{.NextPage}}">OLDER --&gt;</a></div>{{end}}
+            {{if or .PrevPage .NextPage}}
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&lt;-- NEWER</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">OLDER --&gt;</a>{{end}}
+            </div>
+            {{end}}
         </div>
     </div>
     {{template "navmodal" .}}

@@ -28,6 +28,8 @@ const volcanoTemplate = `<!DOCTYPE html>
         .transmit-btn { border:1px solid var(--lava); color:var(--lava); padding:9px 20px;
                         border-radius:4px; text-decoration:none; font-size:0.85rem; transition:all 0.2s; }
         .transmit-btn:hover { background:var(--lava); color:var(--bg); }
+        a.header-feed-link { color:var(--ember); }
+        a.header-feed-link:hover { color:var(--hot); text-shadow:0 0 8px var(--lava); }
         .nav-hints { background:rgba(13,8,2,0.7); border-bottom:1px solid rgba(255,68,0,0.15);
                      color:rgba(255,232,204,0.4); padding:5px 28px; display:flex; gap:18px;
                      font-size:0.68rem; flex-wrap:wrap; }
@@ -60,9 +62,57 @@ const volcanoTemplate = `<!DOCTYPE html>
         .modal-close { float:right; background:none; border:none; color:var(--ember);
                        font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} }
+        .splash-overlay.splash-volcano {
+            background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(255,68,0,0.35) 0%, transparent 50%), var(--bg);
+        }
+        .splash-volcano .splash-ember {
+            width:min(200px,55vw); height:4px; margin:0 auto 1.3rem; border-radius:2px;
+            background: linear-gradient(90deg, transparent, var(--lava), var(--hot), var(--ember), transparent);
+            animation: splashEmberPulse 1.6s ease-in-out infinite alternate;
+            box-shadow: 0 0 20px var(--lava), 0 6px 30px rgba(255,68,0,0.4);
+        }
+        @keyframes splashEmberPulse { from { opacity:0.6; transform: scaleX(0.9); } to { opacity:1; transform: scaleX(1); } }
+        .splash-volcano .splash-title { font-size:clamp(1.45rem,4.5vw,2rem); color:#ffe8cc;
+            text-shadow:0 0 20px var(--lava); }
+        .splash-volcano .splash-tag { color:var(--ember); letter-spacing:0.15em; }
+        .splash-volcano .splash-hint { color:rgba(255,232,204,0.88); }
+        .splash-volcano .splash-inner { text-shadow: 0 2px 18px rgba(0,0,0,0.85); }
     </style>
 </head>
 <body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-volcano" tabindex="-1" aria-label="Open microblog">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-inner">
+            <div class="splash-ember" aria-hidden="true"></div>
+            <div class="splash-title">snonux.foo</div>
+            <div class="splash-tag">Volcano vent</div>
+            <div class="splash-hint">Erupt into feed — click or Enter</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,g=new THREE.Group(),t0=performance.now(),N=180,i,arr,geo,pts,pos;
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(52,1,0.1,70);ca.position.set(0,1.2,9);
+        var cone=new THREE.Mesh(new THREE.ConeGeometry(1.5,4.2,10,1,true),new THREE.MeshBasicMaterial({color:0xff4400,wireframe:true,transparent:true,opacity:0.55}));
+        cone.position.y=-0.8;g.add(cone);
+        arr=new Float32Array(N*3);for(i=0;i<N;i++){arr[i*3]=(Math.random()-0.5)*5;arr[i*3+1]=Math.random()*5;arr[i*3+2]=(Math.random()-0.5)*5;}
+        geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(arr,3));
+        pts=new THREE.Points(geo,new THREE.PointsMaterial({color:0xff8c00,size:0.1,transparent:true,opacity:0.75,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));
+        g.add(pts);pos=geo.attributes.position;sc.add(g);sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001,j,p,sp;
+            for(j=0;j<pos.count;j++){p=j*3;sp=0.05+Math.sin(t*2.2+j*0.13)*0.018;pos.array[p+1]+=sp;if(pos.array[p+1]>6){pos.array[p+1]=-0.5;pos.array[p]=Math.sin(j*1.7+t)*2.2;}}
+            pos.needsUpdate=true;cone.rotation.y=t*0.25;ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
     <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
@@ -71,15 +121,16 @@ const volcanoTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>snonux.foo</h1>
                     <p class="subtitle">microblog &mdash; <a href="https://foo.zone">foo.zone</a> is the real blog</p>
+                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
                 <a href="https://foo.zone/about" class="transmit-btn">Transmit</a>
             </div>
         </header>
         {{template "navhints" .}}
         <div class="content" id="post-content">
-            {{if .PrevPage}}<div class="page-nav"><a href="{{.PrevPage}}">&larr; Newer</a></div>{{end}}
             {{range $i, $post := .Posts}}
             <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
                 <div class="post-header">
@@ -89,7 +140,12 @@ const volcanoTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if .NextPage}}<div class="page-nav"><a href="{{.NextPage}}">Older &rarr;</a></div>{{end}}
+            {{if or .PrevPage .NextPage}}
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; Newer</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">Older &rarr;</a>{{end}}
+            </div>
+            {{end}}
         </div>
     </div>
     {{template "navmodal" .}}

@@ -114,6 +114,11 @@ func pageFilename(index int) string {
 	return fmt.Sprintf("page%d.html", index+1)
 }
 
+// indexPageNavURL is the href for pagination links to the first page. splash=0
+// is read by splashGate so the splash does not run (referrer is unreliable for
+// keyboard / programmatic navigation from page2.html → index.html).
+const indexPageNavURL = "index.html?splash=0"
+
 // writePage renders one HTML page and writes it to cfg.OutputDir.
 func writePage(tmpl *template.Template, posts []*post.Post, pageIndex, totalPages int, cfg *config.Config) error {
 	data := buildPageData(posts, pageIndex, totalPages)
@@ -148,7 +153,11 @@ func buildPageData(posts []*post.Post, pageIndex, totalPages int) pageData {
 
 	// "Prev" means newer — page index decreases.
 	if pageIndex > 0 {
-		prevPage = pageFilename(pageIndex - 1)
+		if pageIndex == 1 {
+			prevPage = indexPageNavURL
+		} else {
+			prevPage = pageFilename(pageIndex - 1)
+		}
 	}
 
 	// "Next" means older — page index increases.

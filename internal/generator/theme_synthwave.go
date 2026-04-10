@@ -34,6 +34,7 @@ const synthwaveTemplate = `<!DOCTYPE html>
                         border-radius:4px; text-decoration:none; letter-spacing:1px;
                         font-size:0.88rem; transition:all 0.2s; }
         .transmit-btn:hover { background:var(--orange); color:var(--bg); }
+        a.header-feed-link { color:var(--pink); font-family:'Share Tech Mono',monospace; }
         .nav-hints { background:rgba(13,2,33,0.75); border-bottom:1px solid rgba(255,45,120,0.3);
                      color:rgba(255,255,255,0.45); padding:5px 20px; display:flex; gap:18px;
                      font-size:0.68rem; font-family:'Share Tech Mono',monospace; flex-wrap:wrap; }
@@ -64,9 +65,70 @@ const synthwaveTemplate = `<!DOCTYPE html>
         .modal-close { float:right; background:none; border:none; color:var(--orange);
                        font-family:'Russo One',sans-serif; font-size:0.9rem; cursor:pointer; letter-spacing:2px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} }
+        .splash-overlay.splash-synthwave {
+            background: linear-gradient(180deg, #2a0a3e 0%, var(--bg) 38%, #1a0630 100%);
+        }
+        .splash-synthwave .splash-grid {
+            position:absolute; inset:0; opacity:0.35; pointer-events:none; z-index:1;
+            background: linear-gradient(90deg, rgba(255,45,120,0.08) 1px, transparent 1px) 0 0 / 48px 48px,
+                linear-gradient(rgba(191,63,255,0.06) 1px, transparent 1px) 0 0 / 48px 48px;
+            transform: perspective(280px) rotateX(68deg) scale(2.2);
+            transform-origin: 50% 85%;
+            animation: splashGridDrift 10s linear infinite;
+        }
+        @keyframes splashGridDrift { to { background-position: 48px 48px, 0 96px; } }
+        .splash-synthwave .splash-sun {
+            width:min(140px,35vw); height:min(140px,35vw); margin:0 auto 1rem; border-radius:50%;
+            background: radial-gradient(circle, var(--orange) 0%, var(--pink) 45%, transparent 70%);
+            box-shadow: 0 0 60px var(--pink), 0 0 100px var(--orange);
+            animation: splashSunPulse 2.5s ease-in-out infinite alternate;
+        }
+        @keyframes splashSunPulse {
+            from { transform: scale(0.95); opacity: 0.85; }
+            to { transform: scale(1.05); opacity: 1; }
+        }
+        .splash-synthwave .splash-title {
+            font-family:'Russo One',sans-serif; font-size:clamp(1.5rem,5vw,2.2rem);
+            background: linear-gradient(90deg,var(--pink),var(--orange));
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+        }
+        .splash-synthwave .splash-tag { font-family:'Share Tech Mono',monospace; color:var(--purple); }
+        .splash-synthwave .splash-hint { font-family:'Share Tech Mono',monospace; color:rgba(255,255,255,0.88); }
+        .splash-synthwave .splash-inner { text-shadow: 0 2px 20px rgba(13,2,33,0.95); }
     </style>
 </head>
 <body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-synthwave" tabindex="-1" aria-label="Open microblog">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-grid" aria-hidden="true"></div>
+        <div class="splash-inner">
+            <div class="splash-sun" aria-hidden="true"></div>
+            <div class="splash-title">snonux.foo</div>
+            <div class="splash-tag">Synthwave uplink</div>
+            <div class="splash-hint">Click or Enter to ride the grid</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,g=new THREE.Group(),t0=performance.now();
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(58,1,0.1,120);ca.position.set(0,1.2,7);
+        var sun=new THREE.Mesh(new THREE.SphereGeometry(1.35,28,28),new THREE.MeshBasicMaterial({color:0xff6b2b,transparent:true,opacity:0.95}));
+        sun.position.y=2.1;g.add(sun);
+        var gr=new THREE.Mesh(new THREE.PlaneGeometry(28,28,20,20),new THREE.MeshBasicMaterial({color:0xbf3fff,wireframe:true,transparent:true,opacity:0.4}));
+        gr.rotation.x=-Math.PI/2.15;gr.position.y=-2.4;g.add(gr);
+        sc.add(g);sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001;g.rotation.y=Math.sin(t*0.35)*0.08;sun.position.y=2.1+Math.sin(t*1.2)*0.08;sun.scale.setScalar(1+Math.sin(t*2)*0.04);ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
     <canvas id="three-canvas"></canvas>
     <div class="overlay">
         <header>
@@ -75,15 +137,16 @@ const synthwaveTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>snonux.foo</h1>
                     <p class="subtitle">microblog &mdash; <a href="https://foo.zone">foo.zone</a> is the real blog</p>
+                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
                 <a href="https://foo.zone/about" class="transmit-btn">TRANSMIT TO NEXUS</a>
             </div>
         </header>
         {{template "navhints" .}}
         <div class="content" id="post-content">
-            {{if .PrevPage}}<div class="page-nav"><a href="{{.PrevPage}}">&larr; NEWER</a></div>{{end}}
             {{range $i, $post := .Posts}}
             <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
                 <div class="post-header">
@@ -93,7 +156,12 @@ const synthwaveTemplate = `<!DOCTYPE html>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>
             {{end}}
-            {{if .NextPage}}<div class="page-nav"><a href="{{.NextPage}}">OLDER &rarr;</a></div>{{end}}
+            {{if or .PrevPage .NextPage}}
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; NEWER</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">OLDER &rarr;</a>{{end}}
+            </div>
+            {{end}}
         </div>
     </div>
     {{template "navmodal" .}}

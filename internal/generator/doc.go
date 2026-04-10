@@ -9,7 +9,8 @@
 //   - themes.go — Theme registry (name → template string) and getTheme /
 //     ListThemes for the CLI.
 //   - theme_*.go — One file per visual theme: full-page HTML that invokes
-//     {{template "navhints" .}}, {{template "navmodal" .}}, {{template "navscript" .}}.
+//     {{template "splashGate"}}, {{template "navhints" .}}, {{template "navmodal" .}},
+//     {{template "navscript" .}}.
 //   - shared.go — navDefs: shared {{define}} blocks merged at parse time with
 //     the chosen theme so a single html/template parse sees every name.
 //   - templates.go — Short pointer: where templates and registry live.
