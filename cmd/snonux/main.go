@@ -38,8 +38,8 @@ func main() {
 func parseFlags() (*config.Config, error) {
 	cfg := &config.Config{}
 	var showVersion bool
-	flag.BoolVar(&showVersion, "version", false, "print version and exit")
-	flag.BoolVar(&showVersion, "v", false, "print version and exit")
+	flag.BoolVar(&showVersion, "version", false, "print version and exit (-version, --version)")
+	flag.BoolVar(&showVersion, "v", false, "print version and exit (shorthand for -version)")
 	listThemes := flag.Bool("list-themes", false, "print all available theme names and exit")
 
 	flag.StringVar(&cfg.InputDir, "input", "./inbox", "directory containing new source files to process")
