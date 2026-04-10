@@ -46,6 +46,7 @@ const navDefs = `
 {{define "navhints"}}
 <div class="nav-hints" aria-label="keyboard shortcuts">
     <span><kbd>j</kbd><kbd>k</kbd> or <kbd>↑</kbd><kbd>↓</kbd> select post</span>
+    <span><kbd>PgUp</kbd><kbd>PgDn</kbd> scroll</span>
     <span><kbd>Enter</kbd> expand</span>
     <span><kbd>Esc</kbd> close</span>
     <span><kbd>h</kbd><kbd>l</kbd> or <kbd>←</kbd><kbd>→</kbd> change page</span>
@@ -183,6 +184,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
     // === KEYBOARD NAVIGATION ===
     // j / ArrowDown  → next post       k / ArrowUp    → previous post
     // h / ArrowLeft  → previous page   l / ArrowRight → next page
+    // PageUp/PageDown → scroll the post list (viewport step on #post-content)
     // Enter          → expand modal    Esc            → close modal
     const posts = document.querySelectorAll('.post');
     let currentIndex = posts.length > 0 ? 0 : -1;
@@ -281,6 +283,20 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
             return;
         }
         switch (e.key) {
+            case 'PageUp':
+            case 'PageDown': {
+                var sc = document.getElementById('post-content');
+                var step = (sc && sc.clientHeight) ? sc.clientHeight : window.innerHeight;
+                var dy = (e.key === 'PageUp') ? -step : step;
+                if (sc) {
+                    sc.scrollTop += dy;
+                } else {
+                    window.scrollBy(0, dy);
+                }
+                playNavSound();
+                e.preventDefault();
+                break;
+            }
             case 'j': case 'ArrowDown':  selectPost(currentIndex + 1); e.preventDefault(); break;
             case 'k': case 'ArrowUp':    selectPost(currentIndex - 1); e.preventDefault(); break;
             case 'h': case 'ArrowLeft':
