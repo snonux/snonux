@@ -131,7 +131,7 @@ const retroTemplate = `<!DOCTYPE html>
                 <div class="logo-title">
                     <h1>SNONUX.FOO</h1>
                     <p class="subtitle">MICROBLOG / <a href="https://foo.zone">FOO.ZONE</a> IS THE REAL BLOG</p>
-                    <p class="logo-host">Site served by a Raspberry Pi 3</p>
+                    <p class="logo-host">Served by NetBSD on a Raspberry Pi 3</p>
                 </div>
             </div>
             <div class="nav">
@@ -142,7 +142,7 @@ const retroTemplate = `<!DOCTYPE html>
         {{template "navhints" .}}
         <div class="content" id="post-content">
             {{range $i, $post := .Posts}}
-            <div class="post" data-index="{{$i}}" onclick="selectPost({{$i}})">
+            <div class="post" id="post-{{$post.ID}}" data-index="{{$i}}">
                 <div class="post-header">
                     <div><strong>@SNONUX</strong></div>
                     <div class="post-time">{{$post.FormattedTime}}</div>
