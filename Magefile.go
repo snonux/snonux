@@ -12,10 +12,22 @@ import (
 	"github.com/magefile/mage/mg"
 )
 
+// Default runs when `mage` is invoked with no arguments (same as `mage build`).
+var Default = Build
+
 // Build compiles the snonux binary for the current platform.
 func Build() error {
 	fmt.Println("Building snonux...")
 	cmd := exec.Command("go", "build", "-o", "snonux", "./cmd/snonux")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Install compiles and installs snonux to $GOBIN, $GOPATH/bin, or the default Go bin path.
+func Install() error {
+	fmt.Println("Installing snonux...")
+	cmd := exec.Command("go", "install", "./cmd/snonux")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

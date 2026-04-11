@@ -24,6 +24,12 @@ const navDefs = `
       return;
     }
   } catch (_) {}
+  try {
+    if (/^#post-/.test(location.hash)) {
+      document.documentElement.classList.add('sno-splash-skip');
+      return;
+    }
+  } catch (_) {}
   function isIndexLikePath(pathname) {
     var p = pathname || '/';
     if (p === '' || p === '/') return true;
@@ -56,7 +62,7 @@ const navDefs = `
 <div class="nav-hints" role="region" aria-label="Keyboard shortcuts">
     <span><kbd>j</kbd><kbd>k</kbd> or <kbd>↑</kbd><kbd>↓</kbd> select post</span>
     <span><kbd>PgUp</kbd><kbd>PgDn</kbd> scroll</span>
-    <span><kbd>Enter</kbd> expand</span>
+    <span><kbd>Enter</kbd> or click post to expand</span>
     <span><kbd>Esc</kbd> close</span>
     <span><kbd>h</kbd><kbd>l</kbd> or <kbd>←</kbd><kbd>→</kbd> change page</span>
 </div>
@@ -69,6 +75,8 @@ const navDefs = `
 /* Semi-transparent modal backdrop so the WebGL scene stays visible behind
    the expanded post. Theme-specific modal-inner keeps its own background. */
 .post-modal { background:rgba(0,0,0,0.55) !important; backdrop-filter:blur(6px) !important; }
+#post-modal.active { display:flex !important; align-items:center; justify-content:center; }
+#post-modal .modal-inner { width:min(100%, 800px); max-height:calc(100vh - 80px); overflow-y:auto; margin:0 auto !important; }
 /* Content area max-width across all themes */
 .overlay { max-width:1200px; margin-left:auto; margin-right:auto; }
 /* Pagination: newer + older in a footer bar (below scrollable posts, like the header) */
@@ -86,6 +94,8 @@ const navDefs = `
 .nav { display:flex; align-items:center; gap:clamp(10px,2.2vw,20px); flex-wrap:wrap; justify-content:flex-end; }
 a.header-feed-link { font-size:0.8rem; text-decoration:none; opacity:0.82; letter-spacing:0.04em; white-space:nowrap; }
 a.header-feed-link:hover { opacity:1; text-decoration:underline; }
+/* Header logo/title can reopen the splash overlay. */
+.logo-mark, .logo-title h1, #sn-logo { cursor:pointer; }
 /* Full-viewport splash (theme-specific colours/animation on each .splash-THEMENAME) */
 #splash-overlay { position:fixed; inset:0; z-index:2000; display:flex; flex-direction:column; align-items:center;
   justify-content:center; text-align:center; padding:max(16px,4vw); box-sizing:border-box; cursor:pointer;
@@ -130,14 +140,6 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
     (function splashSetup() {
         var el = document.getElementById('splash-overlay');
         if (!el) return;
-        if (document.documentElement.classList.contains('sno-splash-skip')) {
-            if (typeof window._snonuxSplashWebGLCleanup === 'function') {
-                try { window._snonuxSplashWebGLCleanup(); } catch (_) {}
-                window._snonuxSplashWebGLCleanup = null;
-            }
-            el.remove();
-            return;
-        }
         var splashAudioCtx = null;
         var splashChimePlayed = false;
         function playSplashChime() {
@@ -174,20 +176,37 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
                 ctx.resume().then(ring).catch(function() {});
             } catch (_) {}
         }
-        playSplashChime();
-        el.addEventListener('pointerdown', function() { playSplashChime(); }, { passive: true });
         function dismiss() {
             if (el.classList.contains('splash--dismissed')) return;
-            playSplashChime();
-            if (typeof window._snonuxSplashWebGLCleanup === 'function') {
-                try { window._snonuxSplashWebGLCleanup(); } catch (_) {}
-                window._snonuxSplashWebGLCleanup = null;
-            }
             el.classList.add('splash--dismissed');
-            setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 600);
+            el.setAttribute('aria-hidden', 'true');
         }
-        el.addEventListener('click', function(e) { e.preventDefault(); dismiss(); });
+        function show() {
+            document.documentElement.classList.remove('sno-splash-skip');
+            el.classList.remove('splash--dismissed');
+            el.removeAttribute('aria-hidden');
+            el.focus({ preventScroll: true });
+        }
+        function openSplashFromHeader(e) {
+            if (e.target.closest('a')) return;
+            e.preventDefault();
+            var modal = document.getElementById('post-modal');
+            if (modal) modal.classList.remove('active');
+            show();
+        }
+        var triggers = document.querySelectorAll('.logo-mark, .logo-title h1, #sn-logo');
+        triggers.forEach(function(trigger) {
+            trigger.addEventListener('click', openSplashFromHeader);
+        });
         window._snonuxDismissSplash = dismiss;
+        window._snonuxShowSplash = show;
+        if (document.documentElement.classList.contains('sno-splash-skip')) {
+            dismiss();
+            return;
+        }
+        playSplashChime();
+        el.addEventListener('pointerdown', function() { playSplashChime(); }, { passive: true });
+        el.addEventListener('click', function(e) { e.preventDefault(); dismiss(); });
         el.focus({ preventScroll: true });
     })();
 
@@ -195,7 +214,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
     // j / ArrowDown  → next post       k / ArrowUp    → previous post
     // h / ArrowLeft  → previous page   l / ArrowRight → next page
     // PageUp/PageDown → scroll the post list; re-highlight post at top of visible area
-    // Enter          → expand modal    Esc            → close modal
+    // Enter / click post → expand modal    Esc → close modal
     const posts = document.querySelectorAll('.post');
     let currentIndex = posts.length > 0 ? 0 : -1;
     const prevPageURL = {{.PrevPageJSON}};
@@ -297,11 +316,23 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         } catch (_) {}
     }
 
-    function openModal() {
-        if (currentIndex < 0) return;
-        document.getElementById('modal-content').innerHTML =
-            posts[currentIndex].querySelector('.post-text').innerHTML;
-        document.getElementById('post-modal').classList.add('active');
+    function openPostAt(index, scrollIntoView) {
+        if (posts.length === 0) return;
+        setActiveHighlight(index, false, !!scrollIntoView);
+        var post = posts[currentIndex];
+        var postText = post ? post.querySelector('.post-text') : null;
+        if (!postText) return;
+        var modal = document.getElementById('post-modal');
+        var modalInner = modal ? modal.querySelector('.modal-inner') : null;
+        document.getElementById('modal-content').innerHTML = postText.innerHTML;
+        modal.classList.add('active');
+        modal.scrollTop = 0;
+        if (modalInner) {
+            modalInner.scrollTop = 0;
+            requestAnimationFrame(function() {
+                modalInner.scrollIntoView({ block: 'center', inline: 'nearest' });
+            });
+        }
         playOpenSound();
     }
 
@@ -309,6 +340,26 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         document.getElementById('post-modal').classList.remove('active');
         playCloseSound();
     }
+
+    (function postClickOpen() {
+        posts.forEach(function(post, idx) {
+            post.addEventListener('click', function(e) {
+            if (e.target.closest('a, button, audio, video, input, textarea, select, label')) return;
+                openPostAt(idx, true);
+            });
+        });
+    })();
+
+    (function deepLinkFromHash() {
+        var h = location.hash;
+        if (!h || h.indexOf('#post-') !== 0) return;
+        var id = decodeURIComponent(h.slice(6));
+        var el = document.getElementById('post-' + id);
+        if (!el) return;
+        var idx = parseInt(el.getAttribute('data-index'), 10);
+        if (isNaN(idx)) return;
+        openPostAt(idx, true);
+    })();
 
     document.addEventListener('keydown', function(e) {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -348,7 +399,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
             case 'l': case 'ArrowRight':
                 if (nextPageURL) { playNavSound(); window.location.href = nextPageURL; }
                 e.preventDefault(); break;
-            case 'Enter': openModal(); e.preventDefault(); break;
+            case 'Enter': openPostAt(currentIndex, true); e.preventDefault(); break;
         }
     });
 </script>

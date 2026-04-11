@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"codeberg.org/snonux/snonux/internal/config"
@@ -76,8 +77,11 @@ func Generate(posts []*post.Post, cfg *config.Config) error {
 func buildEntries(posts []*post.Post, baseURL string) []entry {
 	entries := make([]entry, 0, len(posts))
 
+	base := strings.TrimSuffix(baseURL, "/")
 	for _, p := range posts {
-		entryURL := fmt.Sprintf("%s/posts/%s/", baseURL, p.ID)
+		// Link to the main HTML feed page, not /posts/<id>/ (no per-post HTML there;
+		// asset URLs in content are root-relative, e.g. posts/<id>/image.jpg).
+		entryURL := fmt.Sprintf("%s/#post-%s", base, p.ID)
 		entries = append(entries, entry{
 			Title:   fmt.Sprintf("Post %s", p.ID),
 			Link:    link{Href: entryURL, Rel: "alternate"},

@@ -40,7 +40,7 @@ func TestGenerate_writesAtomXML(t *testing.T) {
 	if !strings.Contains(s, `xmlns="http://www.w3.org/2005/Atom"`) {
 		t.Fatalf("missing atom xmlns: %s", s)
 	}
-	if !strings.Contains(s, "https://example.test/posts/p1/") {
+	if !strings.Contains(s, "https://example.test/#post-p1") {
 		t.Fatalf("missing entry link: %s", s)
 	}
 	if !strings.Contains(s, "hello") || !strings.Contains(s, `type="html"`) {

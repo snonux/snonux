@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -208,6 +209,15 @@ func TestGetTheme_unknownFallsBackToNeon(t *testing.T) {
 	}
 }
 
+func TestInjectSharedHead_addsFaviconLink(t *testing.T) {
+	t.Parallel()
+
+	got := injectSharedHead(getTheme("neon"))
+	if !strings.Contains(got, `rel="icon" href="favicon.ico"`) {
+		t.Fatalf("favicon link missing from theme head")
+	}
+}
+
 func TestListThemes_sortedAndComplete(t *testing.T) {
 	t.Parallel()
 	names := ListThemes()
@@ -263,5 +273,15 @@ func TestRun_writesPagesAndAtom(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(out, "atom.xml")); err != nil {
 		t.Fatalf("atom.xml: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "favicon.ico")); err != nil {
+		t.Fatalf("favicon.ico: %v", err)
+	}
+	indexHTML, err := os.ReadFile(filepath.Join(out, "index.html"))
+	if err != nil {
+		t.Fatalf("read index.html: %v", err)
+	}
+	if !strings.Contains(string(indexHTML), `rel="icon" href="favicon.ico"`) {
+		t.Fatalf("index.html missing favicon link: %s", string(indexHTML))
 	}
 }
