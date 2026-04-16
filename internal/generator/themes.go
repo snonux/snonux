@@ -1,46 +1,63 @@
 package generator
 
-// themeRegistry maps theme names to their HTML template strings.
-// Each template must end its <style> with {{template "navSharedCSSInner"}}, then use
-// {{template "navhints" .}}, {{template "navmodal" .}},
-// and {{template "navscript" .}} — these are defined in shared.go (navDefs).
-var themeRegistry = map[string]string{
-	"neon":      neonTemplate,
-	"terminal":  terminalTemplate,
-	"synthwave": synthwaveTemplate,
-	"plasma":    plasmaTemplate,  // replaced "minimal" — psychedelic drifting blobs
-	"brutalist": brutalistTemplate,
-	"volcano":   volcanoTemplate, // replaced "paper" — rising ember particles
-	"aurora":    auroraTemplate,
-	"matrix":    matrixTemplate,
-	"ocean":     oceanTemplate,
-	"dos":       dosTemplate,
-	"retro":     retroTemplate,
-	"cosmos":    cosmosTemplate,  // replaced "glass" — ringed planet, nebula, asteroids
+import (
+	"log"
+
+	"codeberg.org/snonux/snonux/internal/generator/templates"
+)
+
+// fallbackThemeName is returned by getTheme when an unknown name is requested,
+// matching the previous behaviour of the hand-maintained themeRegistry map.
+const fallbackThemeName = "neon"
+
+// themeSet caches the list of theme names available in the embedded template FS
+// so ListThemes and getTheme do not re-read the directory on every call.
+var themeSet = loadThemeSet()
+
+func loadThemeSet() map[string]struct{} {
+	names, err := templates.ThemeNames()
+	if err != nil {
+		// At build time the embed //go:embed directive guarantees the FS is
+		// populated, so this should never happen; log and continue with an
+		// empty set so getTheme() falls back cleanly.
+		log.Printf("warning: could not enumerate themes from embedded FS: %v", err)
+		return map[string]struct{}{}
+	}
+
+	out := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		out[n] = struct{}{}
+	}
+	return out
 }
 
-// getTheme returns the HTML template string for the given theme name.
-// Falls back to the neon theme if the name is unknown.
+// getTheme returns the HTML template body for the given theme name, loading it
+// from the embedded template FS. It falls back to the neon theme if the name
+// is unknown (preserving previous behaviour of the hand-maintained map).
 func getTheme(name string) string {
-	if t, ok := themeRegistry[name]; ok {
-		return t
+	if _, ok := themeSet[name]; !ok {
+		name = fallbackThemeName
 	}
-	return neonTemplate
+
+	body, err := templates.Theme(name)
+	if err != nil {
+		// Last-resort fallback: try neon. If that also fails, return an empty
+		// string; template.Parse will then produce a diagnostic error.
+		if body, err = templates.Theme(fallbackThemeName); err != nil {
+			log.Printf("warning: could not load fallback theme %q: %v", fallbackThemeName, err)
+			return ""
+		}
+	}
+
+	return body
 }
 
 // ListThemes returns a sorted list of all available theme names.
 func ListThemes() []string {
-	names := make([]string, 0, len(themeRegistry))
-	for k := range themeRegistry {
-		names = append(names, k)
-	}
-	// Sort for deterministic output in --help text.
-	for i := 0; i < len(names); i++ {
-		for j := i + 1; j < len(names); j++ {
-			if names[i] > names[j] {
-				names[i], names[j] = names[j], names[i]
-			}
-		}
+	names, err := templates.ThemeNames()
+	if err != nil {
+		log.Printf("warning: could not list themes from embedded FS: %v", err)
+		return nil
 	}
 	return names
 }

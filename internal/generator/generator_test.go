@@ -92,7 +92,7 @@ func TestJSONStringOrNull(t *testing.T) {
 
 func TestThemeSoundPresetsMatchRegistry(t *testing.T) {
 	t.Parallel()
-	for name := range themeRegistry {
+	for name := range themeSet {
 		if _, ok := themeSoundPresets[name]; !ok {
 			t.Errorf("theme %q has no sound preset in themeSoundPresets", name)
 		}
@@ -221,8 +221,8 @@ func TestInjectSharedHead_addsFaviconLink(t *testing.T) {
 func TestListThemes_sortedAndComplete(t *testing.T) {
 	t.Parallel()
 	names := ListThemes()
-	if len(names) != len(themeRegistry) {
-		t.Fatalf("len=%d, want %d", len(names), len(themeRegistry))
+	if len(names) != len(themeSet) {
+		t.Fatalf("len=%d, want %d", len(names), len(themeSet))
 	}
 	for i := 1; i < len(names); i++ {
 		if names[i] <= names[i-1] {

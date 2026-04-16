@@ -6,14 +6,27 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"codeberg.org/snonux/snonux/internal/generator/templates"
 )
 
-const faviconHeadHTML = `
-    <link rel="icon" href="favicon.ico" sizes="any">
-`
+// faviconHeadHTML is the <link rel="icon"> fragment injected into every theme's
+// <head>. Loaded at startup from the embedded templates FS so no HTML lives in
+// the Go sources.
+var faviconHeadHTML = loadFaviconHeadHTML()
+
+func loadFaviconHeadHTML() string {
+	s, err := templates.Shared("favicon_head")
+	if err != nil {
+		log.Printf("warning: could not load favicon_head template: %v", err)
+		return ""
+	}
+	return s
+}
 
 func injectSharedHead(theme string) string {
 	if strings.Contains(theme, `rel="icon"`) {
