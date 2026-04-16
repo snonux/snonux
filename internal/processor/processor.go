@@ -187,6 +187,14 @@ func buildMarkdownPost(srcPath, postDir, id string) (*post.Post, []string, error
 		return nil, nil, err
 	}
 
+	// Rewrite bare image filenames to site-root-relative paths so they
+	// resolve correctly in the generated HTML (e.g. "img.png" → "posts/ID/img.png").
+	for _, name := range localImages {
+		html = strings.ReplaceAll(html,
+			fmt.Sprintf(`src="%s"`, name),
+			fmt.Sprintf(`src="posts/%s/%s"`, id, name))
+	}
+
 	inboxExtras := make([]string, 0, len(localImages))
 	for _, name := range localImages {
 		inboxExtras = append(inboxExtras, filepath.Join(sourceDir, name))

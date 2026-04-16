@@ -76,7 +76,7 @@ const navDefs = `
    the expanded post. Theme-specific modal-inner keeps its own background. */
 .post-modal { background:rgba(0,0,0,0.55) !important; backdrop-filter:blur(6px) !important; }
 #post-modal.active { display:flex !important; align-items:center; justify-content:center; }
-#post-modal .modal-inner { width:min(100%, 800px); max-height:calc(100vh - 80px); overflow-y:auto; margin:0 auto !important; }
+#post-modal .modal-inner { width:fit-content; max-width:min(100%, 90vw); max-height:calc(100vh - 80px); overflow:auto; margin:0 auto !important; }
 /* Content area max-width across all themes */
 .overlay { max-width:1200px; margin-left:auto; margin-right:auto; }
 /* Pagination: newer + older in a footer bar (below scrollable posts, like the header) */
@@ -118,6 +118,15 @@ a.header-feed-link:hover { opacity:1; text-decoration:underline; }
 #splash-overlay.splash-brutalist .splash-inner.splash-frame {
   padding: clamp(1.4rem, 4.5vw, 2.25rem) clamp(1.1rem, 3.5vw, 1.9rem); background: rgba(0, 0, 0, 0.78); }
 html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidden !important; pointer-events:none !important; }
+/* Images embedded in markdown posts */
+.post-text img { max-width:100%; max-height:320px; object-fit:contain; border-radius:6px; cursor:pointer; }
+#post-modal .post-text img, #modal-content img { max-height:none; cursor:default; }
+/* Markdown post typography: restore spacing stripped by the global reset */
+.post-text p { margin:0.65em 0; }
+.post-text ul, .post-text ol { margin:0.65em 0; padding-left:1.8em; }
+.post-text li { margin:0.3em 0; }
+.post-text p:first-child { margin-top:0; }
+.post-text p:last-child, .post-text ul:last-child, .post-text ol:last-child { margin-bottom:0; }
 {{end}}
 
 {{define "navmodal"}}
