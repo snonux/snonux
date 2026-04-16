@@ -14,6 +14,7 @@ var themeRegistry = map[string]string{
 	"aurora":    auroraTemplate,
 	"matrix":    matrixTemplate,
 	"ocean":     oceanTemplate,
+	"dos":       dosTemplate,
 	"retro":     retroTemplate,
 	"cosmos":    cosmosTemplate,  // replaced "glass" — ringed planet, nebula, asteroids
 }

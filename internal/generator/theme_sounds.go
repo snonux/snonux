@@ -47,6 +47,7 @@ var themeSoundPresets = map[string]themeSounds{
 	"aurora":    soundsAurora(),
 	"matrix":    soundsMatrix(),
 	"ocean":     soundsOcean(),
+	"dos":       soundsDos(),
 	"retro":     soundsRetro(),
 	"cosmos":    soundsCosmos(),
 }
@@ -138,6 +139,16 @@ func soundsOcean() themeSounds {
 	s.Nav.Freq, s.Nav.Wave, s.Nav.Dur, s.Nav.Gain = 196, "triangle", 0.1, 0.09
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 349.23, 523.25, 0.2, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 415.3, 246.94, 0.18, 0.085
+	return s
+}
+
+func soundsDos() themeSounds {
+	var s themeSounds
+	s.Splash.Freqs = []float64{800, 1000}
+	s.Splash.Spacing, s.Splash.Gain, s.Splash.Wave = 0.08, 0.12, "square"
+	s.Nav.Freq, s.Nav.Wave, s.Nav.Dur, s.Nav.Gain = 1000, "square", 0.03, 0.1
+	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "square", 400, 800, 0.1, 0.1
+	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 800, 200, 0.1, 0.09
 	return s
 }
 
