@@ -227,7 +227,21 @@
                 y = ((y % 60) + 60) % 60 - 30;
                 for (var r = 0; r < col.chars.length; r++) {
                     col.chars[r].mesh.position.y = y - col.chars[r].offset;
+                    // Wild: each char jitters horizontally like corrupted RAM
+                    if (_wild) { col.chars[r].mesh.position.x = col.x + (Math.random() - 0.5) * 2.5; }
+                    else { col.chars[r].mesh.position.x = col.x; }
                 }
+            }
+            // Wild: camera lunges forward/back and sways like a CRT meltdown
+            if (_wild) {
+                camera.position.z = 40 + Math.sin(realT * 0.41) * 14;
+                camera.position.x = Math.sin(realT * 0.37) * 8;
+                camera.fov = 60 + Math.sin(realT * 0.53) * 16;
+                camera.updateProjectionMatrix();
+            } else {
+                camera.position.z = 40;
+                camera.position.x = 0;
+                if (camera.fov !== 60) { camera.fov = 60; camera.updateProjectionMatrix(); }
             }
             renderer.render(scene, camera);
         }

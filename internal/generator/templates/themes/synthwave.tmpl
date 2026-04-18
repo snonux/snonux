@@ -250,7 +250,19 @@
             var pulse = _wild ? 1 + 0.12 * Math.sin(t * 8) : 1 + 0.015 * Math.sin(t * 1.5);
             sun.scale.setScalar(pulse);
             sunRings.forEach(function(r) { r.scale.setScalar(pulse); });
-            camera.position.x = Math.sin(t * 0.08) * 4;
+            // Camera: warp-drive rush in wild, gentle sway otherwise
+            if (_wild) {
+                camera.position.x = Math.sin(realT * 0.35) * 16;
+                camera.position.y = 10 + Math.sin(realT * 0.28) * 9;
+                camera.position.z = 45 + Math.sin(realT * 0.23) * 18;
+                camera.fov = 60 + Math.sin(realT * 0.46) * 16;
+                camera.updateProjectionMatrix();
+            } else {
+                camera.position.x = Math.sin(t * 0.08) * 4;
+                camera.position.y = 10;
+                camera.position.z = 45;
+                if (camera.fov !== 60) { camera.fov = 60; camera.updateProjectionMatrix(); }
+            }
             renderer.render(scene, camera);
         }
 

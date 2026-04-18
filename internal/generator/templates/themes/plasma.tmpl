@@ -229,7 +229,21 @@
             blobs.forEach(function(b) {
                 b.mesh.position.x = b.bx + b.ax * ampMult * Math.sin(t * b.fx + b.px);
                 b.mesh.position.y = b.by + b.ay * ampMult * Math.cos(t * b.fy + b.py);
+                // Blobs pulse in size when wild
+                if (_wild) { b.mesh.scale.setScalar(1 + 0.3 * Math.sin(t * b.fy * 1.3)); }
+                else { b.mesh.scale.setScalar(1); }
             });
+            // Wild: camera sucked into plasma vortex
+            if (_wild) {
+                camera.position.x = Math.sin(realT * 0.32) * 14;
+                camera.position.y = Math.sin(realT * 0.24) * 10;
+                camera.position.z = 40 + Math.sin(realT * 0.19) * 14;
+                camera.fov = 60 + Math.sin(realT * 0.41) * 16;
+                camera.updateProjectionMatrix();
+            } else {
+                camera.position.set(0, 0, 40);
+                if (camera.fov !== 60) { camera.fov = 60; camera.updateProjectionMatrix(); }
+            }
             renderer.render(scene, camera);
         }
 

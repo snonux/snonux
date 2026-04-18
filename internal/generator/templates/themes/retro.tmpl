@@ -218,18 +218,32 @@
             _snoTOffset += (realT - _snoLastT) * (_wild ? 8 : 0);
             _snoLastT = realT;
             var t = realT + _snoTOffset;
-            // Main cube rotates; wild mode spins dramatically
+            // Main cube rotates; wild mode spins dramatically + pulses in scale
             mainCube.rotation.y = t * 0.35;
             mainCube.rotation.x = t * 0.18;
-            // Orbiters revolve around the central cube and spin individually
+            if (_wild) { mainCube.scale.setScalar(1 + 0.2 * Math.sin(realT * 5.1)); }
+            else { mainCube.scale.setScalar(1); }
+            // Orbiters fly outward to larger radius in wild mode
+            var orbR = _wild ? 18 + Math.sin(realT * 0.9) * 10 : 18;
             for (var i = 0; i < orbiters.length; i++) {
                 var o = orbiters[i];
                 var angle = o.baseAngle + t * 0.4;
-                o.mesh.position.x = Math.cos(angle) * 18;
-                o.mesh.position.z = Math.sin(angle) * 18;
-                o.mesh.position.y = Math.sin(angle * 0.7) * 4;
+                o.mesh.position.x = Math.cos(angle) * orbR;
+                o.mesh.position.z = Math.sin(angle) * orbR;
+                o.mesh.position.y = Math.sin(angle * 0.7) * (_wild ? 10 : 4);
                 o.mesh.rotation.x = t * 0.9;
                 o.mesh.rotation.z = t * 0.6;
+            }
+            // Camera: frenetic sway in wild, static otherwise
+            if (_wild) {
+                camera.position.x = Math.sin(realT * 0.39) * 14;
+                camera.position.y = Math.sin(realT * 0.31) * 8;
+                camera.position.z = 35 + Math.sin(realT * 0.23) * 14;
+                camera.fov = 60 + Math.sin(realT * 0.48) * 16;
+                camera.updateProjectionMatrix();
+            } else {
+                camera.position.set(0, 0, 35);
+                if (camera.fov !== 60) { camera.fov = 60; camera.updateProjectionMatrix(); }
             }
             renderer.render(scene, camera);
         }

@@ -247,6 +247,18 @@
 
             points.geometry.attributes.position.needsUpdate = true;
             points.geometry.attributes.color.needsUpdate    = true;
+            // Wild: camera plunges into the rain like riding a digital waterfall
+            if (_wild) {
+                var wt = Date.now() * 0.001;
+                camera.position.z = 50 + Math.sin(wt * 0.38) * 20;
+                camera.position.x = Math.sin(wt * 0.31) * 14;
+                camera.fov = 60 + Math.sin(wt * 0.51) * 18;
+                camera.updateProjectionMatrix();
+            } else {
+                camera.position.z = 50;
+                camera.position.x = 0;
+                if (camera.fov !== 60) { camera.fov = 60; camera.updateProjectionMatrix(); }
+            }
             renderer.render(scene, camera);
         }
 

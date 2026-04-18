@@ -288,9 +288,27 @@
             atomic.scale.setScalar(pulse);
             ringH.rotation.z = t * 0.4;
             ringV.rotation.z = -t * 0.3;
-            // Slow camera orbit for parallax
-            camera.position.x = Math.sin(t * 0.07) * 5;
-            camera.position.y = 10 + Math.sin(t * 0.05) * 2;
+            // Rings tilt chaotically in wild — full 3D tumble
+            if (_wild) {
+                ringH.rotation.x = Math.sin(realT * 2.3) * 0.8;
+                ringV.rotation.y = Math.cos(realT * 1.9) * 0.9;
+            } else {
+                ringH.rotation.x = 0;
+                ringV.rotation.y = 0;
+            }
+            // Camera: meltdown spiral in wild, slow orbit otherwise
+            if (_wild) {
+                camera.position.x = Math.sin(realT * 0.36) * 16;
+                camera.position.y = 10 + Math.sin(realT * 0.29) * 10;
+                camera.position.z = 45 + Math.sin(realT * 0.22) * 16;
+                camera.fov = 60 + Math.sin(realT * 0.47) * 18;
+                camera.updateProjectionMatrix();
+            } else {
+                camera.position.x = Math.sin(t * 0.07) * 5;
+                camera.position.y = 10 + Math.sin(t * 0.05) * 2;
+                camera.position.z = 45;
+                if (camera.fov !== 60) { camera.fov = 60; camera.updateProjectionMatrix(); }
+            }
             camera.lookAt(0, -5, -10);
             renderer.render(scene, camera);
         }
