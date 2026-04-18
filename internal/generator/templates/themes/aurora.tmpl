@@ -272,21 +272,30 @@
         function animate() {
             requestAnimationFrame(animate);
             var realT = clock.getElapsedTime();
-            _snoTOffset += (realT - _snoLastT) * (_wild ? 7 : 0);
+            // Wild mode: accelerate time 18× so waves churn much faster
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 18 : 0);
             _snoLastT = realT;
             var t = realT + _snoTOffset;
+
+            var ampMult  = _wild ? 3.2 : 1;
+            // Camera sways left/right and bobs up/down in wild mode
+            camera.position.x = _wild ? Math.sin(t * 0.28) * 10 : 0;
+            camera.position.y = _wild ? 5 + Math.cos(t * 0.19) * 4 : 5;
 
             for (var r = 0; r < ribbons.length; r++) {
                 var rb = ribbons[r];
                 var pos = rb.geo.attributes.position;
                 var count = pos.count;
+                // In wild mode ribbons also drift vertically so they cross and tangle
+                var yDrift = _wild ? Math.sin(t * rb.freq * 0.4 + r * 1.1) * 6 : 0;
+                rb.mesh.position.y = ribbonY[r] + yDrift;
                 // PlaneGeometry vertices: (SEG_W+1)*2 total; top row is every other vertex
                 for (var i = 0; i < count; i++) {
                     var x = pos.getX(i);
                     // Only animate top row (y > 0 in local space) for the waving top edge
                     if (pos.getY(i) > 0) {
-                        pos.setY(i, rb.amp * Math.sin(t * rb.freq + x * 0.08 + rb.phase)
-                                    + rb.amp * 0.4 * Math.cos(t * rb.freq * 0.7 + x * 0.05));
+                        pos.setY(i, rb.amp * ampMult * Math.sin(t * rb.freq + x * 0.08 + rb.phase)
+                                    + rb.amp * ampMult * 0.4 * Math.cos(t * rb.freq * 0.7 + x * 0.05));
                     }
                 }
                 pos.needsUpdate = true;
