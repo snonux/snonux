@@ -203,6 +203,7 @@
     // Retrofuture WebGL: atomic orb with crossed electron rings, receding teal grid floor,
     // chrome metallic star particles, and a slow drifting camera orbit.
     (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
         var scene, camera, renderer, clock;
         var atomic, ringH, ringV, stars;
 
@@ -278,9 +279,12 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            var t = clock.getElapsedTime();
-            // Atomic orb pulses subtly; rings counter-rotate
-            var pulse = 1 + 0.015 * Math.sin(t * 1.5);
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 9 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
+            // Atomic orb pulses; wild meltdown mode makes it throb intensely
+            var pulse = _wild ? 1 + 0.1 * Math.sin(t * 12) : 1 + 0.015 * Math.sin(t * 1.5);
             atomic.scale.setScalar(pulse);
             ringH.rotation.z = t * 0.4;
             ringV.rotation.z = -t * 0.3;
@@ -292,6 +296,28 @@
         }
 
         initThree();
+
+        // Retrofuture nav/wild effects — atomic pulse on navigate, meltdown on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+        window.snonuxNavEffect = function() {
+            // Atomic pulse — rings expand briefly as CSS overlay
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.1);z-index:998;pointer-events:none;width:100vmax;height:100vmax;border-radius:50%;border:3px solid rgba(0,217,192,0.7);transition:transform 0.3s ease,opacity 0.3s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform='translate(-50%,-50%) scale(1.2)'; d.style.opacity='0'; setTimeout(function() { d.remove(); }, 330); }, 15);
+        };
+        window.snonuxPageEffect = function() {
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-zoom'); setTimeout(function() { ov.classList.remove('sno-fx-zoom'); }, 330); }
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(0,217,192,0.15);transition:opacity 0.2s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 230); }, 20);
+        };
     })();
     </script>
     {{template "navscript" .}}

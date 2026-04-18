@@ -170,6 +170,7 @@
     {{template "navmodal" .}}
     <script>
     (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
         var scene, camera, renderer, clock;
         var columns = [];
 
@@ -216,7 +217,10 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            var t = clock.getElapsedTime();
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 9 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
             for (var c = 0; c < columns.length; c++) {
                 var col = columns[c];
                 var y = col.y - t * col.speed;
@@ -229,6 +233,27 @@
         }
 
         initThree();
+
+        // DOS nav/wild effects — CRT glitch on navigate, system crash rain on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+        window.snonuxNavEffect = function() {
+            // CRT horizontal glitch
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-glitch'); setTimeout(function() { ov.classList.remove('sno-fx-glitch'); }, 300); }
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(85,255,85,0.12);transition:opacity 0.15s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 180); }, 25);
+        };
+        window.snonuxPageEffect = function() {
+            // System crash — scanline strobe
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-glitch'); setTimeout(function() { ov.classList.remove('sno-fx-glitch'); setTimeout(function() { ov.classList.add('sno-fx-glitch'); setTimeout(function() { ov.classList.remove('sno-fx-glitch'); }, 280); }, 40); }, 310); }
+        };
     })();
     </script>
     {{template "navscript" .}}

@@ -166,6 +166,7 @@
     // Space Age WebGL: toroidal space station ring + three satellite pods orbiting it
     // + a slowly rotating planet sphere + dense star field. Teal wireframe throughout.
     (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
         var scene, camera, renderer, clock;
         var station, pods = [], planet;
 
@@ -246,9 +247,12 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            var t = clock.getElapsedTime();
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 10 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
 
-            // Station rotates slowly around Y and tilts slightly on X
+            // Station rotates; wild mode = warp-speed orbital mechanics
             station.rotation.y = t * 0.12;
             station.rotation.x = Math.sin(t * 0.07) * 0.3;
 
@@ -275,6 +279,27 @@
         }
 
         initThree();
+
+        // Spaceage nav/wild effects — star streak on navigate, hyperspace jump on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+        window.snonuxNavEffect = function() {
+            // Star streak flash — radial lines from center
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,232,232,0.2) 0%,transparent 55%);transform:scale(0.4);transition:transform 0.25s ease,opacity 0.25s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform='scale(1.6)'; d.style.opacity='0'; setTimeout(function() { d.remove(); }, 280); }, 15);
+        };
+        window.snonuxPageEffect = function() {
+            // Hyperspace jump — white tunnel flash
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:radial-gradient(ellipse at center,rgba(255,255,255,0.3) 0%,rgba(0,232,232,0.15) 45%,transparent 70%);transition:opacity 0.2s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 230); }, 20);
+        };
     })();
     </script>
     {{template "navscript" .}}

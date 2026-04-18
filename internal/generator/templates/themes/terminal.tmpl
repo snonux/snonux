@@ -149,6 +149,7 @@
     // Terminal WebGL scene: phosphor-green icosahedron wireframe + torus particle ring.
     // The scene sits behind the CRT scanline overlay (z-index:999) and the UI (z-index:10).
     (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
         var scene, camera, renderer, icosa, particles;
         var clock = new THREE.Clock();
 
@@ -201,8 +202,11 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            var t = clock.getElapsedTime();
-            // Slow multi-axis rotation for the phosphor orb
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 11 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
+            // Slow multi-axis rotation; wild mode overloads the phosphor orb
             icosa.rotation.x = t * 0.12;
             icosa.rotation.y = t * 0.18;
             icosa.rotation.z = t * 0.07;
@@ -213,6 +217,27 @@
         }
 
         initThree();
+
+        // Terminal nav/wild effects — cursor glitch on navigate, buffer overflow on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+            // Toggle intense scanline strobe in wild mode
+            document.body.style.animationDuration = _wild ? '0.4s' : '9s';
+        };
+        window.snonuxNavEffect = function() {
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-glitch'); setTimeout(function() { ov.classList.remove('sno-fx-glitch'); }, 300); }
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(51,255,51,0.13);transition:opacity 0.18s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 210); }, 25);
+        };
+        window.snonuxPageEffect = function() {
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-glitch'); setTimeout(function() { ov.classList.remove('sno-fx-glitch'); setTimeout(function() { ov.classList.add('sno-fx-glitch'); setTimeout(function() { ov.classList.remove('sno-fx-glitch'); }, 280); }, 35); }, 300); }
+        };
     })();
     </script>
     {{template "navscript" .}}

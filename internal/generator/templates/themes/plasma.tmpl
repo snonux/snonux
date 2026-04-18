@@ -161,6 +161,7 @@
     // paths with additive blending — overlapping blobs mix colours and pulse
     // like a lava lamp or plasma ball. Dark bg, cyan/magenta/yellow palette.
     (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
         var scene, camera, renderer, clock;
         var blobs = [];
 
@@ -220,15 +221,37 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            var t = clock.getElapsedTime();
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 7 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
+            var ampMult = _wild ? 3.5 : 1;
             blobs.forEach(function(b) {
-                b.mesh.position.x = b.bx + b.ax * Math.sin(t * b.fx + b.px);
-                b.mesh.position.y = b.by + b.ay * Math.cos(t * b.fy + b.py);
+                b.mesh.position.x = b.bx + b.ax * ampMult * Math.sin(t * b.fx + b.px);
+                b.mesh.position.y = b.by + b.ay * ampMult * Math.cos(t * b.fy + b.py);
             });
             renderer.render(scene, camera);
         }
 
         initThree();
+
+        // Plasma nav/wild effects — blob pulse burst on navigate, supernova on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+        window.snonuxNavEffect = function() {
+            // Blob pulse burst — rainbow flash radiating from center
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,240,255,0.25) 0%,rgba(255,0,224,0.15) 45%,transparent 70%);transform:scale(0.5);transition:transform 0.28s ease,opacity 0.28s ease';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform='scale(1.3)'; d.style.opacity='0'; setTimeout(function() { d.remove(); }, 310); }, 20);
+        };
+        window.snonuxPageEffect = function() {
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-zoom'); setTimeout(function() { ov.classList.remove('sno-fx-zoom'); }, 330); }
+        };
     })();
     </script>
     {{template "navscript" .}}

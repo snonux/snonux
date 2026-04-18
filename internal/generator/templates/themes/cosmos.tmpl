@@ -165,6 +165,7 @@
     // The planet sits at lower-right and slowly rotates; asteroids orbit it;
     // nebula clouds drift with additive blending for a deep-space glow.
     (function() {
+        var _wild = false;
         var scene, camera, renderer, clock;
         var planet, planetRings = [];
         var asteroids = [];
@@ -288,12 +289,13 @@
             requestAnimationFrame(animate);
             var t = clock.getElapsedTime();
 
-            planet.rotation.y += 0.0015;
+            var sm = _wild ? 10 : 1;
+            planet.rotation.y += 0.0015 * sm;
 
-            // Update asteroid belt positions
+            // Update asteroid belt — warp speed in wild mode
             var pos = asteroids.geometry.attributes.position;
             for (var i = 0; i < ASTEROID_COUNT; i++) {
-                asteroidAngles[i] += asteroidSpeeds[i];
+                asteroidAngles[i] += asteroidSpeeds[i] * sm;
                 var a = asteroidAngles[i], r = asteroidRadii[i];
                 pos.setXYZ(i, Math.cos(a) * r, asteroidY[i], Math.sin(a) * r);
             }
@@ -307,6 +309,28 @@
         }
 
         initThree();
+
+        // Cosmos nav/wild effects — shooting star on navigate, warp speed on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+        window.snonuxNavEffect = function() {
+            // Shooting star CSS line flashes across screen
+            var d = document.createElement('div');
+            var angle = 30 + Math.random() * 30;
+            d.style.cssText = 'position:fixed;top:' + (10+Math.random()*40) + '%;left:-10%;z-index:998;pointer-events:none;width:35%;height:2px;background:linear-gradient(90deg,transparent,rgba(255,209,102,0.9),transparent);transform:rotate(-' + angle + 'deg);transition:left 0.28s ease,opacity 0.28s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.left='110%'; d.style.opacity='0'; setTimeout(function() { d.remove(); }, 320); }, 20);
+        };
+        window.snonuxPageEffect = function() {
+            // Warp flash — stars streak white
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:radial-gradient(ellipse at center,rgba(255,255,255,0.25) 0%,transparent 70%);transition:opacity 0.2s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 230); }, 20);
+        };
     })();
     </script>
     {{template "navscript" .}}

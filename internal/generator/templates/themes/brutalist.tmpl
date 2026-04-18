@@ -144,6 +144,7 @@
     // Brutalist WebGL: harsh slowly-rotating boxes — solid white and wireframe red.
     // No fog, no softness. Pure geometric violence against the black void.
     (function() {
+        var _wild = false;
         var scene, camera, renderer, clock;
         var boxes = [];
 
@@ -189,14 +190,43 @@
 
         function animate() {
             requestAnimationFrame(animate);
+            var sm = _wild ? 15 : 1;
             boxes.forEach(function(b) {
-                b.mesh.rotation.x += b.rx;
-                b.mesh.rotation.y += b.ry;
+                b.mesh.rotation.x += b.rx * sm;
+                b.mesh.rotation.y += b.ry * sm;
+                // Wild mode: random jitter on positions
+                if (_wild) { b.mesh.position.x += (Math.random()-0.5)*0.4; b.mesh.position.y += (Math.random()-0.5)*0.4; }
             });
             renderer.render(scene, camera);
         }
 
         initThree();
+
+        // Brutalist nav/wild effects — violent shake on navigate, geometric chaos on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+        window.snonuxNavEffect = function() {
+            // Violent double shake + red flash
+            var ov = document.querySelector('.overlay');
+            if (ov) {
+                ov.classList.add('sno-fx-shake');
+                setTimeout(function() { ov.classList.remove('sno-fx-shake'); setTimeout(function() { ov.classList.add('sno-fx-shake'); setTimeout(function() { ov.classList.remove('sno-fx-shake'); }, 380); }, 50); }, 400);
+            }
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(255,34,0,0.28);transition:opacity 0.18s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 200); }, 25);
+        };
+        window.snonuxPageEffect = function() {
+            // Color inversion flash
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:#fff;mix-blend-mode:difference;transition:opacity 0.15s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 180); }, 20);
+        };
     })();
     </script>
     {{template "navscript" .}}

@@ -151,6 +151,7 @@
     // Ocean WebGL: dramatic wave surface + sea rock spires + bioluminescent
     // jellyfish + rising bubbles + a slow whale cruising the deep.
     (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
         var scene, camera, renderer, clock;
         var waveGeo, waveMesh, sunLight;
         var whale, jellyfish = [];
@@ -271,16 +272,20 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            var t = clock.getElapsedTime();
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 6 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
+            var waveAmp = _wild ? 2.8 : 1; // tsunami amplitude in wild mode
             var pos = waveGeo.attributes.position;
 
-            // Dramatic overlapping waves — larger amplitude than before
+            // Dramatic overlapping waves — tsunami amplitude in wild mode
             for (var i = 0; i < pos.count; i++) {
                 var x = pos.getX(i), z = pos.getZ(i);
                 pos.setY(i,
-                    Math.sin(x * 0.04 + t * 1.1) * 3.2 +
-                    Math.cos(z * 0.06 + t * 0.85) * 2.4 +
-                    Math.sin((x + z) * 0.025 + t * 0.6) * 1.5
+                    Math.sin(x * 0.04 + t * 1.1) * 3.2 * waveAmp +
+                    Math.cos(z * 0.06 + t * 0.85) * 2.4 * waveAmp +
+                    Math.sin((x + z) * 0.025 + t * 0.6) * 1.5 * waveAmp
                 );
             }
             pos.needsUpdate = true;
@@ -298,10 +303,11 @@
             if (whale.position.x > 80) whale.position.x = -80;
             whale.position.y = -8 + Math.sin(t * 0.15) * 2;
 
-            // Rising bubbles — reset when they reach the surface
+            // Rising bubbles — explode upward in wild tsunami mode
             var bp = bubbleGeo.attributes.position;
+            var bMult = _wild ? 8 : 1;
             for (var bi = 0; bi < BUBBLE_COUNT; bi++) {
-                bubblePos[bi*3+1] += bubbleVY[bi];
+                bubblePos[bi*3+1] += bubbleVY[bi] * bMult;
                 if (bubblePos[bi*3+1] > 8) {
                     bubblePos[bi*3]   = (Math.random() - 0.5) * 100;
                     bubblePos[bi*3+1] = -15 - Math.random() * 10;
@@ -317,6 +323,29 @@
         }
 
         initThree();
+
+        // Ocean nav/wild effects — wave surge on navigate, tsunami on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+        window.snonuxNavEffect = function() {
+            // Wave surge: content skews briefly
+            var ov = document.querySelector('.overlay');
+            if (!ov) return;
+            ov.style.transition = 'transform 0.1s';
+            ov.style.transform = 'skewX(-1.5deg) translateY(-3px)';
+            setTimeout(function() { ov.style.transform = ''; setTimeout(function() { ov.style.transition = ''; }, 180); }, 110);
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(0,180,216,0.18);transition:opacity 0.22s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 250); }, 30);
+        };
+        window.snonuxPageEffect = function() {
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-zoom'); setTimeout(function() { ov.classList.remove('sno-fx-zoom'); }, 330); }
+        };
     })();
     </script>
     {{template "navscript" .}}

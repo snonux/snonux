@@ -158,6 +158,7 @@
     // Retro WebGL scene: amber demo-scene cube + orbiting octahedrons + star particles.
     // Evokes classic 80s/90s PC demo aesthetics with amber phosphor colours.
     (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
         var scene, camera, renderer;
         var mainCube, orbiters = [];
         var clock = new THREE.Clock();
@@ -213,8 +214,11 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            var t = clock.getElapsedTime();
-            // Main cube rotates on Y and X axes for classic demo-scene look
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 8 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
+            // Main cube rotates; wild mode spins dramatically
             mainCube.rotation.y = t * 0.35;
             mainCube.rotation.x = t * 0.18;
             // Orbiters revolve around the central cube and spin individually
@@ -231,6 +235,30 @@
         }
 
         initThree();
+
+        // Retro nav/wild effects — amber ember burst on navigate, phosphor burnout on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+            // Intensify the flicker in wild mode
+            document.body.style.animationDuration = _wild ? '1.5s' : '11s';
+        };
+        window.snonuxNavEffect = function() {
+            // Amber ember spray flash
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(255,176,0,0.22) 0%,transparent 65%);transition:opacity 0.25s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 280); }, 25);
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-shake'); setTimeout(function() { ov.classList.remove('sno-fx-shake'); }, 380); }
+        };
+        window.snonuxPageEffect = function() {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(255,176,0,0.2);transition:opacity 0.18s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 200); }, 20);
+        };
     })();
     </script>
     {{template "navscript" .}}

@@ -163,6 +163,7 @@
     // Each column has a "head" that falls at a random speed; particles near the head
     // are bright green and fade to near-black further behind, simulating digital rain.
     (function() {
+        var _wild = false;
         var NUM_COLS   = 80;   // number of rain columns
         var COL_LEN    = 25;   // particles per column
         var SPACING    = 2.2;  // vertical gap between particles in a column
@@ -219,8 +220,8 @@
             requestAnimationFrame(animate);
 
             for (var c = 0; c < NUM_COLS; c++) {
-                // Advance the head downward each frame
-                headY[c] -= speed[c];
+                // Advance the head downward each frame; wild mode accelerates rain 10x
+                headY[c] -= speed[c] * (_wild ? 10 : 1);
                 // When the head exits the bottom, reset to a random point above the top
                 if (headY[c] < Y_BOTTOM - COL_LEN * SPACING) {
                     headY[c] = Y_TOP + Math.random() * 20;
@@ -250,6 +251,26 @@
         }
 
         initThree();
+
+        // Matrix nav/wild effects — shake + green flash on navigate, rain storm on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+        window.snonuxNavEffect = function() {
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-shake'); setTimeout(function() { ov.classList.remove('sno-fx-shake'); }, 380); }
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(0,255,65,0.15);transition:opacity 0.2s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 220); }, 30);
+        };
+        window.snonuxPageEffect = function() {
+            // Glitch bars — horizontal displacement flicker
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-glitch'); setTimeout(function() { ov.classList.remove('sno-fx-glitch'); }, 320); }
+        };
     })();
     </script>
     {{template "navscript" .}}

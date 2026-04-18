@@ -50,6 +50,7 @@
     <span><kbd>Enter</kbd> or click post to expand</span>
     <span><kbd>Esc</kbd> close</span>
     <span><kbd>h</kbd><kbd>l</kbd> or <kbd>←</kbd><kbd>→</kbd> change page</span>
+    <span><kbd>w</kbd> wild mode</span>
 </div>
 {{end}}
 
@@ -73,6 +74,21 @@
 .page-nav-footer .page-nav { margin:0; }
 /* ~Half-height footer bar vs default .page-nav padding */
 .page-nav-footer .page-nav a { padding-top:4px; padding-bottom:4px; }
+/* Shared nav FX keyframes — themes apply these classes for brief effects */
+@keyframes sno-shake { 0%,100%{transform:translate(0)} 14%{transform:translate(-7px,4px)} 28%{transform:translate(7px,-5px)} 42%{transform:translate(-5px,6px)} 56%{transform:translate(6px,-4px)} 70%{transform:translate(-4px,3px)} 86%{transform:translate(4px,-2px)} }
+@keyframes sno-zoom-fwd { 0%{transform:scale(1)} 40%{transform:scale(1.05)} 100%{transform:scale(1)} }
+@keyframes sno-glitch { 0%,100%{transform:translate(0) skewX(0)} 20%{transform:translate(-5px,0) skewX(-4deg)} 40%{transform:translate(5px,0) skewX(4deg)} 60%{transform:translate(-3px,0)} 80%{transform:translate(3px,0)} }
+@keyframes sno-wild-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+.sno-fx-shake { animation:sno-shake 0.38s cubic-bezier(.36,.07,.19,.97) both !important; transform-origin:center; }
+.sno-fx-zoom  { animation:sno-zoom-fwd 0.32s ease both !important; }
+.sno-fx-glitch { animation:sno-glitch 0.3s ease both !important; }
+/* Wild mode badge — visible when active */
+#sno-wild-badge { position:fixed; top:10px; right:12px; z-index:5000; padding:3px 12px;
+  font-size:0.64rem; letter-spacing:0.2em; text-transform:uppercase; border-radius:2px;
+  pointer-events:none; opacity:0; transition:opacity 0.4s;
+  background:rgba(220,0,0,0.92); color:#fff; border:1px solid rgba(255,100,100,0.8);
+  font-family:monospace; animation:sno-wild-pulse 0.9s ease-in-out infinite; }
+#sno-wild-badge.sno-wild-on { opacity:1; }
 /* Host note under the site subtitle (all themes) */
 .logo-host { font-size:0.65rem; opacity:0.55; margin-top:4px; letter-spacing:0.3px; line-height:1.3; }
 /* Atom feed link in header (paired with transmit in .nav) */
@@ -129,6 +145,8 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
 {{define "navscript"}}
 <script>
     const SNONUX_SOUNDS = {{.ThemeSoundsJSON}};
+    // Inject wild-mode badge used by all themes
+    (function() { var b=document.createElement('div'); b.id='sno-wild-badge'; b.textContent='WILD MODE'; document.body.appendChild(b); })();
     function snonuxWaveType(w) {
         if (w === 'square') return 'square';
         if (w === 'triangle') return 'triangle';
@@ -232,6 +250,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
 
     function selectPost(index) {
         setActiveHighlight(index, true, true);
+        if (window.snonuxNavEffect) window.snonuxNavEffect();
     }
 
     /** Pick the post that should be active for the current viewport (anchor near top of visible area). */
@@ -391,12 +410,15 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
             case 'j': case 'ArrowDown':  selectPost(currentIndex + 1); e.preventDefault(); break;
             case 'k': case 'ArrowUp':    selectPost(currentIndex - 1); e.preventDefault(); break;
             case 'h': case 'ArrowLeft':
-                if (prevPageURL) { playNavSound(); window.location.href = prevPageURL; }
+                if (prevPageURL) { playNavSound(); if (window.snonuxPageEffect) window.snonuxPageEffect(); window.location.href = prevPageURL; }
                 e.preventDefault(); break;
             case 'l': case 'ArrowRight':
-                if (nextPageURL) { playNavSound(); window.location.href = nextPageURL; }
+                if (nextPageURL) { playNavSound(); if (window.snonuxPageEffect) window.snonuxPageEffect(); window.location.href = nextPageURL; }
                 e.preventDefault(); break;
             case 'Enter': openPostAt(currentIndex, true); e.preventDefault(); break;
+            case 'w':
+                if (window.snonuxWildToggle) window.snonuxWildToggle();
+                e.preventDefault(); break;
         }
     });
 </script>

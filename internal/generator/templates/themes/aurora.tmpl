@@ -217,6 +217,7 @@
     // with overlapping sine waves, rendered with additive blending so they glow
     // against the dark navy sky like real aurora curtains.
     (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
         var RIBBON_COUNT = 6;
         var SEG_W = 60; // horizontal segments per ribbon
         var ribbonColors = [0x00ffb3, 0x00cfe8, 0xc084fc, 0x00ffb3, 0x48e8d0, 0xa855f7];
@@ -270,7 +271,10 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            var t = clock.getElapsedTime();
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 7 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
 
             for (var r = 0; r < ribbons.length; r++) {
                 var rb = ribbons[r];
@@ -291,6 +295,27 @@
         }
 
         initThree();
+
+        // Aurora nav/wild effects — snow burst on navigate, blizzard storm on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+        window.snonuxNavEffect = function() {
+            // Snow burst — CSS snowflakes scatter from cursor
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-shake'); setTimeout(function() { ov.classList.remove('sno-fx-shake'); }, 380); }
+            // Frost flash
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,255,179,0.18) 0%,rgba(192,132,252,0.1) 60%,transparent 100%);transition:opacity 0.22s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 250); }, 30);
+        };
+        window.snonuxPageEffect = function() {
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-zoom'); setTimeout(function() { ov.classList.remove('sno-fx-zoom'); }, 330); }
+        };
     })();
     </script>
     {{template "navscript" .}}

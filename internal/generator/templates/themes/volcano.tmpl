@@ -154,6 +154,7 @@
     // Volcano WebGL: glowing lava floor, molten rock boulders, smoke plumes,
     // underground furnace glow sphere, and 3000 rising ember particles.
     (function() {
+        var _wild = false;
         var N_EMBER = 3000;
         var N_SMOKE = 800;
         var scene, camera, renderer, clock;
@@ -300,12 +301,13 @@
             }
             lp.needsUpdate = true;
 
-            // Embers
+            // Embers — wild mode eruption multiplies velocity 8x and shrinks lifespan
+            var emberMult = _wild ? 8 : 1;
             for (var ei = 0; ei < N_EMBER; ei++) {
-                eLife[ei] += dt / eMaxLife[ei];
+                eLife[ei] += dt / eMaxLife[ei] * emberMult;
                 if (eLife[ei] > 1.0) resetEmber(ei);
-                ePY[ei] += eVY[ei];
-                ePX[ei] += eVX[ei];
+                ePY[ei] += eVY[ei] * emberMult;
+                ePX[ei] += eVX[ei] * emberMult;
                 var idx = ei * 3, te = eLife[ei];
                 ePosArr[idx] = ePX[ei]; ePosArr[idx+1] = ePY[ei]; ePosArr[idx+2] = ePZ[ei];
                 var fade = Math.max(0, 1 - te * 1.3);
@@ -314,11 +316,12 @@
             emberPoints.geometry.attributes.position.needsUpdate = true;
             emberPoints.geometry.attributes.color.needsUpdate    = true;
 
-            // Smoke
+            // Smoke — wild mode makes smoke billow chaotically
+            var smokeMult = _wild ? 5 : 1;
             for (var si = 0; si < N_SMOKE; si++) {
-                sSLife[si] += dt / sSMaxLife[si];
+                sSLife[si] += dt / sSMaxLife[si] * smokeMult;
                 if (sSLife[si] > 1.0) resetSmoke(si);
-                sPY[si] += sSVY[si];
+                sPY[si] += sSVY[si] * smokeMult;
                 sPX[si] += (Math.random() - 0.5) * 0.04;
                 var si3 = si * 3;
                 sPosArr[si3] = sPX[si]; sPosArr[si3+1] = sPY[si]; sPosArr[si3+2] = sPZ[si];
@@ -329,6 +332,33 @@
         }
 
         initThree();
+
+        // Volcano nav/wild effects — seismic tremor on navigate, full eruption on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+            // Boost lava emissive intensity in wild eruption mode
+            if (lavaFloor) lavaFloor.material.emissiveIntensity = _wild ? 2.5 : 0.6;
+        };
+        window.snonuxNavEffect = function() {
+            // Seismic tremor — strong shake
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-shake'); setTimeout(function() { ov.classList.remove('sno-fx-shake'); }, 420); }
+            // Orange ember flash
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(255,68,0,0.2);transition:opacity 0.25s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 280); }, 30);
+        };
+        window.snonuxPageEffect = function() {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(255,140,0,0.25);transition:opacity 0.2s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 220); }, 20);
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-zoom'); setTimeout(function() { ov.classList.remove('sno-fx-zoom'); }, 330); }
+        };
     })();
     </script>
     {{template "navscript" .}}

@@ -170,6 +170,7 @@
     // Synthwave WebGL: glowing sunset sphere with horizontal scan-line rings,
     // a receding grid floor, and pink star particles. Replaces CSS sky/grid.
     (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
         var scene, camera, renderer, clock;
         var sun, sunRings = [];
 
@@ -241,9 +242,12 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            var t = clock.getElapsedTime();
-            // Sun pulses subtly; camera drifts sideways for parallax
-            var pulse = 1 + 0.015 * Math.sin(t * 1.5);
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 9 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
+            // Sun pulses subtly; wild mode makes it throb dramatically
+            var pulse = _wild ? 1 + 0.12 * Math.sin(t * 8) : 1 + 0.015 * Math.sin(t * 1.5);
             sun.scale.setScalar(pulse);
             sunRings.forEach(function(r) { r.scale.setScalar(pulse); });
             camera.position.x = Math.sin(t * 0.08) * 4;
@@ -251,6 +255,29 @@
         }
 
         initThree();
+
+        // Synthwave nav/wild effects — grid zoom on navigate, turbo drive on wild
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+        window.snonuxNavEffect = function() {
+            // Grid zoom forward
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-zoom'); setTimeout(function() { ov.classList.remove('sno-fx-zoom'); }, 330); }
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:linear-gradient(180deg,transparent 40%,rgba(255,45,120,0.2) 100%);transition:opacity 0.2s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 230); }, 20);
+        };
+        window.snonuxPageEffect = function() {
+            // Warp-speed tunnel flash
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:radial-gradient(ellipse at 50% 100%,rgba(255,107,43,0.35) 0%,transparent 65%);transform:scaleY(0.2);transition:transform 0.22s ease,opacity 0.22s ease';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform='scaleY(1.4)'; d.style.opacity='0'; setTimeout(function() { d.remove(); }, 250); }, 20);
+        };
     })();
     </script>
     {{template "navscript" .}}

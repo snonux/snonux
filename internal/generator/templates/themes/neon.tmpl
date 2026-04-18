@@ -263,7 +263,7 @@
                     ring.rotation.y+=ring.userData.speed;
                     ring.rotation.x=Math.sin(time*1.5+i)*ring.userData.axisTilt;
                 });
-                particles.rotation.y+=0.0008;
+                particles.rotation.y+=window._snoNeonWild ? 0.012 : 0.0008;
                 renderer.render(scene,camera);
             })();
         }
@@ -274,6 +274,45 @@
             renderer.setSize(window.innerWidth,window.innerHeight);
         });
         window.onload=initThree;
+    </script>
+    <script>
+    // Neon nav/wild effects — lightning flash on navigate, ring frenzy on wild
+    (function() {
+        function flash(color, ms) {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:' + color + ';transition:opacity ' + (ms||180) + 'ms';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity = '0'; setTimeout(function() { d.remove(); }, ms || 180); }, 30);
+        }
+        function fxOverlay(cls, ms) {
+            var ov = document.querySelector('.overlay');
+            if (!ov) return;
+            ov.classList.add(cls);
+            setTimeout(function() { ov.classList.remove(cls); }, ms || 380);
+        }
+        var _wild = false;
+        window.snonuxNavEffect = function() {
+            flash('rgba(0,245,255,0.22)', 160);
+            fxOverlay('sno-fx-shake', 380);
+        };
+        window.snonuxPageEffect = function() {
+            flash('rgba(255,231,0,0.18)', 140);
+            fxOverlay('sno-fx-zoom', 320);
+        };
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+            // Speed up all rings and particles when wild
+            if (rings && rings.length) {
+                rings.forEach(function(r, i) {
+                    r.userData.speed = _wild ? (0.008 + i * 0.003) * 14 : 0.008 + i * 0.003;
+                });
+            }
+            // Store wild state for particle rotation boost in animate loop
+            window._snoNeonWild = _wild;
+        };
+    })();
     </script>
     {{template "navscript" .}}
 </body>
