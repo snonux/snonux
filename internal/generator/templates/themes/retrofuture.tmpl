@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>snonux.foo ◈ RETROFUTURE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <style>
+        :root { --pink:#ff6b9d; --purple:#00d9c0; --orange:#ff8c42; --bg:#0a0121; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Share Tech Mono',monospace; background:var(--bg);
+               color:#f0efe4; overflow:hidden; height:100vh; }
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
+        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        header { padding:16px 28px; background:rgba(10,1,33,0.85); backdrop-filter:blur(12px);
+                 border-bottom:2px solid var(--pink); display:flex; align-items:center; justify-content:space-between; }
+        .logo { display:flex; align-items:center; gap:14px; }
+        .logo-mark { font-size:1.8rem; font-family:'Orbitron',sans-serif; color:var(--purple);
+                     text-shadow:0 0 12px var(--purple),0 0 28px rgba(0,217,192,0.4); }
+        .logo-title h1 { font-size:1.7rem; font-family:'Orbitron',sans-serif; color:#f0efe4;
+                         letter-spacing:3px; text-shadow:0 0 8px rgba(255,255,255,0.2); }
+        .logo-title .subtitle { font-size:0.7rem; color:rgba(240,239,228,0.55); margin-top:2px;
+                                font-family:'Share Tech Mono',monospace; }
+        .logo-title .subtitle a { color:var(--pink); text-decoration:none; }
+        .logo-title .subtitle a:hover { text-shadow:0 0 8px var(--pink); }
+        .logo-title .logo-host { font-size:0.65rem; color:rgba(0,217,192,0.6); margin-top:2px;
+                                 font-family:'Share Tech Mono',monospace; }
+        .transmit-btn { border:2px solid var(--orange); color:var(--orange); padding:10px 22px;
+                        border-radius:22px; text-decoration:none; letter-spacing:1px;
+                        font-size:0.88rem; font-family:'Orbitron',sans-serif; transition:all 0.2s; }
+        .transmit-btn:hover { background:var(--orange); color:var(--bg); box-shadow:0 0 18px rgba(255,140,66,0.5); }
+        a.header-feed-link { color:var(--pink); font-family:'Share Tech Mono',monospace; }
+        .nav-hints { background:rgba(10,1,33,0.75); border-bottom:1px solid rgba(0,217,192,0.25);
+                     color:rgba(240,239,228,0.45); padding:5px 20px; display:flex; gap:18px;
+                     font-size:0.68rem; font-family:'Share Tech Mono',monospace; flex-wrap:wrap; }
+        .nav-hints kbd { background:rgba(0,217,192,0.12); border:1px solid rgba(0,217,192,0.45);
+                         color:var(--purple); border-radius:3px; padding:0 5px; margin:0 2px; font-size:0.7rem; }
+        .content { flex:1; overflow-y:auto; padding:22px 28px;
+                   scrollbar-width:thin; scrollbar-color:var(--purple) var(--bg); }
+        .page-nav { display:flex; justify-content:center; margin:14px 0; }
+        .page-nav a { border:2px solid var(--pink); color:var(--pink); padding:8px 22px;
+                      border-radius:22px; text-decoration:none; letter-spacing:2px; font-size:0.82rem;
+                      font-family:'Orbitron',sans-serif; transition:all 0.2s; }
+        .page-nav a:hover { background:var(--pink); color:var(--bg); }
+        .page-nav-footer { flex-shrink:0; padding:8px 28px; display:flex; justify-content:center;
+            background:rgba(10,1,33,0.82); backdrop-filter:blur(10px);
+            border-top:2px solid var(--pink); }
+        .post { background:rgba(20,10,55,0.85); border:1px solid rgba(0,217,192,0.3);
+                border-radius:12px; padding:22px; margin-bottom:18px; cursor:pointer; transition:all 0.25s;
+                box-shadow:0 2px 16px rgba(0,0,0,0.4); }
+        .post:hover { border-color:var(--pink); box-shadow:0 0 22px rgba(255,107,157,0.3),0 4px 24px rgba(0,0,0,0.5); transform:translateY(-3px); }
+        .post-active { border-color:var(--orange) !important; background:rgba(30,15,60,0.96) !important;
+                       box-shadow:0 0 22px rgba(255,140,66,0.4),inset 3px 0 0 var(--orange) !important; }
+        .post-header { display:flex; justify-content:space-between; margin-bottom:14px; }
+        .post-time { color:var(--orange); font-family:'Share Tech Mono',monospace; font-size:0.85rem; }
+        .post-text { line-height:1.6; font-size:0.95rem; font-family:'Share Tech Mono',monospace; }
+        .post-text a { color:var(--pink); text-decoration:none; }
+        .post-audio { width:100%; margin-top:10px; }
+        .post-modal { display:none; position:fixed; inset:0; z-index:100;
+                      background:rgba(10,1,33,0.96); overflow-y:auto; padding:40px 20px; }
+        .post-modal.active { display:block; }
+        .modal-inner { max-width:780px; margin:0 auto; background:rgba(20,10,55,0.98);
+                       border:2px solid var(--pink); border-radius:12px;
+                       box-shadow:0 0 60px rgba(255,107,157,0.25); padding:38px; }
+        .modal-close { float:right; background:none; border:none; color:var(--orange);
+                       font-family:'Orbitron',sans-serif; font-size:0.9rem; cursor:pointer; letter-spacing:2px; }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} }
+        .splash-overlay.splash-retrofuture {
+            background: radial-gradient(ellipse at 50% 60%, #1a0840 0%, var(--bg) 55%, #050010 100%);
+        }
+        .splash-retrofuture .splash-starburst {
+            position:absolute; inset:0; pointer-events:none; z-index:1;
+        }
+        .splash-retrofuture .splash-starburst span {
+            position:absolute; top:50%; left:50%; width:3px; height:3px;
+            border-radius:50%; background:var(--pink); opacity:0.5;
+            box-shadow:0 0 6px var(--pink);
+            animation: starTwinkle 3s ease-in-out infinite;
+        }
+        @keyframes starTwinkle {
+            0%,100%{opacity:0.3;transform:scale(1);}
+            50%{opacity:0.8;transform:scale(1.4);}
+        }
+        .splash-retrofuture .splash-atomic {
+            width:min(100px,22vw); height:min(100px,22vw); margin:0 auto 1rem;
+            border-radius:50%; border:3px solid var(--purple);
+            box-shadow:0 0 20px var(--purple),0 0 40px rgba(0,217,192,0.3),inset 0 0 20px rgba(0,217,192,0.15);
+            position:relative; animation:splashAtomicPulse 2.5s ease-in-out infinite alternate;
+        }
+        .splash-retrofuture .splash-atomic::before,
+        .splash-retrofuture .splash-atomic::after {
+            content:''; position:absolute; border:2px solid var(--purple); border-radius:50%;
+            top:50%; left:50%; transform:translate(-50%,-50%);
+        }
+        .splash-retrofuture .splash-atomic::before {
+            width:160%; height:30%; opacity:0.7;
+            box-shadow:0 0 10px var(--purple);
+        }
+        .splash-retrofuture .splash-atomic::after {
+            width:30%; height:160%; opacity:0.7;
+            box-shadow:0 0 10px var(--purple);
+        }
+        @keyframes splashAtomicPulse {
+            from{transform:scale(0.95);box-shadow:0 0 15px var(--purple),0 0 30px rgba(0,217,192,0.2),inset 0 0 15px rgba(0,217,192,0.1);}
+            to{transform:scale(1.05);box-shadow:0 0 25px var(--purple),0 0 50px rgba(0,217,192,0.4),inset 0 0 25px rgba(0,217,192,0.2);}
+        }
+        .splash-retrofuture .splash-title {
+            font-family:'Orbitron',sans-serif; font-size:clamp(1.4rem,4.5vw,2rem);
+            color:#f0efe4; letter-spacing:4px; text-shadow:0 0 20px rgba(255,107,157,0.6);
+        }
+        .splash-retrofuture .splash-tag { font-family:'Share Tech Mono',monospace; color:var(--purple); }
+        .splash-retrofuture .splash-hint { font-family:'Share Tech Mono',monospace; color:rgba(240,239,228,0.8); }
+        .splash-retrofuture .splash-inner { text-shadow:0 2px 24px rgba(10,1,33,0.9); }
+{{template "navSharedCSSInner"}}
+    </style>
+</head>
+<body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-retrofuture" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-starburst" aria-hidden="true">
+            <span style="top:15%;left:20%;animation-delay:0s"></span>
+            <span style="top:25%;left:75%;animation-delay:0.4s"></span>
+            <span style="top:60%;left:10%;animation-delay:0.8s"></span>
+            <span style="top:70%;left:85%;animation-delay:1.2s"></span>
+            <span style="top:40%;left:50%;animation-delay:1.6s"></span>
+            <span style="top:80%;left:35%;animation-delay:0.2s"></span>
+            <span style="top:10%;left:60%;animation-delay:1.0s"></span>
+            <span style="top:55%;left:90%;animation-delay:0.6s"></span>
+        </div>
+        <div class="splash-inner">
+            <div class="splash-atomic" aria-hidden="true"></div>
+            <div class="splash-title">snonux.foo</div>
+            <div class="splash-tag">Atomic age uplink</div>
+            <div class="splash-hint">Click or Enter to tune in</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,g=new THREE.Group(),t0=performance.now();
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(58,1,0.1,120);ca.position.set(0,1.2,7);
+        var atomic=new THREE.Mesh(new THREE.SphereGeometry(1.35,28,28),new THREE.MeshBasicMaterial({color:0x00d9c0,transparent:true,opacity:0.9}));
+        atomic.position.y=0;g.add(atomic);
+        var ringH=new THREE.Mesh(new THREE.TorusGeometry(2.1,0.06,8,64),new THREE.MeshBasicMaterial({color:0xff6b9d,transparent:true,opacity:0.8}));
+        g.add(ringH);
+        var ringV=new THREE.Mesh(new THREE.TorusGeometry(2.1,0.06,8,64),new THREE.MeshBasicMaterial({color:0xff6b9d,transparent:true,opacity:0.8}));
+        ringV.rotation.x=Math.PI/2;g.add(ringV);
+        var gr=new THREE.Mesh(new THREE.PlaneGeometry(28,28,20,20),new THREE.MeshBasicMaterial({color:0x00d9c0,wireframe:true,transparent:true,opacity:0.25}));
+        gr.rotation.x=-Math.PI/2.4;gr.position.y=-2.8;g.add(gr);
+        sc.add(g);sz();window.addEventListener('resize',sz);
+        function loop(now){raf=requestAnimationFrame(loop);var t=(now-t0)*0.001;g.rotation.y=Math.sin(t*0.3)*0.12;atomic.position.y=Math.sin(t*1.1)*0.12;ringH.scale.setScalar(1+Math.sin(t*2.2)*0.06);ringV.scale.setScalar(1+Math.cos(t*2.2)*0.06);ren.render(sc,ca);}
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
+    <canvas id="three-canvas"></canvas>
+    <div class="overlay">
+        <header>
+            <div class="logo">
+                <span class="logo-mark">SN</span>
+                <div class="logo-title">
+                    <h1>snonux.foo</h1>
+                    <p class="subtitle">microblog &mdash; <a href="https://foo.zone">foo.zone</a> is the real blog</p>
+                    <p class="logo-host">Served by NetBSD on a Raspberry Pi 3</p>
+                </div>
+            </div>
+            <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
+                <a href="https://foo.zone/about" class="transmit-btn">TRANSMIT TO NEXUS</a>
+            </div>
+        </header>
+        {{template "navhints" .}}
+        <div class="content" id="post-content">
+            {{range $i, $post := .Posts}}
+            <div class="post" id="post-{{$post.ID}}" data-index="{{$i}}">
+                <div class="post-header">
+                    <div><strong>@snonux</strong></div>
+                    <div class="post-time">{{$post.FormattedTime}}</div>
+                </div>
+                <div class="post-text">{{$post.ContentHTML}}</div>
+            </div>
+            {{end}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; NEWER</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">OLDER &rarr;</a>{{end}}
+            </div>
+        </footer>
+        {{end}}
+    </div>
+    {{template "navmodal" .}}
+    <script>
+    // Retrofuture WebGL: atomic orb with crossed electron rings, receding teal grid floor,
+    // chrome metallic star particles, and a slow drifting camera orbit.
+    (function() {
+        var scene, camera, renderer, clock;
+        var atomic, ringH, ringV, stars;
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0121);
+            scene.fog = new THREE.Fog(0x0a0121, 60, 180);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 300);
+            camera.position.set(0, 10, 45);
+            camera.lookAt(0, -5, -10);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            clock = new THREE.Clock();
+
+            // Glowing atomic teal orb
+            atomic = new THREE.Mesh(
+                new THREE.SphereGeometry(12, 32, 16),
+                new THREE.MeshBasicMaterial({ color: 0x00d9c0 })
+            );
+            atomic.position.set(0, -8, -55);
+            scene.add(atomic);
+
+            // Horizontal electron ring — pink
+            ringH = new THREE.Mesh(
+                new THREE.TorusGeometry(15, 0.15, 8, 64),
+                new THREE.MeshBasicMaterial({ color: 0xff6b9d })
+            );
+            ringH.position.copy(atomic.position);
+            scene.add(ringH);
+
+            // Vertical electron ring — coral
+            ringV = new THREE.Mesh(
+                new THREE.TorusGeometry(15, 0.15, 8, 64),
+                new THREE.MeshBasicMaterial({ color: 0xff8c42 })
+            );
+            ringV.position.copy(atomic.position);
+            ringV.rotation.x = Math.PI / 2;
+            scene.add(ringV);
+
+            // Receding grid floor — teal
+            var grid = new THREE.GridHelper(200, 40, 0x00d9c0, 0x1a0840);
+            grid.position.set(0, -18, -30);
+            scene.add(grid);
+
+            // 1200 chrome star particles scattered in a sphere shell
+            var starPos = new Float32Array(1200 * 3);
+            for (var j = 0; j < 1200 * 3; j += 3) {
+                var r = 80 + Math.random() * 40;
+                var theta = Math.random() * Math.PI * 2;
+                var phi = Math.acos(2 * Math.random() - 1);
+                starPos[j]   = r * Math.sin(phi) * Math.cos(theta);
+                starPos[j+1] = r * Math.sin(phi) * Math.sin(theta);
+                starPos[j+2] = r * Math.cos(phi);
+            }
+            var starGeo = new THREE.BufferGeometry();
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({
+                color: 0xffd700, size: 0.22, transparent: true, opacity: 0.8
+            })));
+
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            var t = clock.getElapsedTime();
+            // Atomic orb pulses subtly; rings counter-rotate
+            var pulse = 1 + 0.015 * Math.sin(t * 1.5);
+            atomic.scale.setScalar(pulse);
+            ringH.rotation.z = t * 0.4;
+            ringV.rotation.z = -t * 0.3;
+            // Slow camera orbit for parallax
+            camera.position.x = Math.sin(t * 0.07) * 5;
+            camera.position.y = 10 + Math.sin(t * 0.05) * 2;
+            camera.lookAt(0, -5, -10);
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+    })();
+    </script>
+    {{template "navscript" .}}
+</body>
+</html>

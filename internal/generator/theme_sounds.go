@@ -38,18 +38,19 @@ type themeSounds struct {
 
 // themeSoundPresets maps CLI theme names to synth parameters (see themes.go registry).
 var themeSoundPresets = map[string]themeSounds{
-	"neon":      soundsNeon(),
-	"terminal":  soundsTerminal(),
-	"synthwave": soundsSynthwave(),
-	"plasma":    soundsPlasma(),
-	"brutalist": soundsBrutalist(),
-	"volcano":   soundsVolcano(),
-	"aurora":    soundsAurora(),
-	"matrix":    soundsMatrix(),
-	"ocean":     soundsOcean(),
-	"dos":       soundsDos(),
-	"retro":     soundsRetro(),
-	"cosmos":    soundsCosmos(),
+	"neon":        soundsNeon(),
+	"terminal":    soundsTerminal(),
+	"synthwave":   soundsSynthwave(),
+	"plasma":      soundsPlasma(),
+	"brutalist":   soundsBrutalist(),
+	"volcano":     soundsVolcano(),
+	"aurora":      soundsAurora(),
+	"matrix":      soundsMatrix(),
+	"ocean":       soundsOcean(),
+	"dos":         soundsDos(),
+	"retro":       soundsRetro(),
+	"cosmos":      soundsCosmos(),
+	"retrofuture": soundsRetrofuture(),
 }
 
 func soundsNeon() themeSounds {
@@ -169,6 +170,16 @@ func soundsCosmos() themeSounds {
 	s.Nav.Freq, s.Nav.Wave, s.Nav.Dur, s.Nav.Gain = 277.18, "sine", 0.09, 0.09
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "triangle", 392, 587.33, 0.22, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 587.33, 196, 0.2, 0.085
+	return s
+}
+
+func soundsRetrofuture() themeSounds {
+	var s themeSounds
+	s.Splash.Freqs = []float64{196, 246.94, 329.63, 440}
+	s.Splash.Spacing, s.Splash.Gain, s.Splash.Wave = 0.085, 0.095, "triangle"
+	s.Nav.Freq, s.Nav.Wave, s.Nav.Dur, s.Nav.Gain = 277.18, "triangle", 0.085, 0.1
+	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 330, 523.25, 0.18, 0.09
+	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 415.3, 165, 0.17, 0.085
 	return s
 }
 
