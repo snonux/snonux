@@ -106,12 +106,15 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
 /* Images embedded in markdown posts */
 .post-text img { max-width:100%; max-height:320px; object-fit:contain; border-radius:6px; cursor:pointer; }
 #post-modal .post-text img, #modal-content img { max-height:none; cursor:default; }
-/* Markdown post typography: restore spacing stripped by the global reset */
-.post-text p { margin:0.65em 0; }
-.post-text ul, .post-text ol { margin:0.65em 0; padding-left:1.8em; }
-.post-text li { margin:0.3em 0; }
-.post-text p:first-child { margin-top:0; }
-.post-text p:last-child, .post-text ul:last-child, .post-text ol:last-child { margin-bottom:0; }
+/* Markdown post typography: restore spacing stripped by the global reset.
+   Rules apply to both the list-view .post-text and the zoomed-in #modal-content
+   so the formatting is identical in both views. */
+.post-text p, #modal-content p { margin:0.65em 0; }
+.post-text ul, .post-text ol, #modal-content ul, #modal-content ol { margin:0.65em 0; padding-left:1.8em; }
+.post-text li, #modal-content li { margin:0.3em 0; }
+.post-text p:first-child, #modal-content p:first-child { margin-top:0; }
+.post-text p:last-child, .post-text ul:last-child, .post-text ol:last-child,
+#modal-content p:last-child, #modal-content ul:last-child, #modal-content ol:last-child { margin-bottom:0; }
 {{end}}
 
 {{define "navmodal"}}

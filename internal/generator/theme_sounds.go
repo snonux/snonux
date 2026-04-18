@@ -51,6 +51,7 @@ var themeSoundPresets = map[string]themeSounds{
 	"retro":       soundsRetro(),
 	"cosmos":      soundsCosmos(),
 	"retrofuture": soundsRetrofuture(),
+	"spaceage":    soundsSpaceage(),
 }
 
 func soundsNeon() themeSounds {
@@ -180,6 +181,18 @@ func soundsRetrofuture() themeSounds {
 	s.Nav.Freq, s.Nav.Wave, s.Nav.Dur, s.Nav.Gain = 277.18, "triangle", 0.085, 0.1
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 330, 523.25, 0.18, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 415.3, 165, 0.17, 0.085
+	return s
+}
+
+// soundsSpaceage returns synth parameters for the Space Age theme.
+// Clean teal-toned tones evoke retro-futuristic space-age electronics.
+func soundsSpaceage() themeSounds {
+	var s themeSounds
+	s.Splash.Freqs = []float64{440, 554.37, 659.25, 880}
+	s.Splash.Spacing, s.Splash.Gain, s.Splash.Wave = 0.07, 0.085, "sine"
+	s.Nav.Freq, s.Nav.Wave, s.Nav.Dur, s.Nav.Gain = 554.37, "triangle", 0.075, 0.09
+	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 440, 880, 0.18, 0.09
+	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 659.25, 330, 0.17, 0.085
 	return s
 }
 
