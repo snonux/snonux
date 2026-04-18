@@ -55,6 +55,12 @@
 {{end}}
 
 {{define "navSharedCSSInner"}}
+/* Non-active posts are translucent so the WebGL background shows through.
+   The active/highlighted post snaps to full opacity for clear reading.
+   Hover on a non-active post partially reveals it before selection. */
+.post:not(.post-active) { opacity: 0.55; transition: opacity 0.25s ease; }
+.post:not(.post-active):hover { opacity: 0.85; }
+.post.post-active { opacity: 1 !important; transition: opacity 0.15s ease; }
 /* Thumbnail sizing in list view; modal overrides to full width. */
 .post-image { max-height:220px; max-width:100%; object-fit:cover; cursor:pointer; }
 #post-modal .post-image { max-height:none; width:100%; max-width:100%; object-fit:contain; cursor:default; }
