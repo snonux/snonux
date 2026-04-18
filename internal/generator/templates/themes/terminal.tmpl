@@ -219,6 +219,36 @@
         initThree();
 
         // Terminal nav/wild effects — cursor glitch on navigate, buffer overflow on wild
+        window.snonuxOpenEffect = function() {
+            // Slide in like terminal output being printed
+            var modal = document.getElementById('post-modal');
+            if (modal) { modal.classList.add('sno-modal-slide'); setTimeout(function() { modal.classList.remove('sno-modal-slide'); }, 360); }
+            // Phosphor scan from top to bottom
+            var scan = document.createElement('div');
+            scan.style.cssText = 'position:fixed;top:0;left:0;right:0;height:2px;z-index:997;pointer-events:none;background:rgba(51,255,51,0.6);box-shadow:0 0 8px rgba(51,255,51,0.4);transition:top 0.3s linear,opacity 0.1s 0.3s';
+            document.body.appendChild(scan);
+            setTimeout(function() { scan.style.top='100vh'; setTimeout(function() { scan.style.opacity='0'; setTimeout(function() { scan.remove(); }, 120); }, 300); }, 15);
+        };
+        window.snonuxCloseEffect = function() {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(51,255,51,0.1);transition:opacity 0.18s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 200); }, 15);
+            document.body.style.animationDuration = '9s';
+        };
+        window.snonuxScrollEffect = function(dir) {
+            var isDown = dir === 'down';
+            var thick = _wild ? '14px' : '5px';
+            var d = document.createElement('div');
+            // Terminal: phosphor green scan
+            d.style.cssText = 'position:fixed;left:0;right:0;height:' + thick + ';z-index:9000;pointer-events:none;' +
+                'background:linear-gradient(90deg,transparent,rgba(57,255,20,0.9),rgba(20,200,10,0.9),rgba(57,255,20,0.9),transparent);' +
+                (isDown ? 'top:0;' : 'bottom:0;') +
+                'transition:transform 0.28s ease,opacity 0.28s ease;';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform = isDown ? 'translateY(100vh)' : 'translateY(-100vh)'; d.style.opacity='0'; }, 16);
+            setTimeout(function() { d.remove(); }, 360);
+        };
         window.snonuxWildToggle = function() {
             _wild = !_wild;
             var b = document.getElementById('sno-wild-badge');

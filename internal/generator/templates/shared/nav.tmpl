@@ -75,20 +75,32 @@
 /* ~Half-height footer bar vs default .page-nav padding */
 .page-nav-footer .page-nav a { padding-top:4px; padding-bottom:4px; }
 /* Shared nav FX keyframes — themes apply these classes for brief effects */
+/* Modal open: post zooms/flies into the modal overlay */
+@keyframes sno-modal-zoom { 0%{transform:scale(0.82) translateY(18px);opacity:0} 60%{transform:scale(1.02) translateY(-3px);opacity:1} 100%{transform:scale(1) translateY(0);opacity:1} }
+@keyframes sno-modal-fly-up { 0%{transform:translateY(60px) scale(0.92);opacity:0} 70%{transform:translateY(-4px) scale(1.01);opacity:1} 100%{transform:translateY(0) scale(1);opacity:1} }
+@keyframes sno-modal-slide-in { 0%{transform:translateX(-40px) scale(0.96);opacity:0} 65%{transform:translateX(4px) scale(1.005);opacity:1} 100%{transform:translateX(0) scale(1);opacity:1} }
+@keyframes sno-modal-expand { 0%{transform:scale(0.05) rotate(-4deg);opacity:0} 55%{transform:scale(1.04) rotate(0.5deg);opacity:1} 100%{transform:scale(1) rotate(0);opacity:1} }
+.sno-modal-zoom   .modal-inner { animation:sno-modal-zoom    0.36s cubic-bezier(0.22,1,0.36,1) both !important; }
+.sno-modal-fly    .modal-inner { animation:sno-modal-fly-up   0.34s cubic-bezier(0.22,1,0.36,1) both !important; }
+.sno-modal-slide  .modal-inner { animation:sno-modal-slide-in 0.32s cubic-bezier(0.22,1,0.36,1) both !important; }
+.sno-modal-expand .modal-inner { animation:sno-modal-expand   0.4s  cubic-bezier(0.22,1,0.36,1) both !important; }
 @keyframes sno-shake { 0%,100%{transform:translate(0)} 14%{transform:translate(-7px,4px)} 28%{transform:translate(7px,-5px)} 42%{transform:translate(-5px,6px)} 56%{transform:translate(6px,-4px)} 70%{transform:translate(-4px,3px)} 86%{transform:translate(4px,-2px)} }
 @keyframes sno-zoom-fwd { 0%{transform:scale(1)} 40%{transform:scale(1.05)} 100%{transform:scale(1)} }
 @keyframes sno-glitch { 0%,100%{transform:translate(0) skewX(0)} 20%{transform:translate(-5px,0) skewX(-4deg)} 40%{transform:translate(5px,0) skewX(4deg)} 60%{transform:translate(-3px,0)} 80%{transform:translate(3px,0)} }
 @keyframes sno-wild-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+/* Storm overlay that flickers like distant lightning while wild mode is on */
+@keyframes sno-wild-flicker { 0%,84%,87%,91%,94%,100%{opacity:0} 85%,90%{opacity:0.75} 86%,92%{opacity:0.35} }
 .sno-fx-shake { animation:sno-shake 0.38s cubic-bezier(.36,.07,.19,.97) both !important; transform-origin:center; }
 .sno-fx-zoom  { animation:sno-zoom-fwd 0.32s ease both !important; }
 .sno-fx-glitch { animation:sno-glitch 0.3s ease both !important; }
-/* Wild mode badge — visible when active */
+/* Wild mode badge — only visible (opacity:1) when .sno-wild-on is present */
 #sno-wild-badge { position:fixed; top:10px; right:12px; z-index:5000; padding:3px 12px;
   font-size:0.64rem; letter-spacing:0.2em; text-transform:uppercase; border-radius:2px;
   pointer-events:none; opacity:0; transition:opacity 0.4s;
   background:rgba(220,0,0,0.92); color:#fff; border:1px solid rgba(255,100,100,0.8);
-  font-family:monospace; animation:sno-wild-pulse 0.9s ease-in-out infinite; }
-#sno-wild-badge.sno-wild-on { opacity:1; }
+  font-family:monospace; }
+/* Animation only runs when wild is actually on, preventing invisible badge pulse */
+#sno-wild-badge.sno-wild-on { opacity:1; animation:sno-wild-pulse 0.9s ease-in-out infinite; }
 /* Host note under the site subtitle (all themes) */
 .logo-host { font-size:0.65rem; opacity:0.55; margin-top:4px; letter-spacing:0.3px; line-height:1.3; }
 /* Atom feed link in header (paired with transmit in .nav) */
@@ -147,6 +159,36 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
     const SNONUX_SOUNDS = {{.ThemeSoundsJSON}};
     // Inject wild-mode badge used by all themes
     (function() { var b=document.createElement('div'); b.id='sno-wild-badge'; b.textContent='WILD MODE'; document.body.appendChild(b); })();
+    // Dramatic lightning flash on wild mode activation/deactivation
+    function snonuxWildFlash(on) {
+        var ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9998;pointer-events:none;';
+        document.body.appendChild(ov);
+        if (on) {
+            // Three rapid lightning flashes on activation
+            [0, 80, 180, 300, 440].forEach(function(d, i) {
+                setTimeout(function() {
+                    ov.style.background = (i % 2 === 0) ? 'rgba(255,255,200,0.72)' : 'transparent';
+                }, d);
+            });
+            setTimeout(function() { ov.remove(); }, 550);
+            // Persistent storm overlay with intermittent flicker
+            var storm = document.createElement('div');
+            storm.id = 'sno-wild-storm';
+            storm.style.cssText = 'position:fixed;inset:0;z-index:4998;pointer-events:none;' +
+                'background:radial-gradient(ellipse at 50% 0%,rgba(255,255,200,0.88) 0%,transparent 55%);' +
+                'animation:sno-wild-flicker 3.7s ease-in-out infinite;';
+            document.body.appendChild(storm);
+        } else {
+            // Brief dark veil on deactivation
+            ov.style.background = 'rgba(0,0,0,0.45)';
+            ov.style.transition = 'opacity 0.45s';
+            setTimeout(function() { ov.style.opacity = '0'; }, 60);
+            setTimeout(function() { ov.remove(); }, 550);
+            var storm = document.getElementById('sno-wild-storm');
+            if (storm) { storm.style.transition = 'opacity 0.5s'; storm.style.opacity = '0'; setTimeout(function() { storm.remove(); }, 600); }
+        }
+    }
     function snonuxWaveType(w) {
         if (w === 'square') return 'square';
         if (w === 'triangle') return 'triangle';
@@ -342,6 +384,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         var modalInner = modal ? modal.querySelector('.modal-inner') : null;
         document.getElementById('modal-content').innerHTML = postText.innerHTML;
         modal.classList.add('active');
+        if (window.snonuxOpenEffect) window.snonuxOpenEffect(post);
         modal.scrollTop = 0;
         if (modalInner) {
             modalInner.scrollTop = 0;
@@ -355,6 +398,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
     function closeModal() {
         document.getElementById('post-modal').classList.remove('active');
         playCloseSound();
+        if (window.snonuxCloseEffect) window.snonuxCloseEffect();
     }
 
     (function postClickOpen() {
@@ -404,6 +448,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
                 }
                 var idx = activeIndexForVisibleRegion(sc);
                 if (idx >= 0) setActiveHighlight(idx, true, false);
+                if (window.snonuxScrollEffect) window.snonuxScrollEffect(e.key === 'PageUp' ? 'up' : 'down');
                 e.preventDefault();
                 break;
             }
@@ -417,7 +462,9 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
                 e.preventDefault(); break;
             case 'Enter': openPostAt(currentIndex, true); e.preventDefault(); break;
             case 'w':
+                window._snoWildActive = !window._snoWildActive;
                 if (window.snonuxWildToggle) window.snonuxWildToggle();
+                snonuxWildFlash(window._snoWildActive);
                 e.preventDefault(); break;
         }
     });

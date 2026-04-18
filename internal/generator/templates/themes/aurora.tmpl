@@ -297,6 +297,33 @@
         initThree();
 
         // Aurora nav/wild effects — snow burst on navigate, blizzard storm on wild
+        window.snonuxOpenEffect = function() {
+            var modal = document.getElementById('post-modal');
+            if (modal) { modal.classList.add('sno-modal-zoom'); setTimeout(function() { modal.classList.remove('sno-modal-zoom'); }, 400); }
+            // Frost shimmer — aurora-colored radial
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:997;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,255,179,0.14) 0%,rgba(192,132,252,0.1) 55%,transparent 80%);transition:opacity 0.3s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 340); }, 15);
+        };
+        window.snonuxCloseEffect = function() {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(0,207,232,0.12);transition:opacity 0.2s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 230); }, 15);
+        };
+        window.snonuxScrollEffect = function(dir) {
+            var isDown = dir === 'down';
+            var thick = _wild ? '14px' : '5px';
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;left:0;right:0;height:' + thick + ';z-index:9000;pointer-events:none;' +
+                'background:linear-gradient(90deg,transparent,rgba(0,207,232,0.9),rgba(120,200,100,0.9),rgba(0,207,232,0.9),transparent);' +
+                (isDown ? 'top:0;' : 'bottom:0;') +
+                'transition:transform 0.32s ease,opacity 0.32s ease;';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform = isDown ? 'translateY(100vh)' : 'translateY(-100vh)'; d.style.opacity='0'; }, 16);
+            setTimeout(function() { d.remove(); }, 400);
+        };
         window.snonuxWildToggle = function() {
             _wild = !_wild;
             var b = document.getElementById('sno-wild-badge');

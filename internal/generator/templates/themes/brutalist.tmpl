@@ -203,6 +203,32 @@
         initThree();
 
         // Brutalist nav/wild effects — violent shake on navigate, geometric chaos on wild
+        window.snonuxOpenEffect = function() {
+            // Expand violently from nothing — pure brutalist impact
+            var modal = document.getElementById('post-modal');
+            if (modal) { modal.classList.add('sno-modal-expand'); setTimeout(function() { modal.classList.remove('sno-modal-expand'); }, 420); }
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:997;pointer-events:none;background:rgba(255,34,0,0.22);transition:opacity 0.14s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 170); }, 15);
+        };
+        window.snonuxCloseEffect = function() {
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-shake'); setTimeout(function() { ov.classList.remove('sno-fx-shake'); }, 360); }
+        };
+        window.snonuxScrollEffect = function(dir) {
+            var isDown = dir === 'down';
+            var thick = _wild ? '14px' : '5px';
+            var d = document.createElement('div');
+            // Brutalist: harsh black-and-white hard edge
+            d.style.cssText = 'position:fixed;left:0;right:0;height:' + thick + ';z-index:9000;pointer-events:none;' +
+                'background:linear-gradient(90deg,rgba(0,0,0,0.95),rgba(255,255,255,0.95),rgba(0,0,0,0.95));' +
+                (isDown ? 'top:0;' : 'bottom:0;') +
+                'transition:transform 0.25s ease,opacity 0.25s ease;';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform = isDown ? 'translateY(100vh)' : 'translateY(-100vh)'; d.style.opacity='0'; }, 16);
+            setTimeout(function() { d.remove(); }, 320);
+        };
         window.snonuxWildToggle = function() {
             _wild = !_wild;
             var b = document.getElementById('sno-wild-badge');

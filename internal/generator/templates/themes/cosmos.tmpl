@@ -311,6 +311,35 @@
         initThree();
 
         // Cosmos nav/wild effects — shooting star on navigate, warp speed on wild
+        window.snonuxOpenEffect = function(post) {
+            // Materialise from deep space — zoom + gold shimmer + orbiting ring
+            var modal = document.getElementById('post-modal');
+            if (modal) { modal.classList.add('sno-modal-zoom'); setTimeout(function() { modal.classList.remove('sno-modal-zoom'); }, 400); }
+            var r = post ? post.getBoundingClientRect() : {left: window.innerWidth/2, top: window.innerHeight/2, width: 0, height: 0};
+            var ring = document.createElement('div');
+            ring.style.cssText = 'position:fixed;top:' + (r.top+r.height/2-5) + 'px;left:' + (r.left+r.width/2-5) + 'px;z-index:997;pointer-events:none;width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,209,102,0.85);box-shadow:0 0 12px rgba(155,93,229,0.5);transition:all 0.4s ease,opacity 0.4s';
+            document.body.appendChild(ring);
+            setTimeout(function() { ring.style.transform='scale(32)'; ring.style.opacity='0'; setTimeout(function() { ring.remove(); }, 440); }, 15);
+        };
+        window.snonuxCloseEffect = function() {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:radial-gradient(ellipse at center,rgba(155,93,229,0.12) 0%,transparent 65%);transition:opacity 0.25s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 280); }, 15);
+        };
+        window.snonuxScrollEffect = function(dir) {
+            var isDown = dir === 'down';
+            var thick = _wild ? '14px' : '5px';
+            var d = document.createElement('div');
+            // Cosmos: purple-to-gold stardust streak
+            d.style.cssText = 'position:fixed;left:0;right:0;height:' + thick + ';z-index:9000;pointer-events:none;' +
+                'background:linear-gradient(90deg,transparent,rgba(155,93,229,0.9),rgba(255,200,0,0.9),rgba(155,93,229,0.9),transparent);' +
+                (isDown ? 'top:0;' : 'bottom:0;') +
+                'transition:transform 0.3s ease,opacity 0.3s ease;';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform = isDown ? 'translateY(100vh)' : 'translateY(-100vh)'; d.style.opacity='0'; }, 16);
+            setTimeout(function() { d.remove(); }, 380);
+        };
         window.snonuxWildToggle = function() {
             _wild = !_wild;
             var b = document.getElementById('sno-wild-badge');

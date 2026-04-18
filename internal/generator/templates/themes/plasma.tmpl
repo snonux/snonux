@@ -236,6 +236,39 @@
         initThree();
 
         // Plasma nav/wild effects — blob pulse burst on navigate, supernova on wild
+        window.snonuxOpenEffect = function(post) {
+            // Blobs merge to form the modal — expand with plasma splash
+            var modal = document.getElementById('post-modal');
+            if (modal) { modal.classList.add('sno-modal-expand'); setTimeout(function() { modal.classList.remove('sno-modal-expand'); }, 420); }
+            var r = post ? post.getBoundingClientRect() : {left: window.innerWidth/2, top: window.innerHeight/2, width: 0, height: 0};
+            var colors = ['rgba(0,240,255,0.35)', 'rgba(255,0,224,0.3)', 'rgba(255,238,0,0.25)'];
+            colors.forEach(function(col, i) {
+                var b = document.createElement('div');
+                var angle = (i/3)*Math.PI*2; var dist = 30+i*15;
+                b.style.cssText = 'position:fixed;top:' + (r.top+r.height/2) + 'px;left:' + (r.left+r.width/2) + 'px;z-index:997;pointer-events:none;width:20px;height:20px;border-radius:50%;background:' + col + ';filter:blur(6px);transition:all 0.4s ease,opacity 0.4s';
+                document.body.appendChild(b);
+                setTimeout(function() { b.style.transform='translate(' + (Math.cos(angle)*dist) + 'px,' + (Math.sin(angle)*dist) + 'px) scale(8)'; b.style.opacity='0'; setTimeout(function() { b.remove(); }, 450); }, 15+i*30);
+            });
+        };
+        window.snonuxCloseEffect = function() {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:radial-gradient(ellipse at center,rgba(255,0,224,0.12) 0%,transparent 60%);transition:opacity 0.2s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 230); }, 15);
+        };
+        window.snonuxScrollEffect = function(dir) {
+            var isDown = dir === 'down';
+            var thick = _wild ? '14px' : '5px';
+            var d = document.createElement('div');
+            // Plasma: shifting magenta-to-cyan rainbow
+            d.style.cssText = 'position:fixed;left:0;right:0;height:' + thick + ';z-index:9000;pointer-events:none;' +
+                'background:linear-gradient(90deg,transparent,rgba(255,0,128,0.9),rgba(128,0,255,0.9),rgba(0,200,255,0.9),transparent);' +
+                (isDown ? 'top:0;' : 'bottom:0;') +
+                'transition:transform 0.3s ease,opacity 0.3s ease;';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform = isDown ? 'translateY(100vh)' : 'translateY(-100vh)'; d.style.opacity='0'; }, 16);
+            setTimeout(function() { d.remove(); }, 380);
+        };
         window.snonuxWildToggle = function() {
             _wild = !_wild;
             var b = document.getElementById('sno-wild-badge');

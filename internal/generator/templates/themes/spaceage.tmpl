@@ -281,6 +281,35 @@
         initThree();
 
         // Spaceage nav/wild effects — star streak on navigate, hyperspace jump on wild
+        window.snonuxOpenEffect = function(post) {
+            // Docking approach — expand from post position
+            var modal = document.getElementById('post-modal');
+            if (modal) { modal.classList.add('sno-modal-expand'); setTimeout(function() { modal.classList.remove('sno-modal-expand'); }, 420); }
+            var r = post ? post.getBoundingClientRect() : {left: window.innerWidth/2, top: window.innerHeight/2, width: 0, height: 0};
+            var ring = document.createElement('div');
+            ring.style.cssText = 'position:fixed;top:' + (r.top+r.height/2-6) + 'px;left:' + (r.left+r.width/2-6) + 'px;z-index:997;pointer-events:none;width:12px;height:12px;border-radius:50%;border:2px solid rgba(0,232,232,0.8);transition:all 0.38s ease,opacity 0.38s';
+            document.body.appendChild(ring);
+            setTimeout(function() { ring.style.transform='scale(28)'; ring.style.opacity='0'; setTimeout(function() { ring.remove(); }, 420); }, 15);
+        };
+        window.snonuxCloseEffect = function() {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(0,232,232,0.1);transition:opacity 0.2s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 230); }, 15);
+        };
+        window.snonuxScrollEffect = function(dir) {
+            var isDown = dir === 'down';
+            var thick = _wild ? '14px' : '5px';
+            var d = document.createElement('div');
+            // Space Age: teal energy pulse
+            d.style.cssText = 'position:fixed;left:0;right:0;height:' + thick + ';z-index:9000;pointer-events:none;' +
+                'background:linear-gradient(90deg,transparent,rgba(0,220,200,0.9),rgba(0,180,220,0.9),rgba(0,220,200,0.9),transparent);' +
+                (isDown ? 'top:0;' : 'bottom:0;') +
+                'transition:transform 0.3s ease,opacity 0.3s ease;';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform = isDown ? 'translateY(100vh)' : 'translateY(-100vh)'; d.style.opacity='0'; }, 16);
+            setTimeout(function() { d.remove(); }, 380);
+        };
         window.snonuxWildToggle = function() {
             _wild = !_wild;
             var b = document.getElementById('sno-wild-badge');

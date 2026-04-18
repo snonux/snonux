@@ -237,6 +237,35 @@
         initThree();
 
         // Retro nav/wild effects — amber ember burst on navigate, phosphor burnout on wild
+        window.snonuxOpenEffect = function() {
+            var modal = document.getElementById('post-modal');
+            if (modal) { modal.classList.add('sno-modal-zoom'); setTimeout(function() { modal.classList.remove('sno-modal-zoom'); }, 400); }
+            // Amber phosphor glow flash
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:997;pointer-events:none;background:radial-gradient(ellipse at center,rgba(255,176,0,0.18) 0%,transparent 65%);transition:opacity 0.3s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 340); }, 15);
+        };
+        window.snonuxCloseEffect = function() {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;background:rgba(255,176,0,0.1);transition:opacity 0.2s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 230); }, 15);
+            document.body.style.animationDuration = '11s';
+        };
+        window.snonuxScrollEffect = function(dir) {
+            var isDown = dir === 'down';
+            var thick = _wild ? '14px' : '5px';
+            var d = document.createElement('div');
+            // Retro: warm amber wave
+            d.style.cssText = 'position:fixed;left:0;right:0;height:' + thick + ';z-index:9000;pointer-events:none;' +
+                'background:linear-gradient(90deg,transparent,rgba(255,176,0,0.9),rgba(200,100,0,0.9),rgba(255,176,0,0.9),transparent);' +
+                (isDown ? 'top:0;' : 'bottom:0;') +
+                'transition:transform 0.3s ease,opacity 0.3s ease;';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform = isDown ? 'translateY(100vh)' : 'translateY(-100vh)'; d.style.opacity='0'; }, 16);
+            setTimeout(function() { d.remove(); }, 380);
+        };
         window.snonuxWildToggle = function() {
             _wild = !_wild;
             var b = document.getElementById('sno-wild-badge');

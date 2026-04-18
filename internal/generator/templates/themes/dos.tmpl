@@ -235,6 +235,33 @@
         initThree();
 
         // DOS nav/wild effects — CRT glitch on navigate, system crash rain on wild
+        window.snonuxOpenEffect = function() {
+            // Slide in like a dialog box appearing on DOS screen
+            var modal = document.getElementById('post-modal');
+            if (modal) { modal.classList.add('sno-modal-slide'); setTimeout(function() { modal.classList.remove('sno-modal-slide'); }, 360); }
+            // CRT scan flash from top
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;top:0;left:0;right:0;height:4px;z-index:997;pointer-events:none;background:rgba(85,255,255,0.7);box-shadow:0 0 8px rgba(85,255,255,0.5);transition:top 0.28s linear,opacity 0.1s 0.28s';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.top='100vh'; setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, 120); }, 280); }, 15);
+        };
+        window.snonuxCloseEffect = function() {
+            var ov = document.querySelector('.overlay');
+            if (ov) { ov.classList.add('sno-fx-glitch'); setTimeout(function() { ov.classList.remove('sno-fx-glitch'); }, 280); }
+        };
+        window.snonuxScrollEffect = function(dir) {
+            var isDown = dir === 'down';
+            var thick = _wild ? '14px' : '5px';
+            var d = document.createElement('div');
+            // DOS/CRT: grey-to-white scanline
+            d.style.cssText = 'position:fixed;left:0;right:0;height:' + thick + ';z-index:9000;pointer-events:none;' +
+                'background:linear-gradient(90deg,transparent,rgba(180,180,180,0.9),rgba(255,255,255,0.9),rgba(180,180,180,0.9),transparent);' +
+                (isDown ? 'top:0;' : 'bottom:0;') +
+                'transition:transform 0.28s ease,opacity 0.28s ease;';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform = isDown ? 'translateY(100vh)' : 'translateY(-100vh)'; d.style.opacity='0'; }, 16);
+            setTimeout(function() { d.remove(); }, 360);
+        };
         window.snonuxWildToggle = function() {
             _wild = !_wild;
             var b = document.getElementById('sno-wild-badge');
