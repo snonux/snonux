@@ -289,21 +289,39 @@
             requestAnimationFrame(animate);
             var t = clock.getElapsedTime();
 
-            var sm = _wild ? 10 : 1;
+            var sm = _wild ? 22 : 1;
             planet.rotation.y += 0.0015 * sm;
 
-            // Update asteroid belt — warp speed in wild mode
+            // Planet rings tilt and counter-spin wildly
+            for (var ri = 0; ri < planetRings.length; ri++) {
+                planetRings[ri].rotation.y += 0.002 * sm;
+                planetRings[ri].rotation.z += 0.001 * sm * (ri % 2 === 0 ? 1 : -1);
+            }
+
+            // Asteroid belt: warp-speed orbit + radial breathing + vertical scatter in wild
             var pos = asteroids.geometry.attributes.position;
             for (var i = 0; i < ASTEROID_COUNT; i++) {
                 asteroidAngles[i] += asteroidSpeeds[i] * sm;
-                var a = asteroidAngles[i], r = asteroidRadii[i];
-                pos.setXYZ(i, Math.cos(a) * r, asteroidY[i], Math.sin(a) * r);
+                var a = asteroidAngles[i];
+                var r = asteroidRadii[i] + (_wild ? Math.sin(t * 2.1 + i * 0.3) * 9 : 0);
+                var y = asteroidY[i]      + (_wild ? Math.sin(t * 3.0 + i * 0.7) * 2.5 : 0);
+                pos.setXYZ(i, Math.cos(a) * r, y, Math.sin(a) * r);
             }
             pos.needsUpdate = true;
 
-            // Camera orbits gently
-            camera.position.x = Math.sin(t * 0.06) * 6;
-            camera.position.y = 6 + Math.sin(t * 0.04) * 2;
+            // Camera: chaotic deep-space flight in wild, gentle orbit otherwise
+            if (_wild) {
+                camera.position.x = Math.sin(t * 0.38) * 20;
+                camera.position.y = 6 + Math.sin(t * 0.29) * 10;
+                camera.position.z = 38 + Math.sin(t * 0.21) * 14;
+                camera.fov = 60 + Math.sin(t * 0.47) * 18;
+            } else {
+                camera.position.x = Math.sin(t * 0.06) * 6;
+                camera.position.y = 6 + Math.sin(t * 0.04) * 2;
+                camera.position.z = 38;
+                camera.fov = 60;
+            }
+            camera.updateProjectionMatrix();
 
             renderer.render(scene, camera);
         }
