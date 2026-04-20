@@ -58,6 +58,7 @@
 /* Non-active posts are translucent so the WebGL background shows through.
    The active/highlighted post snaps to full opacity for clear reading.
    Hover on a non-active post partially reveals it before selection. */
+.post { position:relative; }
 .post:not(.post-active) { opacity: 0.55; transition: opacity 0.25s ease; }
 .post:not(.post-active):hover { opacity: 0.85; }
 .post.post-active { opacity: 1 !important; transition: opacity 0.15s ease; }
@@ -107,6 +108,569 @@
   font-family:monospace; }
 /* Animation only runs when wild is actually on, preventing invisible badge pulse */
 #sno-wild-badge.sno-wild-on { opacity:1; animation:sno-wild-pulse 0.9s ease-in-out infinite; }
+#sno-wild-root { position:fixed; inset:0; z-index:18; pointer-events:none; opacity:0;
+  transition:opacity 0.35s ease; overflow:hidden; isolation:isolate; }
+body.sno-wild-active #sno-wild-root { opacity:1; }
+#sno-wild-root .sno-wild-layer,
+#sno-wild-root #sno-wild-scraps,
+#sno-wild-root #sno-wild-banner,
+#sno-wild-root #sno-wild-ticker { position:absolute; inset:0; }
+#sno-wild-colorwash {
+  background-image:var(--sno-wild-colorwash, none);
+  background-size:var(--sno-wild-colorwash-size, cover);
+  background-position:center;
+  mix-blend-mode:screen;
+  opacity:var(--sno-wild-colorwash-opacity, 0.55);
+  animation:sno-wild-drift 9s ease-in-out infinite;
+}
+#sno-wild-rain {
+  background-image:var(--sno-wild-rain, none);
+  background-size:var(--sno-wild-rain-size, 220px 220px);
+  background-repeat:repeat;
+  background-position:0 0;
+  mix-blend-mode:screen;
+  opacity:var(--sno-wild-rain-opacity, 0.18);
+  animation:sno-wild-rainfall var(--sno-wild-rain-speed, 1.2s) linear infinite;
+}
+#sno-wild-wave {
+  inset:auto 0 -8vh 0;
+  height:70vh;
+  background:var(--sno-wild-wave, none);
+  opacity:var(--sno-wild-wave-opacity, 0.32);
+  transform-origin:50% 100%;
+  animation:sno-wild-surge 6.4s ease-in-out infinite;
+}
+#sno-wild-beacon {
+  background:var(--sno-wild-beacon, none);
+  opacity:var(--sno-wild-beacon-opacity, 0.38);
+  filter:blur(var(--sno-wild-beacon-blur, 0px));
+  mix-blend-mode:screen;
+  animation:sno-wild-lens 4.5s ease-in-out infinite;
+}
+#sno-wild-noise {
+  background-image:
+    linear-gradient(90deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 100%),
+    linear-gradient(180deg, rgba(255,255,255,0.07) 0 1px, transparent 1px 100%),
+    repeating-linear-gradient(180deg,
+      rgba(255,255,255,0.08) 0 2px,
+      rgba(0,0,0,0.02) 2px 4px,
+      transparent 4px 8px);
+  background-size:3px 3px, 100% 3px, 100% 8px;
+  mix-blend-mode:overlay;
+  opacity:var(--sno-wild-noise-opacity, 0.12);
+  animation:sno-wild-static-shift 0.22s steps(2) infinite;
+}
+#sno-wild-banner {
+  inset:18px auto auto 50%;
+  transform:translateX(-50%);
+  width:max-content;
+  max-width:min(92vw, 920px);
+  height:auto;
+  padding:10px 18px;
+  border:1px solid var(--sno-wild-accent, rgba(255,255,255,0.8));
+  background:var(--sno-wild-banner-bg, rgba(0,0,0,0.82));
+  color:var(--sno-wild-banner-color, #fff);
+  font:700 clamp(0.75rem, 1vw + 0.55rem, 1.15rem)/1.1 monospace;
+  letter-spacing:0.38em;
+  text-transform:uppercase;
+  text-align:center;
+  box-shadow:0 0 28px var(--sno-wild-banner-glow, rgba(255,255,255,0.25));
+  text-shadow:0 0 18px var(--sno-wild-banner-glow, rgba(255,255,255,0.25));
+  white-space:nowrap;
+  animation:sno-wild-banner-flicker 1.2s steps(2) infinite;
+}
+#sno-wild-ticker {
+  inset:auto 0 12px 0;
+  height:30px;
+  overflow:hidden;
+  opacity:0.92;
+  color:var(--sno-wild-accent, #fff);
+  font:700 0.76rem/30px monospace;
+  letter-spacing:0.32em;
+  text-transform:uppercase;
+  text-shadow:0 0 14px var(--sno-wild-banner-glow, rgba(255,255,255,0.28));
+}
+#sno-wild-ticker span {
+  position:absolute;
+  left:0;
+  top:0;
+  display:inline-block;
+  white-space:nowrap;
+  padding-left:100%;
+  animation:sno-wild-marquee 13s linear infinite;
+}
+#sno-wild-scraps span {
+  position:absolute;
+  left:var(--x);
+  top:var(--y);
+  transform:rotate(var(--rot));
+  color:var(--sno-wild-scrap-color, rgba(255,255,255,0.82));
+  font:700 clamp(0.6rem, 0.45rem + 0.45vw, 0.94rem)/1 monospace;
+  letter-spacing:0.24em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  opacity:0;
+  text-shadow:0 0 10px var(--sno-wild-banner-glow, rgba(255,255,255,0.18));
+  animation:sno-wild-scrap var(--dur, 6s) linear infinite;
+  animation-delay:var(--delay, 0s);
+}
+body.sno-wild-active .overlay,
+body.sno-wild-active header,
+body.sno-wild-active .post,
+body.sno-wild-active .page-nav-footer { will-change:transform, filter, opacity; }
+body.sno-wild-active .overlay { position:relative; z-index:24 !important; isolation:isolate; }
+body.sno-wild-active .post:not(.post-active) {
+  opacity:0.32 !important;
+  filter:saturate(0.78) brightness(0.82);
+}
+body.sno-wild-active .post.post-active {
+  z-index:2;
+  opacity:1 !important;
+  background:rgba(0,0,0,0.84) !important;
+  backdrop-filter:blur(14px) saturate(0.94);
+  -webkit-backdrop-filter:blur(14px) saturate(0.94);
+  box-shadow:
+    0 0 0 2px var(--sno-wild-accent, rgba(255,255,255,0.82)),
+    0 18px 44px rgba(0,0,0,0.55),
+    inset 0 0 0 1px rgba(255,255,255,0.06) !important;
+  text-shadow:none !important;
+  filter:none !important;
+  animation:none !important;
+  transform:none !important;
+}
+body.sno-wild-active .post.post-active::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+  background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01) 38%, rgba(0,0,0,0.08));
+}
+body.sno-wild-active .post.post-active > * { position:relative; z-index:1; }
+@keyframes sno-wild-drift {
+  0%,100% { transform:translate3d(0,0,0) scale(1); }
+  50% { transform:translate3d(-2%,1.5%,0) scale(1.08); }
+}
+@keyframes sno-wild-rainfall {
+  from { background-position:0 0, 0 0, 0 0; }
+  to { background-position:0 280px, 160px 420px, -140px 640px; }
+}
+@keyframes sno-wild-surge {
+  0%,100% { transform:translateY(16%) scaleY(0.92) skewX(0deg); }
+  50% { transform:translateY(-8%) scaleY(1.12) skewX(-4deg); }
+}
+@keyframes sno-wild-lens {
+  0%,100% { transform:scale(0.9); opacity:0.18; }
+  50% { transform:scale(1.24); opacity:0.52; }
+}
+@keyframes sno-wild-static-shift {
+  0% { transform:translate3d(0,0,0); }
+  25% { transform:translate3d(-1.2%,0.6%,0); }
+  50% { transform:translate3d(1%, -0.6%,0); }
+  75% { transform:translate3d(0.7%,1.1%,0); }
+  100% { transform:translate3d(0,0,0); }
+}
+@keyframes sno-wild-banner-flicker {
+  0%,100% { opacity:0.95; }
+  12% { opacity:0.4; }
+  13% { opacity:1; }
+  32% { opacity:0.6; }
+  33% { opacity:1; }
+  61% { opacity:0.48; }
+  62% { opacity:0.98; }
+}
+@keyframes sno-wild-marquee {
+  from { transform:translateX(0); }
+  to { transform:translateX(-46%); }
+}
+@keyframes sno-wild-scrap {
+  0%   { transform:translate3d(0,0,0) rotate(var(--rot)); opacity:0; }
+  12%  { opacity:0.78; }
+  45%  { transform:translate3d(var(--dx), var(--dy), 0) rotate(calc(var(--rot) + 10deg)); opacity:0.92; }
+  100% { transform:translate3d(calc(var(--dx) * -0.75), calc(var(--dy) * -0.75), 0) rotate(calc(var(--rot) - 8deg)); opacity:0.18; }
+}
+@keyframes sno-wild-hard-blink {
+  0%,44%,100% { filter:invert(0) grayscale(0) contrast(1.04); }
+  45%,49% { filter:invert(1) grayscale(1) contrast(1.8); }
+  50%,53% { filter:invert(0) grayscale(0) contrast(1.15); }
+  54%,58% { filter:invert(1) grayscale(1) contrast(1.9); }
+}
+@keyframes sno-wild-jitter {
+  0%,100% { transform:translate(0,0); }
+  20% { transform:translate(-4px,2px); }
+  40% { transform:translate(5px,-4px); }
+  60% { transform:translate(-3px,4px); }
+  80% { transform:translate(3px,-1px); }
+}
+@keyframes sno-wild-roll {
+  0%,100% { transform:translateY(0); }
+  28% { transform:translateY(-12px); }
+  29% { transform:translateY(16px); }
+  58% { transform:translateY(-8px); }
+  59% { transform:translateY(6px); }
+}
+@keyframes sno-wild-collapse {
+  0%,100% { transform:perspective(1200px) rotateX(0deg) scale(1); }
+  50% { transform:perspective(1200px) rotateX(10deg) scale(1.04) translateY(1.2%); }
+}
+@keyframes sno-wild-compress {
+  0%,100% { transform:scaleY(1); }
+  40% { transform:scaleY(0.9); }
+  70% { transform:scaleY(1.08); }
+}
+@keyframes sno-wild-text-burn {
+  0%,100% { text-shadow:0 0 0 transparent; }
+  33% { text-shadow:-2px 0 rgba(255,60,60,0.75), 2px 0 rgba(100,255,255,0.7); }
+  66% { text-shadow:2px 0 rgba(255,240,80,0.75), -2px 0 rgba(90,90,255,0.7); }
+}
+body[data-sno-theme="aurora"] {
+  --sno-wild-colorwash:
+    linear-gradient(112deg, transparent 0 16%, rgba(0,255,179,0.2) 26%, transparent 38%, rgba(0,207,232,0.24) 48%, transparent 60%, rgba(192,132,252,0.24) 70%, transparent 84%),
+    radial-gradient(circle at 50% 28%, rgba(255,255,255,0.18) 0%, rgba(0,255,179,0.08) 20%, transparent 48%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 68%, rgba(236,255,255,0.9) 76% 80%, transparent 88%),
+    linear-gradient(180deg, transparent 0 72%, rgba(0,255,179,0.6) 80% 84%, transparent 92%),
+    linear-gradient(180deg, transparent 0 64%, rgba(192,132,252,0.55) 72% 78%, transparent 86%);
+  --sno-wild-rain-size:160px 240px, 220px 280px, 290px 330px;
+  --sno-wild-rain-opacity:0.3;
+  --sno-wild-rain-speed:1.05s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,255,179,0.08) 38%, rgba(192,132,252,0.22) 76%, rgba(3,8,17,0.88) 100%);
+  --sno-wild-wave-opacity:0.62;
+  --sno-wild-beacon:radial-gradient(circle at 50% 24%, rgba(255,255,255,0.3) 0%, rgba(0,255,179,0.14) 18%, transparent 54%);
+  --sno-wild-accent:#8fffe7;
+  --sno-wild-banner-bg:rgba(3,16,28,0.74);
+  --sno-wild-banner-color:#e9fff8;
+  --sno-wild-banner-glow:rgba(0,255,179,0.34);
+  --sno-wild-scrap-color:rgba(224,248,240,0.8);
+}
+body.sno-wild-active[data-sno-theme="aurora"] header,
+body.sno-wild-active[data-sno-theme="aurora"] .nav-hints,
+body.sno-wild-active[data-sno-theme="aurora"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="aurora"] .page-nav-footer { animation:sno-wild-text-burn 1.9s steps(1) infinite; }
+body[data-sno-theme="brutalist"] {
+  --sno-wild-colorwash:
+    linear-gradient(134deg, transparent 0 24%, rgba(255,255,255,0.08) 24.5% 25.2%, transparent 26% 42%, rgba(255,255,255,0.06) 42.5% 43.2%, transparent 44%),
+    linear-gradient(28deg, transparent 0 30%, rgba(195,32,32,0.22) 30.5% 31.5%, transparent 32% 65%, rgba(255,255,255,0.07) 65.4% 66.2%, transparent 67%),
+    radial-gradient(circle at 50% 10%, rgba(255,130,80,0.18) 0%, transparent 44%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 72%, rgba(133,65,22,0.9) 82% 84%, transparent 90%),
+    linear-gradient(180deg, transparent 0 60%, rgba(255,255,255,0.35) 70% 72%, transparent 80%);
+  --sno-wild-rain-size:240px 300px, 340px 360px;
+  --sno-wild-rain-opacity:0.22;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(24,24,24,0.22) 38%, rgba(92,16,16,0.4) 78%, rgba(0,0,0,0.88) 100%);
+  --sno-wild-accent:#ff5d52;
+  --sno-wild-banner-bg:rgba(12,12,12,0.84);
+  --sno-wild-banner-color:#fff3ef;
+  --sno-wild-banner-glow:rgba(255,93,82,0.28);
+  --sno-wild-scrap-color:rgba(255,214,204,0.82);
+}
+body.sno-wild-active[data-sno-theme="brutalist"] header,
+body.sno-wild-active[data-sno-theme="brutalist"] .nav-hints,
+body.sno-wild-active[data-sno-theme="brutalist"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="brutalist"] .page-nav-footer { animation:sno-wild-jitter 0.22s steps(2) infinite; }
+body[data-sno-theme="cosmos"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 48%, rgba(255,255,255,0.5) 0 2%, rgba(99,0,164,0.5) 6%, rgba(12,4,33,0.05) 16%, transparent 26%),
+    radial-gradient(circle at 50% 48%, transparent 0 22%, rgba(255,255,255,0.18) 26% 27%, transparent 31%),
+    conic-gradient(from 0deg at 50% 48%, rgba(255,255,255,0.28), transparent 18%, rgba(135,206,250,0.2) 32%, transparent 52%, rgba(255,240,150,0.24) 68%, transparent 84%, rgba(255,255,255,0.28));
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 70%, rgba(255,255,255,0.92) 80% 82%, transparent 90%),
+    linear-gradient(180deg, transparent 0 72%, rgba(180,128,255,0.7) 82% 84%, transparent 92%);
+  --sno-wild-rain-size:260px 280px, 320px 360px;
+  --sno-wild-rain-opacity:0.26;
+  --sno-wild-beacon:radial-gradient(circle at 50% 48%, rgba(255,255,255,0.75) 0%, rgba(155,115,255,0.24) 14%, transparent 36%);
+  --sno-wild-wave:radial-gradient(circle at 50% 110%, rgba(255,255,255,0.12) 0%, rgba(20,6,44,0.52) 45%, rgba(2,2,12,0.94) 100%);
+  --sno-wild-accent:#f8d9ff;
+  --sno-wild-banner-bg:rgba(8,6,24,0.82);
+  --sno-wild-banner-color:#ffffff;
+  --sno-wild-banner-glow:rgba(238,214,255,0.34);
+  --sno-wild-scrap-color:rgba(240,228,255,0.82);
+}
+body.sno-wild-active[data-sno-theme="cosmos"] header,
+body.sno-wild-active[data-sno-theme="cosmos"] .nav-hints,
+body.sno-wild-active[data-sno-theme="cosmos"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="cosmos"] .page-nav-footer { animation:sno-wild-collapse 4.2s ease-in-out infinite; }
+body[data-sno-theme="dos"] {
+  --sno-wild-colorwash:
+    linear-gradient(90deg, rgba(255,255,255,0.12) 0 50%, rgba(0,0,0,0.16) 50% 100%),
+    radial-gradient(circle at 50% 14%, rgba(85,255,255,0.18) 0%, transparent 38%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 62%, rgba(255,255,255,0.95) 68% 72%, transparent 78%),
+    linear-gradient(180deg, transparent 0 54%, rgba(85,255,255,0.85) 60% 64%, transparent 70%),
+    linear-gradient(180deg, transparent 0 70%, rgba(255,255,85,0.75) 76% 80%, transparent 86%);
+  --sno-wild-rain-size:120px 180px, 190px 220px, 280px 260px;
+  --sno-wild-rain-opacity:0.34;
+  --sno-wild-rain-speed:0.62s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,170,0.18) 42%, rgba(0,0,0,0.82) 100%);
+  --sno-wild-accent:#ffff55;
+  --sno-wild-banner-bg:#0000aa;
+  --sno-wild-banner-color:#ffffff;
+  --sno-wild-banner-glow:rgba(85,255,255,0.28);
+  --sno-wild-scrap-color:#ffff55;
+}
+body.sno-wild-active[data-sno-theme="dos"] header,
+body.sno-wild-active[data-sno-theme="dos"] .nav-hints,
+body.sno-wild-active[data-sno-theme="dos"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="dos"] .page-nav-footer {
+  animation:sno-wild-hard-blink 0.72s steps(1) infinite, sno-wild-jitter 0.14s steps(2) infinite;
+}
+body[data-sno-theme="matrix"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 0%, rgba(0,255,65,0.18) 0%, transparent 42%),
+    linear-gradient(180deg, rgba(0,40,0,0) 0%, rgba(0,255,65,0.09) 60%, rgba(0,0,0,0.62) 100%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 54%, rgba(187,255,210,1) 62% 68%, transparent 76%),
+    linear-gradient(180deg, transparent 0 44%, rgba(0,255,65,0.9) 52% 58%, transparent 66%),
+    linear-gradient(180deg, transparent 0 68%, rgba(140,255,180,0.72) 76% 82%, transparent 90%);
+  --sno-wild-rain-size:90px 180px, 130px 210px, 200px 280px;
+  --sno-wild-rain-opacity:0.5;
+  --sno-wild-rain-speed:0.38s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,255,65,0.04) 40%, rgba(0,0,0,0.92) 100%);
+  --sno-wild-accent:#98ffac;
+  --sno-wild-banner-bg:rgba(0,10,0,0.78);
+  --sno-wild-banner-color:#d8ffe2;
+  --sno-wild-banner-glow:rgba(0,255,65,0.32);
+  --sno-wild-scrap-color:rgba(152,255,172,0.84);
+}
+body.sno-wild-active[data-sno-theme="matrix"] header,
+body.sno-wild-active[data-sno-theme="matrix"] .nav-hints,
+body.sno-wild-active[data-sno-theme="matrix"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="matrix"] .page-nav-footer { animation:sno-wild-text-burn 1.1s steps(1) infinite; }
+body[data-sno-theme="neon"] {
+  --sno-wild-colorwash:
+    conic-gradient(from 90deg at 50% 20%, rgba(255,231,0,0.16), transparent 18%, rgba(255,0,204,0.22) 32%, transparent 50%, rgba(0,245,255,0.24) 66%, transparent 84%, rgba(255,231,0,0.16)),
+    radial-gradient(circle at 50% 15%, rgba(255,255,255,0.22) 0%, rgba(0,245,255,0.08) 26%, transparent 56%);
+  --sno-wild-rain:
+    linear-gradient(118deg, transparent 0 46%, rgba(255,255,255,0.95) 49% 50%, transparent 53%),
+    linear-gradient(62deg, transparent 0 45%, rgba(0,245,255,0.75) 48% 49%, transparent 52%),
+    linear-gradient(132deg, transparent 0 42%, rgba(255,0,204,0.82) 45% 46%, transparent 49%);
+  --sno-wild-rain-size:280px 280px, 360px 360px, 420px 420px;
+  --sno-wild-rain-opacity:0.34;
+  --sno-wild-rain-speed:0.72s;
+  --sno-wild-beacon:radial-gradient(circle at 50% 20%, rgba(255,255,255,0.44) 0%, rgba(255,0,204,0.18) 14%, transparent 42%);
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,0,204,0.08) 44%, rgba(11,0,26,0.88) 100%);
+  --sno-wild-accent:#ffe700;
+  --sno-wild-banner-bg:rgba(11,0,26,0.8);
+  --sno-wild-banner-color:#faff9c;
+  --sno-wild-banner-glow:rgba(255,231,0,0.42);
+  --sno-wild-scrap-color:rgba(255,245,174,0.88);
+}
+body.sno-wild-active[data-sno-theme="neon"] header,
+body.sno-wild-active[data-sno-theme="neon"] .nav-hints,
+body.sno-wild-active[data-sno-theme="neon"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="neon"] .page-nav-footer { animation:sno-wild-text-burn 1.3s steps(1) infinite; }
+body[data-sno-theme="ocean"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 120%, rgba(0,180,255,0.22) 0%, rgba(0,31,63,0.08) 34%, transparent 56%),
+    radial-gradient(circle at 20% 28%, rgba(147,255,227,0.16) 0%, transparent 32%),
+    radial-gradient(circle at 78% 22%, rgba(120,255,235,0.14) 0%, transparent 30%);
+  --sno-wild-rain:
+    linear-gradient(165deg, transparent 0 58%, rgba(220,255,255,0.95) 62% 66%, transparent 72%),
+    linear-gradient(175deg, transparent 0 48%, rgba(98,255,228,0.72) 52% 56%, transparent 62%),
+    linear-gradient(170deg, transparent 0 68%, rgba(170,255,240,0.78) 72% 76%, transparent 82%);
+  --sno-wild-rain-size:170px 260px, 240px 320px, 310px 360px;
+  --sno-wild-rain-opacity:0.26;
+  --sno-wild-rain-speed:0.82s;
+  --sno-wild-wave:radial-gradient(circle at 50% 100%, rgba(0,255,220,0.3) 0%, rgba(0,80,120,0.32) 28%, rgba(1,20,40,0.92) 74%);
+  --sno-wild-wave-opacity:0.86;
+  --sno-wild-beacon:radial-gradient(circle at 50% 88%, rgba(147,255,227,0.18) 0%, transparent 38%);
+  --sno-wild-accent:#bafcff;
+  --sno-wild-banner-bg:rgba(0,24,42,0.8);
+  --sno-wild-banner-color:#e1ffff;
+  --sno-wild-banner-glow:rgba(120,255,235,0.34);
+  --sno-wild-scrap-color:rgba(202,240,248,0.86);
+}
+body.sno-wild-active[data-sno-theme="ocean"] header,
+body.sno-wild-active[data-sno-theme="ocean"] .nav-hints,
+body.sno-wild-active[data-sno-theme="ocean"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="ocean"] .page-nav-footer { animation:sno-wild-collapse 5.2s ease-in-out infinite; }
+body[data-sno-theme="plasma"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 48%, rgba(255,255,255,0.66) 0%, rgba(165,230,255,0.18) 10%, transparent 24%),
+    conic-gradient(from 0deg at 50% 48%, rgba(255,255,255,0.28), rgba(157,255,255,0.16), rgba(251,146,255,0.28), rgba(255,255,255,0.28)),
+    radial-gradient(circle at 50% 110%, rgba(65,14,90,0.34) 0%, transparent 52%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 70%, rgba(255,255,255,0.92) 78% 82%, transparent 90%),
+    linear-gradient(180deg, transparent 0 60%, rgba(132,255,255,0.72) 68% 72%, transparent 80%);
+  --sno-wild-rain-size:220px 260px, 320px 360px;
+  --sno-wild-rain-opacity:0.28;
+  --sno-wild-beacon:radial-gradient(circle at 50% 48%, rgba(255,255,255,0.78) 0%, rgba(128,224,255,0.2) 12%, transparent 36%);
+  --sno-wild-wave:linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(144,220,255,0.12) 44%, rgba(8,2,20,0.9) 100%);
+  --sno-wild-accent:#fef3ff;
+  --sno-wild-banner-bg:rgba(18,6,36,0.8);
+  --sno-wild-banner-color:#ffffff;
+  --sno-wild-banner-glow:rgba(160,224,255,0.42);
+  --sno-wild-scrap-color:rgba(248,240,255,0.88);
+}
+body.sno-wild-active[data-sno-theme="plasma"] header,
+body.sno-wild-active[data-sno-theme="plasma"] .nav-hints,
+body.sno-wild-active[data-sno-theme="plasma"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="plasma"] .page-nav-footer { animation:sno-wild-text-burn 1.5s steps(1) infinite; }
+body[data-sno-theme="retro"] {
+  --sno-wild-colorwash:
+    linear-gradient(90deg, rgba(255,80,0,0.18) 0 18%, transparent 24% 76%, rgba(255,220,80,0.14) 82% 100%),
+    linear-gradient(180deg, rgba(255,255,255,0.08), transparent 16%, rgba(255,255,255,0.06) 34%, transparent 54%, rgba(255,255,255,0.05) 78%, transparent 100%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 46%, rgba(255,255,255,0.88) 52% 56%, transparent 62%),
+    linear-gradient(180deg, transparent 0 64%, rgba(255,190,50,0.82) 70% 74%, transparent 80%);
+  --sno-wild-rain-size:160px 220px, 260px 300px;
+  --sno-wild-rain-opacity:0.24;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,190,50,0.08) 42%, rgba(10,4,0,0.9) 100%);
+  --sno-wild-accent:#ffcf63;
+  --sno-wild-banner-bg:rgba(24,10,0,0.82);
+  --sno-wild-banner-color:#ffe7a5;
+  --sno-wild-banner-glow:rgba(255,190,50,0.34);
+  --sno-wild-scrap-color:rgba(255,215,120,0.86);
+}
+body.sno-wild-active[data-sno-theme="retro"] header,
+body.sno-wild-active[data-sno-theme="retro"] .nav-hints,
+body.sno-wild-active[data-sno-theme="retro"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="retro"] .page-nav-footer {
+  animation:sno-wild-roll 0.85s linear infinite, sno-wild-jitter 0.18s steps(2) infinite;
+}
+body[data-sno-theme="retrofuture"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 20%, rgba(255,220,140,0.24) 0%, transparent 38%),
+    linear-gradient(180deg, rgba(169,111,46,0.08) 0%, rgba(133,86,33,0.16) 60%, rgba(50,29,12,0.52) 100%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 66%, rgba(255,232,180,0.82) 74% 78%, transparent 86%),
+    linear-gradient(180deg, transparent 0 58%, rgba(170,120,60,0.7) 66% 70%, transparent 78%);
+  --sno-wild-rain-size:180px 240px, 260px 320px;
+  --sno-wild-rain-opacity:0.22;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,206,128,0.07) 42%, rgba(28,18,9,0.92) 100%);
+  --sno-wild-accent:#ffd793;
+  --sno-wild-banner-bg:rgba(26,16,8,0.82);
+  --sno-wild-banner-color:#fff4d6;
+  --sno-wild-banner-glow:rgba(255,215,147,0.3);
+  --sno-wild-scrap-color:rgba(255,233,190,0.86);
+}
+body.sno-wild-active[data-sno-theme="retrofuture"] header,
+body.sno-wild-active[data-sno-theme="retrofuture"] .nav-hints,
+body.sno-wild-active[data-sno-theme="retrofuture"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="retrofuture"] .page-nav-footer { animation:sno-wild-text-burn 1.6s steps(1) infinite; }
+body[data-sno-theme="spaceage"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(255,170,90,0.16) 0%, transparent 24%, rgba(80,220,255,0.12) 54%, transparent 100%),
+    radial-gradient(circle at 50% -10%, rgba(255,255,255,0.46) 0%, rgba(255,180,120,0.16) 18%, transparent 42%);
+  --sno-wild-rain:
+    linear-gradient(160deg, transparent 0 52%, rgba(255,220,190,0.95) 58% 62%, transparent 68%),
+    linear-gradient(170deg, transparent 0 42%, rgba(255,138,84,0.74) 48% 52%, transparent 58%),
+    linear-gradient(180deg, transparent 0 62%, rgba(120,220,255,0.68) 68% 72%, transparent 78%);
+  --sno-wild-rain-size:180px 260px, 260px 320px, 360px 420px;
+  --sno-wild-rain-opacity:0.28;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,149,90,0.08) 44%, rgba(0,10,18,0.9) 100%);
+  --sno-wild-accent:#ffd0a8;
+  --sno-wild-banner-bg:rgba(3,18,26,0.82);
+  --sno-wild-banner-color:#fff1e0;
+  --sno-wild-banner-glow:rgba(255,172,124,0.34);
+  --sno-wild-scrap-color:rgba(255,225,206,0.82);
+}
+body.sno-wild-active[data-sno-theme="spaceage"] header,
+body.sno-wild-active[data-sno-theme="spaceage"] .nav-hints,
+body.sno-wild-active[data-sno-theme="spaceage"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="spaceage"] .page-nav-footer {
+  animation:sno-wild-compress 1.8s ease-in-out infinite, sno-wild-jitter 0.42s steps(2) infinite;
+}
+body[data-sno-theme="synthwave"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(255,20,147,0.14) 0%, transparent 20%, rgba(0,255,255,0.12) 52%, transparent 74%),
+    radial-gradient(circle at 50% 18%, rgba(255,255,255,0.34) 0%, rgba(255,20,147,0.14) 14%, transparent 36%),
+    linear-gradient(90deg, rgba(255,20,147,0.14) 0 1px, transparent 1px 11%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 68%, rgba(255,255,255,0.95) 76% 80%, transparent 88%),
+    linear-gradient(180deg, transparent 0 60%, rgba(255,20,147,0.82) 68% 72%, transparent 80%),
+    linear-gradient(180deg, transparent 0 50%, rgba(0,255,255,0.74) 58% 62%, transparent 70%);
+  --sno-wild-rain-size:160px 220px, 260px 320px, 360px 400px;
+  --sno-wild-rain-opacity:0.32;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,20,147,0.08) 42%, rgba(5,1,22,0.92) 100%);
+  --sno-wild-accent:#ff7de9;
+  --sno-wild-banner-bg:rgba(18,0,34,0.84);
+  --sno-wild-banner-color:#ffe9ff;
+  --sno-wild-banner-glow:rgba(255,125,233,0.4);
+  --sno-wild-scrap-color:rgba(255,225,255,0.86);
+}
+body.sno-wild-active[data-sno-theme="synthwave"] header,
+body.sno-wild-active[data-sno-theme="synthwave"] .nav-hints,
+body.sno-wild-active[data-sno-theme="synthwave"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="synthwave"] .page-nav-footer { animation:sno-wild-collapse 3.8s ease-in-out infinite; }
+body[data-sno-theme="terminal"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(51,255,51,0.14) 0%, transparent 24%, rgba(0,0,0,0.14) 46%, transparent 68%, rgba(51,255,51,0.1) 100%),
+    radial-gradient(circle at 50% 10%, rgba(255,255,255,0.18) 0%, transparent 38%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 52%, rgba(255,255,255,0.94) 58% 62%, transparent 68%),
+    linear-gradient(180deg, transparent 0 44%, rgba(51,255,51,0.9) 50% 54%, transparent 60%),
+    linear-gradient(180deg, transparent 0 64%, rgba(140,255,140,0.7) 70% 74%, transparent 80%);
+  --sno-wild-rain-size:100px 180px, 140px 210px, 220px 260px;
+  --sno-wild-rain-opacity:0.4;
+  --sno-wild-rain-speed:0.42s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(51,255,51,0.06) 42%, rgba(0,0,0,0.95) 100%);
+  --sno-wild-accent:#8dff8d;
+  --sno-wild-banner-bg:rgba(0,10,0,0.8);
+  --sno-wild-banner-color:#d7ffd7;
+  --sno-wild-banner-glow:rgba(51,255,51,0.34);
+  --sno-wild-scrap-color:rgba(141,255,141,0.84);
+}
+body.sno-wild-active[data-sno-theme="terminal"] header,
+body.sno-wild-active[data-sno-theme="terminal"] .nav-hints,
+body.sno-wild-active[data-sno-theme="terminal"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="terminal"] .page-nav-footer {
+  animation:sno-wild-hard-blink 0.82s steps(1) infinite, sno-wild-jitter 0.16s steps(2) infinite;
+}
+body.sno-wild-active[data-sno-theme="terminal"] .post.post-active {
+  filter:invert(1) grayscale(1) contrast(1.28) !important;
+  background:#fff !important;
+  color:#000 !important;
+  text-shadow:none !important;
+}
+body.sno-wild-active[data-sno-theme="terminal"] .post.post-active a { color:#000 !important; }
+body.sno-wild-active[data-sno-theme="terminal"] .post.post-active .post-time,
+body.sno-wild-active[data-sno-theme="terminal"] .post.post-active .post-header strong { color:#000 !important; }
+body[data-sno-theme="tropicale"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 18%, rgba(0,110,160,0.1) 46%, rgba(0,40,70,0.38) 100%),
+    radial-gradient(circle at 50% 110%, rgba(0,210,255,0.24) 0%, transparent 44%);
+  --sno-wild-rain:
+    linear-gradient(168deg, transparent 0 54%, rgba(255,255,255,0.98) 60% 64%, transparent 70%),
+    linear-gradient(176deg, transparent 0 42%, rgba(200,255,255,0.72) 48% 52%, transparent 58%),
+    linear-gradient(172deg, transparent 0 64%, rgba(255,230,180,0.52) 70% 74%, transparent 80%);
+  --sno-wild-rain-size:150px 260px, 230px 320px, 320px 400px;
+  --sno-wild-rain-opacity:0.44;
+  --sno-wild-rain-speed:0.5s;
+  --sno-wild-wave:radial-gradient(circle at 50% 100%, rgba(175,255,255,0.28) 0%, rgba(0,135,190,0.32) 26%, rgba(0,24,44,0.92) 74%);
+  --sno-wild-wave-opacity:0.88;
+  --sno-wild-accent:#fff2bf;
+  --sno-wild-banner-bg:rgba(0,34,56,0.82);
+  --sno-wild-banner-color:#fff7db;
+  --sno-wild-banner-glow:rgba(255,242,191,0.34);
+  --sno-wild-scrap-color:rgba(255,244,213,0.84);
+}
+body.sno-wild-active[data-sno-theme="tropicale"] header,
+body.sno-wild-active[data-sno-theme="tropicale"] .nav-hints,
+body.sno-wild-active[data-sno-theme="tropicale"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="tropicale"] .page-nav-footer { animation:sno-wild-jitter 0.3s steps(2) infinite; }
+body[data-sno-theme="volcano"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(60,60,60,0.28) 0%, rgba(40,40,40,0.18) 26%, transparent 48%, rgba(255,140,0,0.18) 72%, rgba(255,214,102,0.14) 100%),
+    radial-gradient(circle at 50% 8%, rgba(255,255,255,0.24) 0%, rgba(255,150,60,0.1) 18%, transparent 42%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 42%, rgba(110,110,110,0.92) 48% 54%, transparent 60%),
+    linear-gradient(180deg, transparent 0 54%, rgba(255,170,80,0.82) 60% 66%, transparent 72%),
+    linear-gradient(180deg, transparent 0 64%, rgba(255,235,140,0.54) 70% 76%, transparent 82%);
+  --sno-wild-rain-size:150px 230px, 220px 300px, 320px 360px;
+  --sno-wild-rain-opacity:0.38;
+  --sno-wild-rain-speed:0.68s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,120,20,0.1) 42%, rgba(55,20,0,0.9) 100%);
+  --sno-wild-accent:#ffdf76;
+  --sno-wild-banner-bg:rgba(22,8,0,0.84);
+  --sno-wild-banner-color:#fff0c2;
+  --sno-wild-banner-glow:rgba(255,190,70,0.34);
+  --sno-wild-scrap-color:rgba(255,230,170,0.86);
+}
+body.sno-wild-active[data-sno-theme="volcano"] header,
+body.sno-wild-active[data-sno-theme="volcano"] .nav-hints,
+body.sno-wild-active[data-sno-theme="volcano"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="volcano"] .page-nav-footer { animation:sno-wild-jitter 0.24s steps(2) infinite; }
 /* Host note under the site subtitle (all themes) */
 .logo-host { font-size:0.65rem; opacity:0.55; margin-top:4px; letter-spacing:0.3px; line-height:1.3; }
 /* Atom feed link in header (paired with transmit in .nav) */
@@ -165,6 +729,203 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
     const SNONUX_SOUNDS = {{.ThemeSoundsJSON}};
     // Inject wild-mode badge used by all themes
     (function() { var b=document.createElement('div'); b.id='sno-wild-badge'; b.textContent='WILD MODE'; document.body.appendChild(b); })();
+    const SNONUX_WILD_PRESETS = {
+        aurora: {
+            banner: 'SOLAR STORM',
+            ticker: ['FIELD INTERFERENCE', 'PLASMA DRIFT', 'PARTICLE BOMBARDMENT', 'CHROMATIC SPIKE'],
+            scraps: ['MAGNETIC SHEAR', 'SOLAR WIND', 'AURORA NOISE', 'ION STORM', 'POLAR ARC'],
+            flash: 'rgba(220,255,240,0.72)'
+        },
+        brutalist: {
+            banner: 'STRUCTURAL COLLAPSE',
+            ticker: ['CONDEMNED', 'REBAR EXPOSED', 'FOUNDATION FAILURE', 'CRACK PROPAGATION'],
+            scraps: ['CONDEMNED', 'RUST BLEED', 'SHEAR WALL LOST', 'LOAD PATH BROKEN', 'SPALLING'],
+            flash: 'rgba(255,210,190,0.58)'
+        },
+        cosmos: {
+            banner: 'SUPERNOVA',
+            ticker: ['SINGULARITY LENSING', 'GAMMA BURST', 'SHOCKWAVE EXPANDING', 'SPACETIME TEAR'],
+            scraps: ['WHITEOUT', 'EVENT HORIZON', 'RADIATION FRONT', 'LENS LOCK', 'CORE BREACH'],
+            flash: 'rgba(255,255,255,0.8)'
+        },
+        dos: {
+            banner: 'KERNEL PANIC',
+            ticker: ['ABORT, RETRY, FAIL?', 'MEMORY CORRUPTION', 'STACK DUMP', 'SEGMENT FAULT'],
+            scraps: ['DEAD BEEF', 'C0FFEE', 'BAD SECTOR', 'IRQ STORM', 'NULL PTR', 'HEX DUMP'],
+            flash: 'rgba(255,255,255,0.88)'
+        },
+        matrix: {
+            banner: 'CASCADE FAILURE',
+            ticker: ['SENTINEL TRACE', 'GLYPH SATURATION', 'PHOSPHOR BURN-IN', 'RAIN AT TERMINAL VELOCITY'],
+            scraps: ['SENTINEL', '0XDECODE', 'OVERRIDE', 'TRACE LOST', 'MACHINE DREAM'],
+            flash: 'rgba(180,255,190,0.68)'
+        },
+        neon: {
+            banner: 'GAS DISCHARGE',
+            ticker: ['TUBE ARC', 'ULTRAVIOLET BLEED', 'STROBE LOCK', 'SHORT CIRCUIT'],
+            scraps: ['ARC OVERLOAD', 'PLASMA SIGN', 'NOBLE GAS', 'HARD STROBE', 'OVERDRIVE'],
+            flash: 'rgba(255,245,170,0.72)'
+        },
+        ocean: {
+            banner: 'HADAL DESCENT',
+            ticker: ['PRESSURE SPIKE', 'BIOLUMINESCENT SWARM', 'ABYSSAL DRAG', 'TSUNAMI FRONT'],
+            scraps: ['NO SURFACE', 'CRUSH DEPTH', 'TENTACLE DRIFT', 'SONAR LOST', 'DEEP CURRENT'],
+            flash: 'rgba(200,255,255,0.54)'
+        },
+        plasma: {
+            banner: 'FUSION BREACH',
+            ticker: ['CONTAINMENT FAILURE', 'TOKAMAK DISTORTION', 'THERMAL RUNAWAY', 'WHITE-BLUE CORE'],
+            scraps: ['ION SPRAY', 'FIELD LOSS', 'HEAT HAZE', 'QUENCH', 'ARC SHELL'],
+            flash: 'rgba(230,250,255,0.78)'
+        },
+        retro: {
+            banner: 'TAPE EAT',
+            ticker: ['TRACKING LOSS', 'CHROMA SPLIT', 'MAGNETIC SNOW', 'CLICK-EJECT'],
+            scraps: ['NO SIGNAL', 'HEAD DRAG', 'ROLL HOLD', 'SNOW PACK', 'EJECT CYCLE'],
+            flash: 'rgba(255,226,178,0.6)'
+        },
+        retrofuture: {
+            banner: 'ATOMIC TWILIGHT',
+            ticker: ['GEIGER STATIC', 'FALLOUT DUST', 'RADIATION BURN', 'IRRADIATED SEPIA'],
+            scraps: ['FALLOUT', 'BETA LEAK', 'ASH DRIFT', 'HALF-LIFE', 'GLOW CLOUD'],
+            flash: 'rgba(255,240,180,0.62)'
+        },
+        spaceage: {
+            banner: 'RE-ENTRY BURN',
+            ticker: ['HEAT SHIELD LOSS', 'PLASMA BLACKOUT', 'COMMS STATIC', 'G-FORCE COMPRESSION'],
+            scraps: ['BLACKOUT', 'SPARK SHOWER', 'PLASMA SHEATH', 'HULL GLOW', 'COMMS LOST'],
+            flash: 'rgba(255,220,190,0.68)'
+        },
+        synthwave: {
+            banner: 'GRID COLLAPSE',
+            ticker: ['VOID PERSPECTIVE', 'MOLTEN SUN', 'CHROMA TEAR', 'OUT OF MEMORY'],
+            scraps: ['VOID GRID', 'SUN DRIP', 'NEON PANIC', 'FRAME DROP', 'MEMORY STARVE'],
+            flash: 'rgba(255,210,255,0.68)'
+        },
+        terminal: {
+            banner: 'FORK BOMB',
+            ticker: ['PROCESS STORM', 'STACK TRACE WATERFALL', 'MEMORY GARBAGE', 'BSOD CREEP'],
+            scraps: ['PID 65535', 'STACK OVERFLOW', 'OOM KILL', 'PANIC', '(:'],
+            flash: 'rgba(180,255,180,0.7)'
+        },
+        tropicale: {
+            banner: 'CATEGORY 5',
+            ticker: ['HORIZONTAL RAIN', 'STORM SURGE', 'DEBRIS FIELD', 'WIND SHEAR'],
+            scraps: ['PALM SNAP', 'SURGE LINE', 'SPRAY WALL', 'FLYING ROOF', 'LANDFALL'],
+            flash: 'rgba(240,255,255,0.74)'
+        },
+        volcano: {
+            banner: 'PYROCLASTIC SURGE',
+            ticker: ['ASH CASCADE', 'LAVA BOMB IMPACT', 'EARTHQUAKE SHAKE', 'SULFUR CLOUD'],
+            scraps: ['ASHFALL', 'VENT BLAST', 'PYROCLAST', 'SEISMIC HIT', 'MAGMA SPRAY'],
+            flash: 'rgba(255,220,150,0.72)'
+        }
+    };
+    function snonuxDetectThemeName() {
+        var splash = document.getElementById('splash-overlay');
+        if (splash) {
+            for (var i = 0; i < splash.classList.length; i++) {
+                var cls = splash.classList[i];
+                if (cls.indexOf('splash-') === 0 && cls !== 'splash-overlay' && cls.indexOf('splash--') !== 0) {
+                    return cls.slice(7);
+                }
+            }
+        }
+        return 'neon';
+    }
+    function snonuxEnsureWildRoot() {
+        var root = document.getElementById('sno-wild-root');
+        if (root) return root;
+        root = document.createElement('div');
+        root.id = 'sno-wild-root';
+        root.setAttribute('aria-hidden', 'true');
+        root.innerHTML =
+            '<div id="sno-wild-colorwash" class="sno-wild-layer"></div>' +
+            '<div id="sno-wild-rain" class="sno-wild-layer"></div>' +
+            '<div id="sno-wild-wave" class="sno-wild-layer"></div>' +
+            '<div id="sno-wild-beacon" class="sno-wild-layer"></div>' +
+            '<div id="sno-wild-noise" class="sno-wild-layer"></div>' +
+            '<div id="sno-wild-banner"></div>' +
+            '<div id="sno-wild-ticker"><span></span></div>' +
+            '<div id="sno-wild-scraps"></div>';
+        document.body.appendChild(root);
+        return root;
+    }
+    function snonuxApplyWildPreset(theme) {
+        var preset = SNONUX_WILD_PRESETS[theme] || SNONUX_WILD_PRESETS.neon;
+        var html = document.documentElement;
+        var body = document.body;
+        html.setAttribute('data-sno-theme', theme);
+        body.setAttribute('data-sno-theme', theme);
+        var root = snonuxEnsureWildRoot();
+        var banner = root.querySelector('#sno-wild-banner');
+        var ticker = root.querySelector('#sno-wild-ticker span');
+        var scraps = root.querySelector('#sno-wild-scraps');
+        banner.textContent = preset.banner;
+        ticker.textContent = ' ' + preset.ticker.join('   //   ') + '   //   ' + preset.ticker.join('   //   ') + ' ';
+        scraps.innerHTML = '';
+        var phrases = preset.scraps || [];
+        var count = theme === 'dos' || theme === 'terminal' || theme === 'matrix' ? 22 : 16;
+        for (var i = 0; i < count; i++) {
+            var span = document.createElement('span');
+            span.textContent = phrases[i % phrases.length];
+            span.style.setProperty('--x', (8 + Math.random() * 84).toFixed(2) + '%');
+            span.style.setProperty('--y', (12 + Math.random() * 72).toFixed(2) + '%');
+            span.style.setProperty('--rot', ((Math.random() * 36) - 18).toFixed(1) + 'deg');
+            span.style.setProperty('--dx', ((Math.random() * 120) - 60).toFixed(1) + 'px');
+            span.style.setProperty('--dy', ((Math.random() * 100) - 50).toFixed(1) + 'px');
+            span.style.setProperty('--dur', (4.5 + Math.random() * 5.5).toFixed(2) + 's');
+            span.style.setProperty('--delay', (-Math.random() * 6).toFixed(2) + 's');
+            scraps.appendChild(span);
+        }
+        window._snonuxWildTheme = theme;
+        window._snonuxWildFlashColor = preset.flash || 'rgba(255,255,255,0.7)';
+    }
+    function snonuxPulseFlash(color, duration) {
+        var ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:0;';
+        document.body.appendChild(ov);
+        var tone = color || window._snonuxWildFlashColor || 'rgba(255,255,255,0.7)';
+        [0, 70, 150, 250].forEach(function(d, i) {
+            setTimeout(function() {
+                ov.style.transition = 'opacity 0.08s linear';
+                ov.style.background = tone;
+                ov.style.opacity = (i % 2 === 0) ? '0.82' : '0';
+            }, d);
+        });
+        setTimeout(function() {
+            ov.style.transition = 'opacity 0.25s linear';
+            ov.style.opacity = '0';
+        }, Math.max(180, duration || 320));
+        setTimeout(function() { ov.remove(); }, Math.max(520, duration || 320) + 260);
+    }
+    function snonuxScheduleWildBursts() {
+        clearTimeout(window._snonuxWildBurstTimer);
+        if (!window._snoWildActive) return;
+        var delay = 1400 + Math.random() * 3600;
+        window._snonuxWildBurstTimer = setTimeout(function() {
+            if (!window._snoWildActive) return;
+            snonuxPulseFlash(window._snonuxWildFlashColor, 260);
+            snonuxScheduleWildBursts();
+        }, delay);
+    }
+    function snonuxSetWildState(on) {
+        var body = document.body;
+        var badge = document.getElementById('sno-wild-badge');
+        body.classList.toggle('sno-wild-active', !!on);
+        if (badge) badge.classList.toggle('sno-wild-on', !!on);
+        if (on) {
+            snonuxApplyWildPreset(window._snonuxWildTheme || snonuxDetectThemeName());
+            snonuxScheduleWildBursts();
+        } else {
+            clearTimeout(window._snonuxWildBurstTimer);
+        }
+    }
+    (function snonuxWildSetup() {
+        window._snoWildActive = !!window._snoWildActive;
+        snonuxApplyWildPreset(snonuxDetectThemeName());
+        snonuxSetWildState(window._snoWildActive);
+    })();
     // Dramatic lightning flash on wild mode activation/deactivation
     function snonuxWildFlash(on) {
         var ov = document.createElement('div');
@@ -472,6 +1233,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
             case 'w':
                 window._snoWildActive = !window._snoWildActive;
                 if (window.snonuxWildToggle) window.snonuxWildToggle();
+                snonuxSetWildState(window._snoWildActive);
                 snonuxWildFlash(window._snoWildActive);
                 e.preventDefault(); break;
         }
