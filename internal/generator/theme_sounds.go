@@ -52,6 +52,7 @@ var themeSoundPresets = map[string]themeSounds{
 	"cosmos":      soundsCosmos(),
 	"retrofuture": soundsRetrofuture(),
 	"spaceage":    soundsSpaceage(),
+	"tropicale":   soundsTropical(),
 }
 
 func soundsNeon() themeSounds {
@@ -193,6 +194,19 @@ func soundsSpaceage() themeSounds {
 	s.Nav.Freq, s.Nav.Wave, s.Nav.Dur, s.Nav.Gain = 554.37, "triangle", 0.075, 0.09
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 440, 880, 0.18, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 659.25, 330, 0.17, 0.085
+	return s
+}
+
+// soundsTropical returns synth parameters for the Tropical Beach theme.
+// Warm sine arpeggio across a C-major pentatonic — steel drum impression on splash.
+// Nav uses a breathy mid-freq sine "bird tone"; open/close sweep like breaking surf.
+func soundsTropical() themeSounds {
+	var s themeSounds
+	s.Splash.Freqs = []float64{523.25, 659.25, 783.99, 1046.5}
+	s.Splash.Spacing, s.Splash.Gain, s.Splash.Wave = 0.085, 0.08, "sine"
+	s.Nav.Freq, s.Nav.Wave, s.Nav.Dur, s.Nav.Gain = 880, "sine", 0.07, 0.07
+	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 440, 880, 0.18, 0.08
+	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 660, 330, 0.17, 0.075
 	return s
 }
 

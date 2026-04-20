@@ -214,6 +214,8 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
                 var ctx = splashAudioCtx;
                 function ring() {
                     splashChimePlayed = true;
+                    // Theme override: if defined, plays its own sound and returns true to skip the default chime.
+                    if (window.snonuxSplashSound && window.snonuxSplashSound(ctx)) return;
                     var now = ctx.currentTime;
                     var sp = SNONUX_SOUNDS.splash;
                     var freqs = sp.freqs;
