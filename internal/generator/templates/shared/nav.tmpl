@@ -69,7 +69,7 @@
    the expanded post. Theme-specific modal-inner keeps its own background. */
 .post-modal { background:rgba(0,0,0,0.55) !important; backdrop-filter:blur(6px) !important; }
 #post-modal.active { display:flex !important; align-items:center; justify-content:center; }
-#post-modal .modal-inner { width:fit-content; max-width:min(100%, 90vw); max-height:calc(100vh - 80px); overflow:auto; margin:0 auto !important; }
+#post-modal .modal-inner { width:fit-content; max-width:min(100%, 90vw); max-height:calc(100vh - 80px); overflow:auto; margin:0 auto !important; will-change:transform; }
 /* Content area max-width across all themes */
 .overlay { max-width:1200px; margin-left:auto; margin-right:auto; }
 /* Pagination: newer + older in a footer bar (below scrollable posts, like the header) */
@@ -130,6 +130,26 @@
 #sno-burst { position:fixed; inset:0; z-index:9999; pointer-events:none; }
 #sno-burst span { position:absolute; width:6px; height:6px; border-radius:50%; background:currentColor;
   animation:sno-particle-fly var(--pdur) ease-out forwards; animation-delay:var(--pdel); opacity:0; }
+/* Cursor sparkle trail (normal mode) */
+@keyframes sno-sparkle { 0%{transform:scale(1);opacity:0.8} 100%{transform:scale(0);opacity:0} }
+.sno-sparkle { position:fixed; pointer-events:none; z-index:9990; border-radius:50%; }
+/* Post afterimage — ghost of previously selected post */
+@keyframes sno-afterimage { 0%{opacity:0.4;transform:scale(1)} 100%{opacity:0;transform:scale(0.97)} }
+.sno-afterimage { position:absolute; inset:0; pointer-events:none; z-index:0;
+  border:1px solid currentColor; border-radius:inherit; opacity:0; }
+.sno-afterimage-active { animation:sno-afterimage 0.5s ease-out forwards; }
+/* Wild flying emoji */
+@keyframes sno-fly-lr { 0%{transform:translateX(-60px) translateY(var(--fy,0)) rotate(0)} 100%{transform:translateX(calc(100vw + 60px)) translateY(var(--fy,0)) rotate(var(--frot,360deg))} }
+@keyframes sno-fly-rl { 0%{transform:translateX(calc(100vw + 60px)) translateY(var(--fy,0)) rotate(0)} 100%{transform:translateX(-60px) translateY(var(--fy,0)) rotate(var(--frot,-360deg))} }
+#sno-flyzone { position:fixed; inset:0; z-index:9985; pointer-events:none; overflow:hidden; }
+#sno-flyzone span { position:absolute; top:var(--ftop,50%); font-size:clamp(1.2rem,2.5vw,2rem);
+  animation-timing-function:linear; animation-fill-mode:forwards; }
+/* Wild random post flip */
+@keyframes sno-flip-post { 0%{transform:scaleY(1)} 25%{transform:scaleY(-1)} 75%{transform:scaleY(-1)} 100%{transform:scaleY(1)} }
+.sno-fx-flip { animation:sno-flip-post 1.4s ease-in-out both !important; transform-origin:center; }
+/* Wild hue drift on body */
+@keyframes sno-hue-drift { 0%{filter:hue-rotate(0)} 100%{filter:hue-rotate(360deg)} }
+body.sno-wild-hue { animation:sno-hue-drift 12s linear infinite; }
 @keyframes sno-wild-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
 /* Storm overlay that flickers like distant lightning while wild mode is on */
 @keyframes sno-wild-flicker { 0%,84%,87%,91%,94%,100%{opacity:0} 85%,90%{opacity:0.75} 86%,92%{opacity:0.35} }
@@ -886,121 +906,141 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
             banner: 'SOLAR STORM',
             ticker: ['FIELD INTERFERENCE', 'PLASMA DRIFT', 'PARTICLE BOMBARDMENT', 'CHROMATIC SPIKE'],
             scraps: ['MAGNETIC SHEAR', 'SOLAR WIND', 'AURORA NOISE', 'ION STORM', 'POLAR ARC'],
-            flash: 'rgba(220,255,240,0.72)'
+            flash: 'rgba(220,255,240,0.72)',
+            emoji: ['\u2728','\u2604\uFE0F','\u{1F320}','\u{1F30C}','\u2B50']
         },
         brutalist: {
             banner: 'STRUCTURAL COLLAPSE',
             ticker: ['CONDEMNED', 'REBAR EXPOSED', 'FOUNDATION FAILURE', 'CRACK PROPAGATION'],
             scraps: ['CONDEMNED', 'RUST BLEED', 'SHEAR WALL LOST', 'LOAD PATH BROKEN', 'SPALLING'],
-            flash: 'rgba(255,210,190,0.58)'
+            flash: 'rgba(255,210,190,0.58)',
+            emoji: ['\u{1F9F1}','\u2692\uFE0F','\u26A0\uFE0F','\u{1F6A7}','\u{1F4A5}']
         },
         cosmos: {
             banner: 'SUPERNOVA',
             ticker: ['SINGULARITY LENSING', 'GAMMA BURST', 'SHOCKWAVE EXPANDING', 'SPACETIME TEAR'],
             scraps: ['WHITEOUT', 'EVENT HORIZON', 'RADIATION FRONT', 'LENS LOCK', 'CORE BREACH'],
-            flash: 'rgba(255,255,255,0.8)'
+            flash: 'rgba(255,255,255,0.8)',
+            emoji: ['\u{1F30C}','\u2604\uFE0F','\u{1F4AB}','\u2B50','\u{1FA90}']
         },
         dos: {
             banner: 'KERNEL PANIC',
             ticker: ['ABORT, RETRY, FAIL?', 'MEMORY CORRUPTION', 'STACK DUMP', 'SEGMENT FAULT'],
             scraps: ['DEAD BEEF', 'C0FFEE', 'BAD SECTOR', 'IRQ STORM', 'NULL PTR', 'HEX DUMP'],
-            flash: 'rgba(255,255,255,0.88)'
+            flash: 'rgba(255,255,255,0.88)',
+            emoji: ['\u{1F4BE}','\u{1F4BB}','\u26A1','\u2620\uFE0F','\u{1F41B}']
         },
         matrix: {
             banner: 'CASCADE FAILURE',
             ticker: ['SENTINEL TRACE', 'GLYPH SATURATION', 'PHOSPHOR BURN-IN', 'RAIN AT TERMINAL VELOCITY'],
             scraps: ['SENTINEL', '0XDECODE', 'OVERRIDE', 'TRACE LOST', 'MACHINE DREAM'],
-            flash: 'rgba(180,255,190,0.68)'
+            flash: 'rgba(180,255,190,0.68)',
+            emoji: ['\u{1F441}\uFE0F','\u{1F4A0}','\u{1F916}','\u{1F50D}','\u26D3\uFE0F']
         },
         neon: {
             banner: 'GAS DISCHARGE',
             ticker: ['TUBE ARC', 'ULTRAVIOLET BLEED', 'STROBE LOCK', 'SHORT CIRCUIT'],
             scraps: ['ARC OVERLOAD', 'PLASMA SIGN', 'NOBLE GAS', 'HARD STROBE', 'OVERDRIVE'],
-            flash: 'rgba(255,245,170,0.72)'
+            flash: 'rgba(255,245,170,0.72)',
+            emoji: ['\u26A1','\u{1F4A5}','\u{1F52E}','\u2728','\u{1F388}']
         },
         ocean: {
             banner: 'HADAL DESCENT',
             ticker: ['PRESSURE SPIKE', 'BIOLUMINESCENT SWARM', 'ABYSSAL DRAG', 'TSUNAMI FRONT'],
             scraps: ['NO SURFACE', 'CRUSH DEPTH', 'TENTACLE DRIFT', 'SONAR LOST', 'DEEP CURRENT'],
-            flash: 'rgba(200,255,255,0.54)'
+            flash: 'rgba(200,255,255,0.54)',
+            emoji: ['\u{1F419}','\u{1F420}','\u{1F30A}','\u{1F41A}','\u{1F9DC}']
         },
         plasma: {
             banner: 'FUSION BREACH',
             ticker: ['CONTAINMENT FAILURE', 'TOKAMAK DISTORTION', 'THERMAL RUNAWAY', 'WHITE-BLUE CORE'],
             scraps: ['ION SPRAY', 'FIELD LOSS', 'HEAT HAZE', 'QUENCH', 'ARC SHELL'],
-            flash: 'rgba(230,250,255,0.78)'
+            flash: 'rgba(230,250,255,0.78)',
+            emoji: ['\u{1F300}','\u26A1','\u{1F4A0}','\u2728','\u{1F52C}']
         },
         retro: {
             banner: 'TAPE EAT',
             ticker: ['TRACKING LOSS', 'CHROMA SPLIT', 'MAGNETIC SNOW', 'CLICK-EJECT'],
             scraps: ['NO SIGNAL', 'HEAD DRAG', 'ROLL HOLD', 'SNOW PACK', 'EJECT CYCLE'],
-            flash: 'rgba(255,226,178,0.6)'
+            flash: 'rgba(255,226,178,0.6)',
+            emoji: ['\u{1F4FC}','\u{1F4FA}','\u{1F3AE}','\u{1F579}\uFE0F','\u{1F4FB}']
         },
         retrofuture: {
             banner: 'ATOMIC TWILIGHT',
             ticker: ['GEIGER STATIC', 'FALLOUT DUST', 'RADIATION BURN', 'IRRADIATED SEPIA'],
             scraps: ['FALLOUT', 'BETA LEAK', 'ASH DRIFT', 'HALF-LIFE', 'GLOW CLOUD'],
-            flash: 'rgba(255,240,180,0.62)'
+            flash: 'rgba(255,240,180,0.62)',
+            emoji: ['\u2622\uFE0F','\u{1F4A3}','\u{1F3ED}','\u2623\uFE0F','\u{1F9EA}']
         },
         spaceage: {
             banner: 'RE-ENTRY BURN',
             ticker: ['HEAT SHIELD LOSS', 'PLASMA BLACKOUT', 'COMMS STATIC', 'G-FORCE COMPRESSION'],
             scraps: ['BLACKOUT', 'SPARK SHOWER', 'PLASMA SHEATH', 'HULL GLOW', 'COMMS LOST'],
-            flash: 'rgba(255,220,190,0.68)'
+            flash: 'rgba(255,220,190,0.68)',
+            emoji: ['\u{1F680}','\u{1F6F8}','\u{1FA90}','\u{1F30D}','\u2B50']
         },
         synthwave: {
             banner: 'GRID COLLAPSE',
             ticker: ['VOID PERSPECTIVE', 'MOLTEN SUN', 'CHROMA TEAR', 'OUT OF MEMORY'],
             scraps: ['VOID GRID', 'SUN DRIP', 'NEON PANIC', 'FRAME DROP', 'MEMORY STARVE'],
-            flash: 'rgba(255,210,255,0.68)'
+            flash: 'rgba(255,210,255,0.68)',
+            emoji: ['\u{1F305}','\u{1F3B6}','\u{1F3B9}','\u{1F338}','\u{1F52E}']
         },
         terminal: {
             banner: 'FORK BOMB',
             ticker: ['PROCESS STORM', 'STACK TRACE WATERFALL', 'MEMORY GARBAGE', 'BSOD CREEP'],
             scraps: ['PID 65535', 'STACK OVERFLOW', 'OOM KILL', 'PANIC', '(:'],
-            flash: 'rgba(180,255,180,0.7)'
+            flash: 'rgba(180,255,180,0.7)',
+            emoji: ['\u{1F4BB}','\u{1F41B}','\u2620\uFE0F','\u{1F5A5}\uFE0F','\u26A1']
         },
         tropicale: {
             banner: 'CATEGORY 5',
             ticker: ['HORIZONTAL RAIN', 'STORM SURGE', 'DEBRIS FIELD', 'WIND SHEAR'],
             scraps: ['PALM SNAP', 'SURGE LINE', 'SPRAY WALL', 'FLYING ROOF', 'LANDFALL'],
-            flash: 'rgba(240,255,255,0.74)'
+            flash: 'rgba(240,255,255,0.74)',
+            emoji: ['\u{1F334}','\u{1F3D6}\uFE0F','\u{1F940}','\u{1F965}','\u{1F30A}']
         },
         noir: {
             banner: 'BLACKOUT DISTRICT',
             ticker: ['BLINDS SLAMMED SHUT', 'SIREN SWEEP', 'PROJECTOR BURN', 'MIDNIGHT DOWNPOUR'],
             scraps: ['NO WITNESSES', 'WET ASPHALT', 'RED CHANNEL', 'BLUE CHANNEL', 'SMOKE CURTAIN'],
-            flash: 'rgba(255,245,225,0.66)'
+            flash: 'rgba(255,245,225,0.66)',
+            emoji: ['\u{1F576}\uFE0F','\u{1F52B}','\u{1F3A9}','\u{1F6AC}','\u{1F5DD}\uFE0F']
         },
         cathedral: {
             banner: 'LAST JUDGMENT',
             ticker: ['BELL SHOCKWAVE', 'INCENSE FIRESTORM', 'ROSE WINDOW FRACTURE', 'APSE IN FLAME'],
             scraps: ['REQUIEM', 'SHARD RAIN', 'VESPER BURN', 'GLORIA STATIC', 'NAVE COLLAPSE'],
-            flash: 'rgba(255,239,202,0.72)'
+            flash: 'rgba(255,239,202,0.72)',
+            emoji: ['\u{1F54E}','\u{1F56F}\uFE0F','\u271D\uFE0F','\u{1F54A}\uFE0F','\u{1F3F0}']
         },
         surveillance: {
             banner: 'TOTAL COMPROMISE',
             ticker: ['CAMERA MESH BREACH', 'TRACKING LOSS', 'MULTIPLEX PANIC', 'ALERT CASCADE'],
             scraps: ['FLAGGED', 'OVERRIDDEN', 'TRACE LOOP', 'BOX LOST', 'ALERT 99'],
-            flash: 'rgba(210,255,225,0.72)'
+            flash: 'rgba(210,255,225,0.72)',
+            emoji: ['\u{1F4F9}','\u{1F441}\uFE0F','\u{1F6A8}','\u{1F50D}','\u{1F4E1}']
         },
         biomech: {
             banner: 'CONTAINMENT RUPTURE',
             ticker: ['SYNAPSE STORM', 'TISSUE ARC', 'MEMBRANE TEAR', 'HYBRID OVERDRIVE'],
             scraps: ['VENTRICLE', 'MYCELIUM', 'RUPTURE', 'BIOFILM', 'NERVE GRID'],
-            flash: 'rgba(255,205,220,0.7)'
+            flash: 'rgba(255,205,220,0.7)',
+            emoji: ['\u{1F9EC}','\u{1F9E0}','\u{1F9A0}','\u{1F52C}','\u{1FAC0}']
         },
         paper: {
             banner: 'PRESS JAM',
             ticker: ['TONER BLIZZARD', 'INK BLEED', 'COPY LAMP WHITEOUT', 'PAGE STORM'],
             scraps: ['MISPRINT', 'SKEWED FEED', 'RAG EDGE', 'CARBON DUST', 'REDACTION'],
-            flash: 'rgba(255,250,236,0.82)'
+            flash: 'rgba(255,250,236,0.82)',
+            emoji: ['\u{1F4C4}','\u270F\uFE0F','\u{1F4CE}','\u2702\uFE0F','\u{1F5DE}\uFE0F']
         },
         volcano: {
             banner: 'PYROCLASTIC SURGE',
             ticker: ['ASH CASCADE', 'LAVA BOMB IMPACT', 'EARTHQUAKE SHAKE', 'SULFUR CLOUD'],
             scraps: ['ASHFALL', 'VENT BLAST', 'PYROCLAST', 'SEISMIC HIT', 'MAGMA SPRAY'],
-            flash: 'rgba(255,220,150,0.72)'
+            flash: 'rgba(255,220,150,0.72)',
+            emoji: ['\u{1F30B}','\u{1F525}','\u{1F4A5}','\u2668\uFE0F','\u{1FAA8}']
         }
     };
     function snonuxDetectThemeName() {
@@ -1099,9 +1139,72 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         if (on) {
             snonuxApplyWildPreset(window._snonuxWildTheme || snonuxDetectThemeName());
             snonuxScheduleWildBursts();
+            body.classList.add('sno-wild-hue');
+            snonuxStartFlyingEmoji();
+            snonuxStartRandomFlips();
         } else {
             clearTimeout(window._snonuxWildBurstTimer);
+            body.classList.remove('sno-wild-hue');
+            snonuxStopFlyingEmoji();
+            snonuxStopRandomFlips();
         }
+    }
+    // === WILD FLYING EMOJI ===
+    function snonuxStartFlyingEmoji() {
+        snonuxStopFlyingEmoji();
+        var zone = document.getElementById('sno-flyzone');
+        if (!zone) {
+            zone = document.createElement('div');
+            zone.id = 'sno-flyzone';
+            zone.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(zone);
+        }
+        function spawn() {
+            if (!window._snoWildActive) return;
+            var preset = SNONUX_WILD_PRESETS[window._snonuxWildTheme] || SNONUX_WILD_PRESETS.neon;
+            var emojis = preset.emoji || ['\u2B50'];
+            var s = document.createElement('span');
+            s.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            var top = (5 + Math.random() * 80).toFixed(1);
+            var dur = (3 + Math.random() * 4).toFixed(2);
+            var dir = Math.random() > 0.5 ? 'sno-fly-lr' : 'sno-fly-rl';
+            var wobble = ((Math.random() - 0.5) * 60).toFixed(0);
+            var rot = (180 + Math.random() * 540).toFixed(0);
+            s.style.setProperty('--ftop', top + '%');
+            s.style.setProperty('--fy', wobble + 'px');
+            s.style.setProperty('--frot', rot + 'deg');
+            s.style.animationName = dir;
+            s.style.animationDuration = dur + 's';
+            zone.appendChild(s);
+            setTimeout(function() { s.remove(); }, parseFloat(dur) * 1000 + 200);
+            window._snoFlyTimer = setTimeout(spawn, 800 + Math.random() * 2200);
+        }
+        spawn();
+    }
+    function snonuxStopFlyingEmoji() {
+        clearTimeout(window._snoFlyTimer);
+        var zone = document.getElementById('sno-flyzone');
+        if (zone) zone.innerHTML = '';
+    }
+    // === WILD RANDOM FLIPS ===
+    function snonuxStartRandomFlips() {
+        snonuxStopRandomFlips();
+        function flip() {
+            if (!window._snoWildActive) return;
+            var allPosts = document.querySelectorAll('.post:not(.post-active)');
+            if (allPosts.length > 0) {
+                var p = allPosts[Math.floor(Math.random() * allPosts.length)];
+                p.classList.add('sno-fx-flip');
+                setTimeout(function() { p.classList.remove('sno-fx-flip'); }, 1500);
+            }
+            window._snoFlipTimer = setTimeout(flip, 2500 + Math.random() * 4000);
+        }
+        window._snoFlipTimer = setTimeout(flip, 1500 + Math.random() * 2000);
+    }
+    function snonuxStopRandomFlips() {
+        clearTimeout(window._snoFlipTimer);
+        var flipped = document.querySelectorAll('.sno-fx-flip');
+        flipped.forEach(function(el) { el.classList.remove('sno-fx-flip'); });
     }
     (function snonuxWildSetup() {
         window._snoWildActive = !!window._snoWildActive;
@@ -1232,9 +1335,21 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
 
     function setActiveHighlight(index, playSound, scrollIntoView) {
         if (posts.length === 0) return;
+        var prevIdx = currentIndex;
         if (currentIndex >= 0) posts[currentIndex].classList.remove('post-active');
         currentIndex = Math.max(0, Math.min(index, posts.length - 1));
         posts[currentIndex].classList.add('post-active');
+        if (prevIdx >= 0 && prevIdx !== currentIndex && posts[prevIdx]) {
+            var ghost = posts[prevIdx].querySelector('.sno-afterimage');
+            if (!ghost) {
+                ghost = document.createElement('div');
+                ghost.className = 'sno-afterimage';
+                posts[prevIdx].appendChild(ghost);
+            }
+            ghost.classList.remove('sno-afterimage-active');
+            void ghost.offsetWidth;
+            ghost.classList.add('sno-afterimage-active');
+        }
         if (scrollIntoView) {
             posts[currentIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
@@ -1364,6 +1479,83 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         if (wild) snonuxPulseFlash(window._snonuxWildFlashColor, 200);
     }
 
+    // === MODAL DRIFT — arrow/hjkl push the modal around with momentum ===
+    var modalDrift = (function() {
+        var x = 0, y = 0, vx = 0, vy = 0;
+        var raf = null;
+        var PUSH = 12;
+        var FRICTION = 0.92;
+        var BOUNCE_DAMP = 0.5;
+        var STOP_THRESHOLD = 0.3;
+
+        function getInner() {
+            return document.querySelector('#post-modal .modal-inner');
+        }
+
+        function clampAndBounce() {
+            var mi = getInner();
+            if (!mi) return;
+            var w = mi.offsetWidth, h = mi.offsetHeight;
+            var maxX = (window.innerWidth - w) / 2;
+            var maxY = (window.innerHeight - h) / 2;
+            if (maxX < 0) maxX = window.innerWidth * 0.3;
+            if (maxY < 0) maxY = window.innerHeight * 0.3;
+            if (x > maxX) { x = maxX; vx = -vx * BOUNCE_DAMP; }
+            if (x < -maxX) { x = -maxX; vx = -vx * BOUNCE_DAMP; }
+            if (y > maxY) { y = maxY; vy = -vy * BOUNCE_DAMP; }
+            if (y < -maxY) { y = -maxY; vy = -vy * BOUNCE_DAMP; }
+        }
+
+        function tick() {
+            vx *= FRICTION;
+            vy *= FRICTION;
+            x += vx;
+            y += vy;
+            clampAndBounce();
+            var mi = getInner();
+            if (mi) mi.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+            if (Math.abs(vx) > STOP_THRESHOLD || Math.abs(vy) > STOP_THRESHOLD) {
+                raf = requestAnimationFrame(tick);
+            } else {
+                raf = null;
+            }
+        }
+
+        function ensureLoop() {
+            if (!raf) raf = requestAnimationFrame(tick);
+        }
+
+        return {
+            keyPush: function(e) {
+                var dx = 0, dy = 0;
+                switch (e.key) {
+                    case 'h': case 'ArrowLeft':  dx = -PUSH; break;
+                    case 'l': case 'ArrowRight': dx = PUSH;  break;
+                    case 'k': case 'ArrowUp':    dy = -PUSH; break;
+                    case 'j': case 'ArrowDown':  dy = PUSH;  break;
+                    default: return;
+                }
+                e.preventDefault();
+                vx += dx;
+                vy += dy;
+                playNavSound();
+                ensureLoop();
+            },
+            reset: function() {
+                x = 0; y = 0; vx = 0; vy = 0;
+                var mi = getInner();
+                if (mi) mi.style.transform = '';
+                if (raf) { cancelAnimationFrame(raf); raf = null; }
+            },
+            stop: function() {
+                if (raf) { cancelAnimationFrame(raf); raf = null; }
+                var mi = getInner();
+                if (mi) mi.style.transform = '';
+                x = 0; y = 0; vx = 0; vy = 0;
+            }
+        };
+    })();
+
     function openPostAt(index, scrollIntoView) {
         if (posts.length === 0) return;
         setActiveHighlight(index, false, !!scrollIntoView);
@@ -1374,6 +1566,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         var modalInner = modal ? modal.querySelector('.modal-inner') : null;
         document.getElementById('modal-content').innerHTML = postText.innerHTML;
         modal.classList.add('active');
+        modalDrift.reset();
         if (window.snonuxOpenEffect) window.snonuxOpenEffect(post);
         modal.scrollTop = 0;
         if (modalInner) {
@@ -1386,6 +1579,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
     }
 
     function closeModal() {
+        modalDrift.stop();
         document.getElementById('post-modal').classList.remove('active');
         playCloseSound();
         if (window.snonuxCloseEffect) window.snonuxCloseEffect();
@@ -1423,6 +1617,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         }
         if (document.getElementById('post-modal').classList.contains('active')) {
             if (e.key === 'Escape') { closeModal(); e.preventDefault(); }
+            else { modalDrift.keyPush(e); }
             return;
         }
         switch (e.key) {
@@ -1539,6 +1734,28 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
             }
             setTimeout(function() { burst.remove(); }, 1200);
         };
+    })();
+
+    // === CURSOR SPARKLE TRAIL ===
+    (function cursorSparkle() {
+        var throttle = 0;
+        document.addEventListener('pointermove', function(e) {
+            var now = Date.now();
+            if (now - throttle < 60) return;
+            throttle = now;
+            var d = document.createElement('div');
+            d.className = 'sno-sparkle';
+            var size = 3 + Math.random() * 4;
+            d.style.width = size + 'px';
+            d.style.height = size + 'px';
+            d.style.left = (e.clientX - size / 2 + (Math.random() - 0.5) * 10) + 'px';
+            d.style.top = (e.clientY - size / 2 + (Math.random() - 0.5) * 10) + 'px';
+            d.style.background = 'currentColor';
+            d.style.opacity = '0.7';
+            d.style.animation = 'sno-sparkle ' + (0.35 + Math.random() * 0.25).toFixed(2) + 's ease-out forwards';
+            document.body.appendChild(d);
+            setTimeout(function() { d.remove(); }, 650);
+        }, { passive: true });
     })();
 </script>
 {{end}}
