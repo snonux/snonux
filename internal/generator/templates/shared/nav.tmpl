@@ -102,6 +102,34 @@
 .sno-fx-bounce-right { animation:sno-bounce-right 0.35s cubic-bezier(.36,.07,.19,.97) both !important; }
 .sno-fx-bounce-left-wild  { animation:sno-bounce-left-wild  0.5s cubic-bezier(.36,.07,.19,.97) both !important; }
 .sno-fx-bounce-right-wild { animation:sno-bounce-right-wild 0.5s cubic-bezier(.36,.07,.19,.97) both !important; }
+/* Vertical boundary bounce (top/bottom post list) */
+@keyframes sno-bounce-up { 0%{transform:translateY(0)} 25%{transform:translateY(-14px)} 50%{transform:translateY(5px)} 75%{transform:translateY(-2px)} 100%{transform:translateY(0)} }
+@keyframes sno-bounce-down { 0%{transform:translateY(0)} 25%{transform:translateY(14px)} 50%{transform:translateY(-5px)} 75%{transform:translateY(2px)} 100%{transform:translateY(0)} }
+@keyframes sno-bounce-up-wild { 0%{transform:translateY(0) rotate(0)} 15%{transform:translateY(-40px) rotate(-2.5deg)} 35%{transform:translateY(18px) rotate(1.5deg)} 55%{transform:translateY(-9px) rotate(-0.8deg)} 75%{transform:translateY(4px) rotate(0.3deg)} 100%{transform:translateY(0) rotate(0)} }
+@keyframes sno-bounce-down-wild { 0%{transform:translateY(0) rotate(0)} 15%{transform:translateY(40px) rotate(2.5deg)} 35%{transform:translateY(-18px) rotate(-1.5deg)} 55%{transform:translateY(9px) rotate(0.8deg)} 75%{transform:translateY(-4px) rotate(-0.3deg)} 100%{transform:translateY(0) rotate(0)} }
+.sno-fx-bounce-up    { animation:sno-bounce-up   0.35s cubic-bezier(.36,.07,.19,.97) both !important; }
+.sno-fx-bounce-down  { animation:sno-bounce-down 0.35s cubic-bezier(.36,.07,.19,.97) both !important; }
+.sno-fx-bounce-up-wild   { animation:sno-bounce-up-wild   0.5s cubic-bezier(.36,.07,.19,.97) both !important; }
+.sno-fx-bounce-down-wild { animation:sno-bounce-down-wild 0.5s cubic-bezier(.36,.07,.19,.97) both !important; }
+/* Post hover ripple — radial ring emanates from center on hover */
+@keyframes sno-hover-ripple { 0%{transform:translate(-50%,-50%) scale(0);opacity:0.5} 100%{transform:translate(-50%,-50%) scale(1);opacity:0} }
+.post:not(.post-active)::before { content:''; position:absolute; top:50%; left:50%; width:120%; height:120%;
+  border-radius:50%; border:2px solid currentColor; pointer-events:none;
+  transform:translate(-50%,-50%) scale(0); opacity:0; z-index:0; }
+.post:not(.post-active):hover::before { animation:sno-hover-ripple 0.6s ease-out forwards; }
+/* Modal scroll-end flash — brief glow at bottom of modal-inner when scrolled to end */
+@keyframes sno-scroll-end-flash { 0%{opacity:0.7} 100%{opacity:0} }
+.modal-inner .sno-scroll-end { position:sticky; bottom:0; left:0; right:0; height:3px; pointer-events:none;
+  background:linear-gradient(90deg, transparent, currentColor, transparent); opacity:0; }
+.modal-inner .sno-scroll-end.sno-scroll-end-active { animation:sno-scroll-end-flash 0.5s ease-out forwards; }
+/* Idle breathing — gentle glow pulse on active post after inactivity */
+@keyframes sno-idle-breathe { 0%,100%{box-shadow:inherit} 50%{box-shadow:0 0 18px 4px currentColor} }
+.post-active.sno-idle-breathe { animation:sno-idle-breathe 3s ease-in-out infinite; }
+/* First-visit particle burst */
+@keyframes sno-particle-fly { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--px),var(--py)) scale(0);opacity:0} }
+#sno-burst { position:fixed; inset:0; z-index:9999; pointer-events:none; }
+#sno-burst span { position:absolute; width:6px; height:6px; border-radius:50%; background:currentColor;
+  animation:sno-particle-fly var(--pdur) ease-out forwards; animation-delay:var(--pdel); opacity:0; }
 @keyframes sno-wild-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
 /* Storm overlay that flickers like distant lightning while wild mode is on */
 @keyframes sno-wild-flicker { 0%,84%,87%,91%,94%,100%{opacity:0} 85%,90%{opacity:0.75} 86%,92%{opacity:0.35} }
@@ -843,6 +871,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
     <div class="modal-inner">
         <button class="modal-close" onclick="closeModal()">[ ESC ] CLOSE</button>
         <div id="modal-content"></div>
+        <div class="sno-scroll-end" id="sno-scroll-end" aria-hidden="true"></div>
     </div>
 </div>
 {{end}}
@@ -1314,14 +1343,19 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         } catch (_) {}
     }
 
+    var _snoBounceCls = ['sno-fx-bounce-left','sno-fx-bounce-right','sno-fx-bounce-left-wild','sno-fx-bounce-right-wild',
+        'sno-fx-bounce-up','sno-fx-bounce-down','sno-fx-bounce-up-wild','sno-fx-bounce-down-wild'];
+
     function bounceEffect(dir) {
         var ov = document.querySelector('.overlay');
         if (!ov) return;
         var wild = !!window._snoWildActive;
-        var cls = dir === 'left'
-            ? (wild ? 'sno-fx-bounce-left-wild' : 'sno-fx-bounce-left')
-            : (wild ? 'sno-fx-bounce-right-wild' : 'sno-fx-bounce-right');
-        ov.classList.remove('sno-fx-bounce-left', 'sno-fx-bounce-right', 'sno-fx-bounce-left-wild', 'sno-fx-bounce-right-wild');
+        var map = { left: wild ? 'sno-fx-bounce-left-wild' : 'sno-fx-bounce-left',
+                    right: wild ? 'sno-fx-bounce-right-wild' : 'sno-fx-bounce-right',
+                    up: wild ? 'sno-fx-bounce-up-wild' : 'sno-fx-bounce-up',
+                    down: wild ? 'sno-fx-bounce-down-wild' : 'sno-fx-bounce-down' };
+        var cls = map[dir] || map.down;
+        _snoBounceCls.forEach(function(c) { ov.classList.remove(c); });
         void ov.offsetWidth;
         ov.classList.add(cls);
         var dur = wild ? 540 : 380;
@@ -1408,8 +1442,14 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
                 e.preventDefault();
                 break;
             }
-            case 'j': case 'ArrowDown':  selectPost(currentIndex + 1); e.preventDefault(); break;
-            case 'k': case 'ArrowUp':    selectPost(currentIndex - 1); e.preventDefault(); break;
+            case 'j': case 'ArrowDown':
+                if (currentIndex >= posts.length - 1) { bounceEffect('down'); }
+                else { selectPost(currentIndex + 1); }
+                e.preventDefault(); break;
+            case 'k': case 'ArrowUp':
+                if (currentIndex <= 0) { bounceEffect('up'); }
+                else { selectPost(currentIndex - 1); }
+                e.preventDefault(); break;
             case 'h': case 'ArrowLeft':
                 if (prevPageURL) { playNavSound(); if (window.snonuxPageEffect) window.snonuxPageEffect(); window.location.href = prevPageURL; }
                 else { bounceEffect('left'); }
@@ -1427,5 +1467,78 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
                 e.preventDefault(); break;
         }
     });
+
+    // === MODAL SCROLL-END INDICATOR ===
+    (function modalScrollEnd() {
+        var mi = document.querySelector('#post-modal .modal-inner');
+        if (!mi) return;
+        mi.addEventListener('scroll', function() {
+            var atEnd = mi.scrollHeight - mi.scrollTop - mi.clientHeight < 4;
+            var el = document.getElementById('sno-scroll-end');
+            if (!el) return;
+            if (atEnd) {
+                el.classList.remove('sno-scroll-end-active');
+                void el.offsetWidth;
+                el.classList.add('sno-scroll-end-active');
+            }
+        }, { passive: true });
+    })();
+
+    // === IDLE BREATHING ===
+    (function idleBreathe() {
+        var timer = null;
+        var IDLE_DELAY = 10000;
+        function startBreathe() {
+            stopBreathe();
+            timer = setTimeout(function() {
+                if (currentIndex >= 0 && posts[currentIndex]) {
+                    posts[currentIndex].classList.add('sno-idle-breathe');
+                }
+            }, IDLE_DELAY);
+        }
+        function stopBreathe() {
+            clearTimeout(timer);
+            for (var i = 0; i < posts.length; i++) {
+                posts[i].classList.remove('sno-idle-breathe');
+            }
+        }
+        function resetIdle() { stopBreathe(); startBreathe(); }
+        document.addEventListener('keydown', resetIdle);
+        document.addEventListener('pointermove', resetIdle, { passive: true });
+        document.addEventListener('pointerdown', resetIdle, { passive: true });
+        startBreathe();
+    })();
+
+    // === FIRST-VISIT PARTICLE BURST ===
+    (function firstVisitBurst() {
+        var key = 'sno-visited';
+        try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (_) { return; }
+        if (document.documentElement.classList.contains('sno-splash-skip')) return;
+        var origDismiss = window._snonuxDismissSplash;
+        if (!origDismiss) return;
+        window._snonuxDismissSplash = function() {
+            origDismiss();
+            var burst = document.createElement('div');
+            burst.id = 'sno-burst';
+            burst.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(burst);
+            var cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+            for (var i = 0; i < 36; i++) {
+                var s = document.createElement('span');
+                var angle = (i / 36) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+                var dist = 80 + Math.random() * 180;
+                s.style.left = cx + 'px';
+                s.style.top = cy + 'px';
+                s.style.setProperty('--px', (Math.cos(angle) * dist).toFixed(1) + 'px');
+                s.style.setProperty('--py', (Math.sin(angle) * dist).toFixed(1) + 'px');
+                s.style.setProperty('--pdur', (0.4 + Math.random() * 0.5).toFixed(2) + 's');
+                s.style.setProperty('--pdel', (Math.random() * 0.12).toFixed(2) + 's');
+                s.style.width = (4 + Math.random() * 5) + 'px';
+                s.style.height = s.style.width;
+                burst.appendChild(s);
+            }
+            setTimeout(function() { burst.remove(); }, 1200);
+        };
+    })();
 </script>
 {{end}}
