@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>snonux.foo // BIOMECH</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <style>
+        :root { --bone:#d0c7bb; --flesh:#803f5d; --vein:#f55b7d; --acid:#93ffd8; --steel:#2d3642; --bg:#09070d; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Oxanium',system-ui,sans-serif; background:var(--bg); color:var(--bone); overflow:hidden; height:100vh; }
+        #three-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:1; }
+        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        header { padding:16px 26px; background:rgba(9,7,13,0.84); backdrop-filter:blur(10px); border-bottom:1px solid rgba(147,255,216,0.16); display:flex; align-items:center; justify-content:space-between; }
+        .logo { display:flex; align-items:center; gap:14px; }
+        .logo-mark { font-size:1.8rem; color:var(--acid); text-shadow:0 0 18px rgba(147,255,216,0.24); }
+        .logo-title h1 { font-size:1.42rem; color:var(--bone); letter-spacing:0.08em; }
+        .logo-title .subtitle { font-size:0.74rem; color:rgba(208,199,187,0.56); margin-top:2px; }
+        .logo-title .subtitle a { color:var(--acid); text-decoration:none; }
+        .logo-title .subtitle a:hover { color:#dffff6; }
+        .transmit-btn { border:1px solid rgba(147,255,216,0.22); color:var(--acid); padding:8px 16px; text-decoration:none; font-size:0.78rem; letter-spacing:0.2em; text-transform:uppercase; transition:all 0.18s; }
+        .transmit-btn:hover { background:rgba(147,255,216,0.1); }
+        a.header-feed-link { color:rgba(208,199,187,0.68); }
+        a.header-feed-link:hover { color:var(--acid); }
+        .nav-hints { background:rgba(12,10,18,0.74); border-bottom:1px solid rgba(147,255,216,0.08); color:rgba(208,199,187,0.44); padding:5px 26px; display:flex; gap:18px; font-size:0.66rem; letter-spacing:0.08em; flex-wrap:wrap; }
+        .nav-hints kbd { background:rgba(128,63,93,0.14); border:1px solid rgba(147,255,216,0.18); color:var(--acid); padding:0 5px; margin:0 2px; }
+        .content { flex:1; overflow-y:auto; padding:20px 26px; scrollbar-width:thin; scrollbar-color:#6d4a69 #120d16; }
+        .page-nav { display:flex; justify-content:center; margin:14px 0; }
+        .page-nav a { border:1px solid rgba(147,255,216,0.18); color:var(--acid); padding:8px 18px; text-decoration:none; font-size:0.78rem; letter-spacing:0.2em; text-transform:uppercase; }
+        .page-nav a:hover { background:rgba(147,255,216,0.08); }
+        .page-nav-footer { flex-shrink:0; padding:8px 26px; display:flex; justify-content:center; background:rgba(9,7,13,0.84); backdrop-filter:blur(10px); border-top:1px solid rgba(147,255,216,0.16); }
+        .post { background:linear-gradient(180deg, rgba(33,20,31,0.9), rgba(12,9,18,0.92)); border:1px solid rgba(147,255,216,0.08); padding:18px; margin-bottom:13px; cursor:pointer; box-shadow:0 16px 38px rgba(0,0,0,0.28); transition:border-color 0.18s, box-shadow 0.18s, transform 0.18s; }
+        .post:hover { border-color:rgba(147,255,216,0.22); transform:translateY(-1px); }
+        .post-active { border-color:rgba(245,91,125,0.28) !important; background:linear-gradient(180deg, rgba(46,18,34,0.94), rgba(13,9,17,0.95)) !important;
+                       box-shadow:0 0 0 1px rgba(147,255,216,0.08), 0 18px 42px rgba(0,0,0,0.42), inset 4px 0 0 var(--vein) !important; }
+        .post-header { display:flex; justify-content:space-between; margin-bottom:10px; font-size:0.84rem; }
+        .post-header strong { color:var(--acid); }
+        .post-time { color:rgba(208,199,187,0.58); font-family:'IBM Plex Mono',monospace; }
+        .post-text { line-height:1.7; font-size:0.92rem; }
+        .post-text a { color:var(--acid); text-decoration:none; border-bottom:1px solid rgba(147,255,216,0.18); }
+        .post-image { margin-top:10px; border:1px solid rgba(147,255,216,0.1); filter:saturate(0.9) hue-rotate(-14deg) contrast(1.06); }
+        .post-audio { width:100%; margin-top:10px; filter:hue-rotate(-14deg); }
+        .post-modal { display:none; position:fixed; inset:0; z-index:100; overflow-y:auto; padding:40px 20px; }
+        .post-modal.active { display:block; }
+        .modal-inner { max-width:760px; margin:0 auto; background:rgba(11,9,16,0.98); border:1px solid rgba(147,255,216,0.18); padding:34px; box-shadow:0 22px 76px rgba(0,0,0,0.72); }
+        .modal-close { float:right; background:none; border:none; color:var(--acid); font-family:'IBM Plex Mono',monospace; font-size:0.78rem; cursor:pointer; letter-spacing:0.18em; }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 16px;} .content{padding:14px 16px;} .modal-inner{padding:24px 16px;} }
+        .splash-overlay.splash-biomech {
+            background:
+                radial-gradient(circle at 50% 22%, rgba(245,91,125,0.14) 0%, transparent 28%),
+                radial-gradient(circle at 50% 80%, rgba(147,255,216,0.08) 0%, transparent 42%),
+                linear-gradient(180deg, #100b14 0%, #050407 100%);
+        }
+        .splash-biomech .splash-pod { position:absolute; left:50%; top:10vh; width:min(34vw,220px); height:min(46vw,290px); transform:translateX(-50%); border-radius:48% 48% 42% 42% / 54% 54% 38% 38%;
+            background:radial-gradient(circle at 50% 35%, rgba(147,255,216,0.18) 0%, rgba(147,255,216,0.06) 28%, rgba(128,63,93,0.38) 62%, rgba(12,9,18,0.8) 100%);
+            box-shadow:0 0 42px rgba(245,91,125,0.14); opacity:0.72; z-index:1; }
+        .splash-biomech .splash-title { font-size:clamp(1.55rem,5vw,2.1rem); color:var(--bone); letter-spacing:0.12em; }
+        .splash-biomech .splash-tag { color:var(--acid); letter-spacing:0.22em; }
+        .splash-biomech .splash-hint { color:rgba(208,199,187,0.78); }
+        .splash-biomech .splash-inner { text-shadow:0 2px 22px rgba(0,0,0,0.95); }
+{{template "navSharedCSSInner"}}
+    </style>
+</head>
+<body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-biomech" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-pod" aria-hidden="true"></div>
+        <div class="splash-inner">
+            <div class="splash-title">snonux.foo</div>
+            <div class="splash-tag">Containment Membrane</div>
+            <div class="splash-hint">Click or Enter to breach the shell</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,clock,core;
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(48,1,0.1,60);ca.position.z=9;clock=new THREE.Clock();
+        core=new THREE.Mesh(new THREE.SphereGeometry(1.2,24,24),new THREE.MeshBasicMaterial({color:0xf55b7d,transparent:true,opacity:0.76})); sc.add(core);
+        var shell=new THREE.Mesh(new THREE.TorusKnotGeometry(2.4,0.36,80,14),new THREE.MeshBasicMaterial({color:0x93ffd8,wireframe:true,transparent:true,opacity:0.42})); sc.add(shell); shell.userData.rot=0.006;
+        sz();window.addEventListener('resize',sz);
+        function loop(){ raf=requestAnimationFrame(loop); var t=clock.getElapsedTime(); shell.rotation.x=t*0.2; shell.rotation.y=t*0.3; core.scale.setScalar(1+Math.sin(t*3.2)*0.08); ren.render(sc,ca); }
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
+    <canvas id="three-canvas"></canvas>
+    <div class="overlay">
+        <header>
+            <div class="logo">
+                <span class="logo-mark">SN</span>
+                <div class="logo-title">
+                    <h1>snonux.foo</h1>
+                    <p class="subtitle">microblog &mdash; <a href="https://foo.zone">foo.zone</a> is the real blog</p>
+                    <p class="logo-host">Served by NetBSD on a Raspberry Pi 3</p>
+                </div>
+            </div>
+            <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
+                <a href="https://foo.zone/about" class="transmit-btn">Anatomy</a>
+            </div>
+        </header>
+        {{template "navhints" .}}
+        <div class="content" id="post-content">
+            {{range $i, $post := .Posts}}
+            <div class="post" id="post-{{$post.ID}}" data-index="{{$i}}">
+                <div class="post-header">
+                    <div><strong>@snonux</strong></div>
+                    <div class="post-time">{{$post.FormattedTime}}</div>
+                </div>
+                <div class="post-text">{{$post.ContentHTML}}</div>
+            </div>
+            {{end}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; Newer</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">Older &rarr;</a>{{end}}
+            </div>
+        </footer>
+        {{end}}
+    </div>
+    {{template "navmodal" .}}
+    <script>
+    (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
+        var scene, camera, renderer, clock, core, shellA, shellB, orbiters = [];
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x09070d);
+            scene.fog = new THREE.Fog(0x09070d, 18, 120);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 220);
+            camera.position.set(0, 6, 26);
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            clock = new THREE.Clock();
+            scene.add(new THREE.AmbientLight(0x553a47, 0.45));
+            var coreLight = new THREE.PointLight(0xf55b7d, 1.6, 80); coreLight.position.set(0,0,0); scene.add(coreLight);
+
+            core = new THREE.Mesh(new THREE.SphereGeometry(4.2, 36, 36), new THREE.MeshPhongMaterial({ color:0x803f5d, emissive:0xf55b7d, emissiveIntensity:0.52, shininess:90 }));
+            shellA = new THREE.Mesh(new THREE.TorusKnotGeometry(7.4, 0.45, 180, 24, 2, 5), new THREE.MeshBasicMaterial({ color:0x93ffd8, wireframe:true, transparent:true, opacity:0.34 }));
+            shellB = new THREE.Mesh(new THREE.TorusKnotGeometry(5.9, 0.28, 160, 16, 3, 7), new THREE.MeshBasicMaterial({ color:0xd0c7bb, wireframe:true, transparent:true, opacity:0.18 }));
+            scene.add(core); scene.add(shellA); scene.add(shellB);
+            for (var i = 0; i < 9; i++) {
+                var orb = new THREE.Mesh(new THREE.SphereGeometry(0.55 + Math.random() * 0.45, 14, 14), new THREE.MeshPhongMaterial({ color: i % 2 === 0 ? 0x93ffd8 : 0xf55b7d, emissive: i % 2 === 0 ? 0x24473b : 0x5b1f32, emissiveIntensity:0.45 }));
+                orb.userData.radius = 11 + Math.random() * 8;
+                orb.userData.speed = 0.2 + Math.random() * 0.5;
+                orb.userData.phase = Math.random() * Math.PI * 2;
+                orbiters.push(orb); scene.add(orb);
+            }
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 11 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
+            core.scale.setScalar(1 + Math.sin(t * (_wild ? 6 : 1.8)) * (_wild ? 0.22 : 0.08));
+            shellA.rotation.x = t * (_wild ? 0.9 : 0.25); shellA.rotation.y = t * (_wild ? 1.2 : 0.32);
+            shellB.rotation.y = -t * (_wild ? 1.1 : 0.22); shellB.rotation.z = t * (_wild ? 0.8 : 0.18);
+            shellA.material.opacity = _wild ? 0.54 : 0.34;
+            for (var i = 0; i < orbiters.length; i++) {
+                var o = orbiters[i], a = t * o.userData.speed + o.userData.phase;
+                o.position.set(Math.cos(a) * o.userData.radius, Math.sin(a * 1.4) * 4, Math.sin(a) * o.userData.radius * 0.7);
+            }
+            camera.position.x = Math.sin(realT * (_wild ? 1.8 : 0.35)) * (_wild ? 3.2 : 1.1);
+            camera.position.y = 6 + Math.sin(realT * (_wild ? 1.2 : 0.28)) * (_wild ? 1.8 : 0.4);
+            camera.lookAt(0, 0, 0);
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+
+        function flash(css, ms) {
+            var d=document.createElement('div');
+            d.style.cssText='position:fixed;inset:0;z-index:998;pointer-events:none;'+css+';transition:opacity '+(ms||220)+'ms';
+            document.body.appendChild(d);
+            setTimeout(function(){d.style.opacity='0';setTimeout(function(){d.remove();},ms||220);},25);
+        }
+        window.snonuxOpenEffect = function() {
+            var modal=document.getElementById('post-modal');
+            if(modal){modal.classList.add('sno-modal-expand');setTimeout(function(){modal.classList.remove('sno-modal-expand');},400);}
+            flash('background:radial-gradient(circle at center,rgba(245,91,125,0.16),transparent 70%)',240);
+        };
+        window.snonuxCloseEffect = function(){ flash('background:rgba(0,0,0,0.3)',160); };
+        window.snonuxNavEffect = function(){ flash('background:linear-gradient(90deg,transparent,rgba(147,255,216,0.1),transparent)',160); };
+        window.snonuxPageEffect = function(){ flash('background:radial-gradient(circle at center,rgba(147,255,216,0.12),transparent 72%)',220); };
+        window.snonuxScrollEffect = function(dir){
+            var d=document.createElement('div');
+            d.style.cssText='position:fixed;'+(dir==='down'?'top:0;':'bottom:0;')+'left:0;right:0;height:'+(_wild?'16px':'6px')+';z-index:9000;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(245,91,125,0.8),rgba(147,255,216,0.7),transparent);transition:transform 0.32s ease,opacity 0.32s ease;';
+            document.body.appendChild(d);
+            setTimeout(function(){d.style.transform=dir==='down'?'translateY(100vh)':'translateY(-100vh)';d.style.opacity='0';},16);
+            setTimeout(function(){d.remove();},380);
+        };
+        window.snonuxWildToggle = function(){ _wild=!_wild; var b=document.getElementById('sno-wild-badge'); if(b)b.classList.toggle('sno-wild-on',_wild); };
+    })();
+    </script>
+    {{template "navscript" .}}
+</body>
+</html>

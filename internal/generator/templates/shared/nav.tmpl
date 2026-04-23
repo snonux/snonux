@@ -868,7 +868,13 @@ a.header-feed-link:hover { opacity:1; text-decoration:underline; }
 #splash-overlay .splash-inner { position:relative; z-index:2; max-width:min(520px,92vw);
   padding: clamp(1.15rem, 3.2vw, 1.75rem) clamp(1.3rem, 3.8vw, 1.95rem); border-radius:14px;
   background: rgba(0, 0, 0, 0.58); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  will-change:transform; }
+.splash-controls { margin-top:0.55rem; font-size:0.58rem; letter-spacing:0.14em;
+  text-transform:uppercase; opacity:0.55; line-height:1.6; }
+.splash-controls kbd { display:inline-block; background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.2); border-radius:3px; padding:0 4px;
+  font-family:monospace; font-size:0.62rem; margin:0 1px; }
 #splash-overlay.splash-brutalist .splash-inner.splash-frame {
   padding: clamp(1.4rem, 4.5vw, 2.25rem) clamp(1.1rem, 3.5vw, 1.9rem); background: rgba(0, 0, 0, 0.78); }
 html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidden !important; pointer-events:none !important; }
@@ -1288,11 +1294,13 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
             } catch (_) {}
         }
         function dismiss() {
+            if (typeof splashDrift !== 'undefined') splashDrift.stop();
             if (el.classList.contains('splash--dismissed')) return;
             el.classList.add('splash--dismissed');
             el.setAttribute('aria-hidden', 'true');
         }
         function show() {
+            if (typeof splashDrift !== 'undefined') splashDrift.reset();
             document.documentElement.classList.remove('sno-splash-skip');
             el.classList.remove('splash--dismissed');
             el.removeAttribute('aria-hidden');
@@ -1301,6 +1309,7 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         function openSplashFromHeader(e) {
             if (e.target.closest('a')) return;
             e.preventDefault();
+            if (typeof modalDrift !== 'undefined') modalDrift.stop();
             var modal = document.getElementById('post-modal');
             if (modal) modal.classList.remove('active');
             show();
@@ -1479,31 +1488,28 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
         if (wild) snonuxPulseFlash(window._snonuxWildFlashColor, 200);
     }
 
-    // === MODAL DRIFT — arrow/hjkl push the modal around with momentum ===
-    var modalDrift = (function() {
-        var x = 0, y = 0, vx = 0, vy = 0;
-        var raf = null;
-        var PUSH = 12;
-        var FRICTION = 0.92;
-        var BOUNCE_DAMP = 0.5;
-        var STOP_THRESHOLD = 0.3;
-
-        function getInner() {
-            return document.querySelector('#post-modal .modal-inner');
-        }
+    // === DRIFT PHYSICS — reusable controller for floating panels ===
+    function makeDriftController(getEl, opts) {
+        var x = 0, y = 0, vx = 0, vy = 0, raf = null;
+        var PUSH = opts.push || 12;
+        var FRICTION = opts.friction || 0.92;
+        var BOUNCE_DAMP = opts.bounceDamp || 0.5;
+        var STOP_THRESHOLD = opts.stopThreshold || 0.3;
 
         function clampAndBounce() {
-            var mi = getInner();
-            if (!mi) return;
-            var w = mi.offsetWidth, h = mi.offsetHeight;
+            var el = getEl();
+            if (!el) return;
+            var w = el.offsetWidth, h = el.offsetHeight;
             var maxX = (window.innerWidth - w) / 2;
             var maxY = (window.innerHeight - h) / 2;
             if (maxX < 0) maxX = window.innerWidth * 0.3;
             if (maxY < 0) maxY = window.innerHeight * 0.3;
-            if (x > maxX) { x = maxX; vx = -vx * BOUNCE_DAMP; }
-            if (x < -maxX) { x = -maxX; vx = -vx * BOUNCE_DAMP; }
-            if (y > maxY) { y = maxY; vy = -vy * BOUNCE_DAMP; }
-            if (y < -maxY) { y = -maxY; vy = -vy * BOUNCE_DAMP; }
+            var hit = false;
+            if (x > maxX) { x = maxX; vx = -vx * BOUNCE_DAMP; hit = true; }
+            if (x < -maxX) { x = -maxX; vx = -vx * BOUNCE_DAMP; hit = true; }
+            if (y > maxY) { y = maxY; vy = -vy * BOUNCE_DAMP; hit = true; }
+            if (y < -maxY) { y = -maxY; vy = -vy * BOUNCE_DAMP; hit = true; }
+            if (hit && opts.onBounce) opts.onBounce(el, x, y, vx, vy);
         }
 
         function tick() {
@@ -1512,8 +1518,11 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
             x += vx;
             y += vy;
             clampAndBounce();
-            var mi = getInner();
-            if (mi) mi.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+            var el = getEl();
+            if (el) {
+                if (opts.applyTransform) opts.applyTransform(el, x, y, vx, vy);
+                else el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+            }
             if (Math.abs(vx) > STOP_THRESHOLD || Math.abs(vy) > STOP_THRESHOLD) {
                 raf = requestAnimationFrame(tick);
             } else {
@@ -1533,27 +1542,63 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
                     case 'l': case 'ArrowRight': dx = PUSH;  break;
                     case 'k': case 'ArrowUp':    dy = -PUSH; break;
                     case 'j': case 'ArrowDown':  dy = PUSH;  break;
-                    default: return;
+                    default: return false;
                 }
                 e.preventDefault();
                 vx += dx;
                 vy += dy;
-                playNavSound();
                 ensureLoop();
+                return true;
             },
+            kick: function(dx, dy) { vx += (dx || 0); vy += (dy || 0); ensureLoop(); },
             reset: function() {
                 x = 0; y = 0; vx = 0; vy = 0;
-                var mi = getInner();
-                if (mi) mi.style.transform = '';
+                var el = getEl();
+                if (el) el.style.transform = '';
                 if (raf) { cancelAnimationFrame(raf); raf = null; }
             },
             stop: function() {
                 if (raf) { cancelAnimationFrame(raf); raf = null; }
-                var mi = getInner();
-                if (mi) mi.style.transform = '';
+                var el = getEl();
+                if (el) el.style.transform = '';
                 x = 0; y = 0; vx = 0; vy = 0;
             }
         };
+    }
+
+    // === MODAL DRIFT — arrow/hjkl push the modal around with momentum ===
+    var modalDrift = makeDriftController(
+        function() { return document.querySelector('#post-modal .modal-inner'); },
+        { push: 12, friction: 0.92, bounceDamp: 0.5, stopThreshold: 0.3 }
+    );
+
+    // === SPLASH DRIFT — same physics on the splash panel with velocity tilt ===
+    var splashDrift = makeDriftController(
+        function() { return document.querySelector('#splash-overlay .splash-inner'); },
+        {
+            push: 14,
+            friction: 0.93,
+            bounceDamp: 0.45,
+            stopThreshold: 0.25,
+            applyTransform: function(el, x, y, vx) {
+                var rot = Math.max(-5, Math.min(5, vx * 0.15));
+                el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) rotate(' + rot.toFixed(2) + 'deg)';
+            },
+            onBounce: function() {
+                playBounceSound();
+                if (window._snoWildActive) snonuxPulseFlash(window._snonuxWildFlashColor, 180);
+            }
+        }
+    );
+
+    // Inject keyboard controls hint into splash overlay (all themes)
+    (function enhanceSplashHint() {
+        var hint = document.querySelector('#splash-overlay .splash-hint');
+        if (!hint || document.querySelector('#splash-overlay .splash-controls')) return;
+        var extra = document.createElement('div');
+        extra.className = 'splash-controls';
+        extra.innerHTML = '<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> drift \u2022 <kbd>w</kbd> wild \u2022 <kbd>Enter</kbd> open';
+        hint.appendChild(extra);
     })();
 
     function openPostAt(index, scrollIntoView) {
@@ -1612,12 +1657,21 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
             if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
                 e.preventDefault();
                 if (window._snonuxDismissSplash) window._snonuxDismissSplash();
+            } else if (e.key === 'w' && !e.repeat) {
+                e.preventDefault();
+                window._snoWildActive = !window._snoWildActive;
+                if (window.snonuxWildToggle) window.snonuxWildToggle();
+                snonuxSetWildState(window._snoWildActive);
+                snonuxWildFlash(window._snoWildActive);
+                splashDrift.kick((Math.random() - 0.5) * 24, -10 - Math.random() * 10);
+            } else if (splashDrift.keyPush(e)) {
+                playNavSound();
             }
             return;
         }
         if (document.getElementById('post-modal').classList.contains('active')) {
             if (e.key === 'Escape') { closeModal(); e.preventDefault(); }
-            else { modalDrift.keyPush(e); }
+            else if (modalDrift.keyPush(e)) { playNavSound(); }
             return;
         }
         switch (e.key) {

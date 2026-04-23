@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>snonux.foo // SURVEILLANCE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <style>
+        :root { --phosphor:#bcffd4; --green:#63f3a8; --grey:#88a197; --alert:#ff4d5c; --bg:#09100d; --panel:#101916; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Share Tech Mono','Courier New',monospace; background:var(--bg); color:var(--phosphor); overflow:hidden; height:100vh; }
+        body::before { content:''; position:fixed; inset:0; z-index:999; pointer-events:none; background:repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(188,255,212,0.035) 2px, rgba(188,255,212,0.035) 3px); opacity:0.72; }
+        #three-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:1; }
+        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        header { padding:14px 24px; background:rgba(9,16,13,0.84); backdrop-filter:blur(8px); border-bottom:1px solid rgba(99,243,168,0.18); display:flex; align-items:center; justify-content:space-between; }
+        .logo { display:flex; align-items:center; gap:14px; }
+        .logo-mark { font-size:1.55rem; color:var(--green); }
+        .logo-title h1 { font-size:1.15rem; color:var(--green); letter-spacing:0.24em; }
+        .logo-title .subtitle { font-size:0.72rem; color:rgba(188,255,212,0.5); margin-top:2px; }
+        .logo-title .subtitle a { color:var(--grey); text-decoration:none; }
+        .logo-title .subtitle a:hover { color:var(--green); }
+        .transmit-btn { border:1px solid rgba(99,243,168,0.22); color:var(--green); padding:8px 14px; text-decoration:none; font-size:0.76rem; letter-spacing:0.24em; text-transform:uppercase; transition:all 0.18s; }
+        .transmit-btn:hover { background:rgba(99,243,168,0.12); }
+        a.header-feed-link { color:var(--grey); }
+        a.header-feed-link:hover { color:var(--green); }
+        .nav-hints { background:rgba(10,18,14,0.74); border-bottom:1px solid rgba(99,243,168,0.08); color:rgba(188,255,212,0.42); padding:5px 24px; display:flex; gap:18px; font-size:0.66rem; flex-wrap:wrap; }
+        .nav-hints kbd { background:#0c1511; border:1px solid rgba(99,243,168,0.2); color:var(--green); padding:0 5px; margin:0 2px; }
+        .content { flex:1; overflow-y:auto; padding:18px 24px; scrollbar-width:thin; scrollbar-color:#4b8d68 #0d1512; }
+        .page-nav { display:flex; justify-content:center; margin:12px 0; }
+        .page-nav a { border:1px solid rgba(99,243,168,0.2); color:var(--green); padding:7px 16px; text-decoration:none; font-size:0.76rem; letter-spacing:0.22em; text-transform:uppercase; }
+        .page-nav a:hover { background:rgba(99,243,168,0.08); }
+        .page-nav-footer { flex-shrink:0; padding:8px 24px; display:flex; justify-content:center; background:rgba(9,16,13,0.84); backdrop-filter:blur(8px); border-top:1px solid rgba(99,243,168,0.18); }
+        .post { background:linear-gradient(180deg, rgba(16,25,22,0.92), rgba(9,15,12,0.92)); border:1px solid rgba(99,243,168,0.08); padding:18px; margin-bottom:12px; cursor:pointer; position:relative; transition:border-color 0.18s, box-shadow 0.18s; }
+        .post::after { content:''; position:absolute; inset:8px; border:1px solid rgba(99,243,168,0.06); pointer-events:none; }
+        .post:hover { border-color:rgba(99,243,168,0.22); box-shadow:0 0 18px rgba(99,243,168,0.1); }
+        .post-active { border-color:rgba(99,243,168,0.34) !important; background:linear-gradient(180deg, rgba(10,25,18,0.96), rgba(7,14,10,0.95)) !important;
+                       box-shadow:0 0 0 1px rgba(99,243,168,0.1), 0 16px 34px rgba(0,0,0,0.32), inset 4px 0 0 var(--green) !important; }
+        .post-header { display:flex; justify-content:space-between; margin-bottom:10px; font-size:0.8rem; }
+        .post-header strong, .post-time { color:var(--green); }
+        .post-text { line-height:1.68; font-size:0.9rem; color:var(--phosphor); }
+        .post-text a { color:var(--green); text-decoration:none; border-bottom:1px solid rgba(99,243,168,0.18); }
+        .post-image { margin-top:10px; border:1px solid rgba(99,243,168,0.1); filter:saturate(0.6) contrast(1.12) hue-rotate(-16deg); }
+        .post-audio { width:100%; margin-top:10px; filter:grayscale(0.7); }
+        .post-modal { display:none; position:fixed; inset:0; z-index:100; overflow-y:auto; padding:40px 20px; }
+        .post-modal.active { display:block; }
+        .modal-inner { max-width:760px; margin:0 auto; background:rgba(8,14,11,0.98); border:1px solid rgba(99,243,168,0.2); padding:34px; box-shadow:0 20px 72px rgba(0,0,0,0.72); }
+        .modal-close { float:right; background:none; border:none; color:var(--green); font-family:'Share Tech Mono',monospace; font-size:0.76rem; cursor:pointer; letter-spacing:0.2em; }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 16px;} .content{padding:14px 16px;} .modal-inner{padding:24px 16px;} }
+        .splash-overlay.splash-surveillance {
+            background:
+                radial-gradient(circle at 50% 22%, rgba(99,243,168,0.12) 0%, transparent 34%),
+                linear-gradient(180deg, #09100d 0%, #050907 100%);
+        }
+        .splash-surveillance .splash-grid { position:absolute; inset:0; background:linear-gradient(rgba(99,243,168,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(99,243,168,0.06) 1px, transparent 1px); background-size:40px 40px; opacity:0.28; }
+        .splash-surveillance .splash-title { font-size:clamp(1.45rem,4.8vw,2rem); color:var(--green); letter-spacing:0.28em; }
+        .splash-surveillance .splash-tag { color:var(--grey); letter-spacing:0.22em; }
+        .splash-surveillance .splash-hint { color:rgba(188,255,212,0.76); }
+        .splash-surveillance .splash-inner { text-shadow:0 0 18px rgba(99,243,168,0.28); }
+{{template "navSharedCSSInner"}}
+    </style>
+</head>
+<body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay splash-surveillance" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">
+        <canvas class="splash-gl-canvas" id="splash-gl-canvas" aria-hidden="true"></canvas>
+        <div class="splash-grid" aria-hidden="true"></div>
+        <div class="splash-inner">
+            <div class="splash-title">snonux.foo</div>
+            <div class="splash-tag">Camera Mesh Online</div>
+            <div class="splash-hint">Click or Enter to access the feed</div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        if(document.documentElement.classList.contains('sno-splash-skip'))return;
+        var cv=document.getElementById('splash-gl-canvas');
+        if(!cv||typeof THREE==='undefined')return;
+        var raf,ren,sc,ca,clock,rings=[];
+        function cleanup(){window.removeEventListener('resize',sz);if(raf)cancelAnimationFrame(raf);raf=null;if(ren)ren.dispose();ren=null;window._snonuxSplashWebGLCleanup=null;}
+        window._snonuxSplashWebGLCleanup=cleanup;
+        function sz(){var w=cv.clientWidth||2,h=cv.clientHeight||2;if(ren)ren.setSize(w,h,false);if(ca){ca.aspect=w/h;ca.updateProjectionMatrix();}}
+        ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});ren.setClearColor(0,0);ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        sc=new THREE.Scene();ca=new THREE.PerspectiveCamera(50,1,0.1,60);ca.position.z=10;clock=new THREE.Clock();
+        for(var i=0;i<3;i++){ var r=new THREE.Mesh(new THREE.TorusGeometry(1.4+i*0.5,0.04,8,48),new THREE.MeshBasicMaterial({color:0x63f3a8,transparent:true,opacity:0.68-i*0.1})); sc.add(r); rings.push(r);}
+        var iris=new THREE.Mesh(new THREE.CircleGeometry(0.4,24),new THREE.MeshBasicMaterial({color:0xbcffd4,transparent:true,opacity:0.8})); sc.add(iris);
+        sz();window.addEventListener('resize',sz);
+        function loop(){ raf=requestAnimationFrame(loop); var t=clock.getElapsedTime(); for(var i=0;i<rings.length;i++){ rings[i].rotation.z=t*(0.4+i*0.3); rings[i].scale.setScalar(1+Math.sin(t*2+i)*0.03); } ren.render(sc,ca); }
+        raf=requestAnimationFrame(loop);
+    })();
+    </script>
+    <canvas id="three-canvas"></canvas>
+    <div class="overlay">
+        <header>
+            <div class="logo">
+                <span class="logo-mark">SN</span>
+                <div class="logo-title">
+                    <h1>snonux.foo</h1>
+                    <p class="subtitle">microblog &mdash; <a href="https://foo.zone">foo.zone</a> is the real blog</p>
+                    <p class="logo-host">Served by NetBSD on a Raspberry Pi 3</p>
+                </div>
+            </div>
+            <div class="nav">
+                <a href="atom.xml" class="header-feed-link" rel="alternate" title="Atom feed" type="application/atom+xml">Atom feed</a>
+                <a href="https://foo.zone/about" class="transmit-btn">Operator</a>
+            </div>
+        </header>
+        {{template "navhints" .}}
+        <div class="content" id="post-content">
+            {{range $i, $post := .Posts}}
+            <div class="post" id="post-{{$post.ID}}" data-index="{{$i}}">
+                <div class="post-header">
+                    <div><strong>@snonux</strong></div>
+                    <div class="post-time">{{$post.FormattedTime}}</div>
+                </div>
+                <div class="post-text">{{$post.ContentHTML}}</div>
+            </div>
+            {{end}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}">&larr; Newer</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}">Older &rarr;</a>{{end}}
+            </div>
+        </footer>
+        {{end}}
+    </div>
+    {{template "navmodal" .}}
+    <script>
+    (function() {
+        var _wild = false, _snoTOffset = 0, _snoLastT = 0;
+        var scene, camera, renderer, clock, nodes = [], trackers = [], rain;
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x09100d);
+            scene.fog = new THREE.Fog(0x09100d, 20, 120);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+            camera.position.set(0, 6, 28);
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            clock = new THREE.Clock();
+            scene.add(new THREE.AmbientLight(0x35634f, 0.55));
+
+            for (var i = 0; i < 12; i++) {
+                var s = new THREE.Mesh(new THREE.PlaneGeometry(7, 4.2), new THREE.MeshBasicMaterial({ color:0x15221c, transparent:true, opacity:0.92, side:THREE.DoubleSide }));
+                s.position.set((i % 4 - 1.5) * 11, 8 - Math.floor(i / 4) * 6, -10 - Math.floor(i / 4) * 8);
+                scene.add(s); nodes.push(s);
+                var box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(6.4, 3.6)), new THREE.LineBasicMaterial({ color:0x63f3a8, transparent:true, opacity:0.5 }));
+                box.position.copy(s.position); box.position.z += 0.04; scene.add(box); trackers.push(box);
+            }
+
+            var rp = new Float32Array(1500 * 3);
+            for (i = 0; i < rp.length; i += 3) { rp[i]=(Math.random()-0.5)*70; rp[i+1]=(Math.random()-0.5)*40; rp[i+2]=-80+Math.random()*90; }
+            var rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+            rain = new THREE.Points(rg, new THREE.PointsMaterial({ color:0xbcffd4, size:0.08, transparent:true, opacity:0.2 }));
+            scene.add(rain);
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function onResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            var realT = clock.getElapsedTime();
+            _snoTOffset += (realT - _snoLastT) * (_wild ? 9 : 0);
+            _snoLastT = realT;
+            var t = realT + _snoTOffset;
+            for (var i = 0; i < nodes.length; i++) {
+                nodes[i].material.opacity = (_wild ? 0.58 : 0.9) - ((i % 4) * 0.06);
+                trackers[i].rotation.z = Math.sin(t * 0.7 + i) * (_wild ? 0.12 : 0.03);
+                trackers[i].material.opacity = _wild ? 0.84 : 0.5;
+            }
+            var pos = rain.geometry.attributes.position;
+            for (i = 0; i < pos.count; i++) { var y = pos.getY(i) - (_wild ? 0.22 : 0.08); pos.setY(i, y < -20 ? 20 : y); }
+            pos.needsUpdate = true;
+            camera.position.x = Math.sin(realT * (_wild ? 1.6 : 0.3)) * (_wild ? 2.8 : 0.7);
+            camera.position.y = 6 + Math.cos(realT * 0.4) * (_wild ? 1.1 : 0.3);
+            camera.lookAt(0, 0, -20);
+            renderer.render(scene, camera);
+        }
+
+        initThree();
+
+        function overlay(css, ms) {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;inset:0;z-index:998;pointer-events:none;' + css + ';transition:opacity ' + (ms || 200) + 'ms';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.opacity='0'; setTimeout(function() { d.remove(); }, ms || 200); }, 25);
+        }
+        window.snonuxOpenEffect = function(post) {
+            var modal = document.getElementById('post-modal');
+            if (modal) { modal.classList.add('sno-modal-slide'); setTimeout(function() { modal.classList.remove('sno-modal-slide'); }, 340); }
+            var r = post ? post.getBoundingClientRect() : { left: innerWidth*0.5, top: innerHeight*0.5, width: 0, height: 0 };
+            var box = document.createElement('div');
+            box.style.cssText = 'position:fixed;left:' + (r.left-6) + 'px;top:' + (r.top-6) + 'px;width:' + (r.width+12) + 'px;height:' + (r.height+12) + 'px;border:1px solid rgba(99,243,168,0.8);z-index:997;pointer-events:none;transition:transform 0.32s ease,opacity 0.32s ease;';
+            document.body.appendChild(box);
+            setTimeout(function() { box.style.transform='scale(1.18)'; box.style.opacity='0'; setTimeout(function() { box.remove(); }, 360); }, 18);
+        };
+        window.snonuxCloseEffect = function() { overlay('background:rgba(0,0,0,0.32)', 160); };
+        window.snonuxNavEffect = function() { overlay('background:linear-gradient(90deg,transparent,rgba(99,243,168,0.08),transparent)', 160); };
+        window.snonuxPageEffect = function() { overlay('background:radial-gradient(circle at center,rgba(255,77,92,0.12),transparent 68%)', 220); };
+        window.snonuxScrollEffect = function(dir) {
+            var d = document.createElement('div');
+            d.style.cssText = 'position:fixed;' + (dir === 'down' ? 'top:0;' : 'bottom:0;') + 'left:0;right:0;height:' + (_wild ? '16px' : '6px') + ';z-index:9000;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(99,243,168,0.82),transparent);transition:transform 0.28s ease,opacity 0.28s ease;';
+            document.body.appendChild(d);
+            setTimeout(function() { d.style.transform = dir === 'down' ? 'translateY(100vh)' : 'translateY(-100vh)'; d.style.opacity='0'; }, 16);
+            setTimeout(function() { d.remove(); }, 340);
+        };
+        window.snonuxWildToggle = function() {
+            _wild = !_wild;
+            var b = document.getElementById('sno-wild-badge');
+            if (b) b.classList.toggle('sno-wild-on', _wild);
+        };
+    })();
+    </script>
+    {{template "navscript" .}}
+</body>
+</html>

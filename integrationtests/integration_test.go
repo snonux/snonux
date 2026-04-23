@@ -366,6 +366,7 @@ func TestThemeSelection(t *testing.T) {
 	themes := []string{
 		"aurora", "brutalist", "cosmos", "matrix", "neon",
 		"ocean", "plasma", "retro", "synthwave", "terminal", "volcano",
+		"noir", "cathedral", "surveillance", "biomech",
 	}
 
 	for _, theme := range themes {
