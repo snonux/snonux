@@ -368,6 +368,236 @@
         if (w === 'triangle') return 'triangle';
         return 'sine';
     }
+
+    // === SHARED AMBIENT ENGINE ===
+    // One AudioContext + one master gain node. Drones are long-running
+    // oscillators; pulses are short scheduled oscillators. Noise is a looped
+    // buffer source (no AudioWorklet). Fade in/out respects preset attack/release.
+    // Ambient never routes through the one-shot UI sound paths.
+    (function ambientEngine() {
+        var ctx = null;
+        var masterGain = null;
+        var droneNodes = [];
+        var pulseTimer = null;
+        var noiseSrc = null;
+        var noiseGainNode = null;
+        var isPlaying = false;
+        var isWild = false;
+        var currentPreset = null;
+
+        function getPreset() {
+            var ambient = SNONUX_SOUNDS.ambient;
+            if (!ambient) return null;
+            return isWild ? (ambient.wild || ambient.normal) : ambient.normal;
+        }
+
+        function ensureCtx() {
+            if (!ctx) {
+                ctx = new (window.AudioContext || window.webkitAudioContext)();
+                masterGain = ctx.createGain();
+                masterGain.gain.value = 0;
+                masterGain.connect(ctx.destination);
+            }
+            if (ctx.state === 'suspended') {
+                ctx.resume().catch(function() {});
+            }
+            return ctx;
+        }
+
+        function stopDrones() {
+            droneNodes.forEach(function(node) {
+                try { node.stop(); node.disconnect(); } catch (_) {}
+            });
+            droneNodes = [];
+        }
+
+        function startDrones(preset) {
+            var c = ensureCtx();
+            var freqs = preset.droneFreqs || [];
+            if (freqs.length === 0) return;
+            var wt = snonuxWaveType(preset.wave);
+            var detune = preset.detuneCents || 0;
+            var perOscGain = 1.0 / Math.max(1, freqs.length);
+            freqs.forEach(function(freq) {
+                var osc = c.createOscillator();
+                var g = c.createGain();
+                g.gain.value = perOscGain;
+                osc.type = wt;
+                osc.frequency.value = freq;
+                if (detune) osc.detune.value = detune;
+                osc.connect(g);
+                g.connect(masterGain);
+                osc.start();
+                droneNodes.push(osc);
+            });
+        }
+
+        function stopNoise() {
+            if (noiseSrc) { try { noiseSrc.stop(); noiseSrc.disconnect(); } catch (_) {} noiseSrc = null; }
+            if (noiseGainNode) { try { noiseGainNode.disconnect(); } catch (_) {} noiseGainNode = null; }
+        }
+
+        function startNoise(preset) {
+            if (!preset.noiseGain) return;
+            var c = ensureCtx();
+            var bufferSize = 2 * c.sampleRate;
+            var buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+            var data = buffer.getChannelData(0);
+            for (var i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            var src = c.createBufferSource();
+            src.buffer = buffer;
+            src.loop = true;
+            noiseGainNode = c.createGain();
+            noiseGainNode.gain.value = preset.noiseGain;
+            src.connect(noiseGainNode);
+            noiseGainNode.connect(masterGain);
+            src.start();
+            noiseSrc = src;
+        }
+
+        function schedulePulse() {
+            if (!isPlaying || !currentPreset) return;
+            var preset = currentPreset;
+            var interval = preset.pulseInterval;
+            if (!interval && preset.bpm) {
+                interval = 60.0 / preset.bpm;
+            }
+            if (!interval) interval = 1.0;
+            var jitter = interval * (0.8 + Math.random() * 0.4);
+            pulseTimer = setTimeout(function() {
+                if (!isPlaying) return;
+                playPulse(preset);
+                schedulePulse();
+            }, jitter * 1000);
+        }
+
+        function playPulse(preset) {
+            var c = ensureCtx();
+            var freqs = preset.pulseFreqs || [];
+            if (freqs.length === 0) return;
+            var freq = freqs[Math.floor(Math.random() * freqs.length)];
+            var wt = snonuxWaveType(preset.wave);
+            var attack = preset.attack != null ? preset.attack : 0.05;
+            var release = preset.release != null ? preset.release : 0.3;
+            var g = preset.gain != null ? preset.gain : 0.08;
+            var pulseGain = g * 0.6;
+
+            var osc = c.createOscillator();
+            var gain = c.createGain();
+            osc.type = wt;
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            gain.connect(masterGain);
+            var now = c.currentTime;
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(pulseGain, now + attack);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + attack + release);
+            osc.start(now);
+            osc.stop(now + attack + release + 0.02);
+        }
+
+        function fadeMasterTo(target, duration) {
+            if (!masterGain || !ctx) return;
+            var dur = duration != null ? duration : 0.5;
+            var now = ctx.currentTime;
+            masterGain.gain.cancelScheduledValues(now);
+            masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+            masterGain.gain.linearRampToValueAtTime(target, now + dur);
+        }
+
+        function stopAll() {
+            clearTimeout(pulseTimer);
+            pulseTimer = null;
+            stopDrones();
+            stopNoise();
+        }
+
+        function startEngine() {
+            var preset = getPreset();
+            if (!preset) return;
+            currentPreset = preset;
+            ensureCtx();
+            isPlaying = true;
+
+            startDrones(preset);
+            startNoise(preset);
+            schedulePulse();
+
+            var targetGain = preset.gain != null ? preset.gain : 0.08;
+            var fadeIn = preset.attack != null ? preset.attack : 0.5;
+            fadeMasterTo(targetGain, fadeIn);
+        }
+
+        function pauseEngine() {
+            isPlaying = false;
+            var fadeOut = currentPreset && currentPreset.release != null ? currentPreset.release : 0.5;
+            fadeMasterTo(0, fadeOut);
+            setTimeout(function() {
+                if (!isPlaying) stopAll();
+            }, 1000);
+        }
+
+        window.snonuxAmbientStart = function(reason) {
+            if (isPlaying) return;
+            startEngine();
+        };
+
+        window.snonuxAmbientPause = function(reason) {
+            if (!isPlaying) return;
+            pauseEngine();
+        };
+
+        window.snonuxAmbientToggle = function() {
+            if (isPlaying) snonuxAmbientPause('toggle');
+            else snonuxAmbientStart('toggle');
+        };
+
+        window.snonuxAmbientSetWild = function(on) {
+            var wasWild = isWild;
+            isWild = !!on;
+            if (isPlaying && wasWild !== isWild) {
+                var newPreset = getPreset();
+                if (!newPreset) {
+                    snonuxAmbientPause();
+                    return;
+                }
+                fadeMasterTo(0, 0.3);
+                setTimeout(function() {
+                    if (!isPlaying) return;
+                    stopAll();
+                    currentPreset = newPreset;
+                    startDrones(newPreset);
+                    startNoise(newPreset);
+                    schedulePulse();
+                    var targetGain = newPreset.gain != null ? newPreset.gain : 0.08;
+                    fadeMasterTo(targetGain, 0.5);
+                }, 350);
+            }
+        };
+
+        window.snonuxAmbientSyncPreset = function() {
+            if (!isPlaying) return;
+            var preset = getPreset();
+            if (!preset) {
+                snonuxAmbientPause();
+                return;
+            }
+            stopAll();
+            currentPreset = preset;
+            startDrones(preset);
+            startNoise(preset);
+            schedulePulse();
+            var targetGain = preset.gain != null ? preset.gain : 0.08;
+            fadeMasterTo(targetGain, 0.5);
+        };
+
+        window.snonuxAmbientIsPlaying = function() {
+            return isPlaying;
+        };
+    })();
+
     (function splashSetup() {
         var el = document.getElementById('splash-overlay');
         if (!el) return;
@@ -973,6 +1203,8 @@
         if (crtButton) crtButton.setAttribute('aria-pressed', document.body.classList.contains('sno-crt-on') ? 'true' : 'false');
         var ghostButton = getFxButton('ghost');
         if (ghostButton) ghostButton.setAttribute('aria-pressed', document.body.classList.contains('sno-ghost-mode') ? 'true' : 'false');
+        var ambientButton = getFxButton('ambient');
+        if (ambientButton) ambientButton.setAttribute('aria-pressed', (window.snonuxAmbientIsPlaying && window.snonuxAmbientIsPlaying()) ? 'true' : 'false');
     }
 
     function setWildMode(on, opts) {
@@ -987,6 +1219,11 @@
         }
         pulseFxButton('wild');
         syncFxButtonStates();
+        // Ambient follows wild state: switch preset and start wild ambient on activation
+        if (window.snonuxAmbientSetWild) window.snonuxAmbientSetWild(window._snoWildActive);
+        if (window._snoWildActive && window.snonuxAmbientStart && !window.snonuxAmbientIsPlaying()) {
+            window.snonuxAmbientStart('wild');
+        }
     }
 
     function toggleWildMode(opts) {
@@ -1005,6 +1242,12 @@
         syncFxButtonStates();
     }
 
+    function toggleAmbientMode() {
+        if (window.snonuxAmbientToggle) window.snonuxAmbientToggle();
+        pulseFxButton('ambient');
+        syncFxButtonStates();
+    }
+
     function triggerFlashEffect() {
         snonuxScreenshotFlash();
         pulseFxButton('flash');
@@ -1020,6 +1263,7 @@
             wild: function() { toggleWildMode(); },
             crt: toggleCrtMode,
             ghost: toggleGhostMode,
+            ambient: toggleAmbientMode,
             flash: triggerFlashEffect,
             scatter: triggerScatterEffect
         };
@@ -1039,7 +1283,7 @@
         if (!hint || document.querySelector('#splash-overlay .splash-controls')) return;
         var extra = document.createElement('div');
         extra.className = 'splash-controls';
-        extra.innerHTML = '<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> drift \u2022 <kbd>w</kbd> wild \u2022 <kbd>Enter</kbd> open';
+        extra.innerHTML = '<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> drift \u2022 <kbd>w</kbd> wild \u2022 <kbd>m</kbd> ambient \u2022 <kbd>Enter</kbd> open';
         hint.appendChild(extra);
     })();
 
@@ -1106,6 +1350,9 @@
             } else if (e.key === 'w' && !e.repeat) {
                 e.preventDefault();
                 toggleWildMode({ splashMode: true, kickSplash: true });
+            } else if (e.key === 'm' && !e.repeat) {
+                e.preventDefault();
+                toggleAmbientMode();
             } else if (e.key === 'c' && !e.repeat) {
                 e.preventDefault();
                 toggleCrtMode();
@@ -1167,6 +1414,10 @@
             case 'Enter': openPostAt(currentIndex, true); e.preventDefault(); break;
             case 'w': {
                 toggleWildMode();
+                e.preventDefault(); break;
+            }
+            case 'm': {
+                toggleAmbientMode();
                 e.preventDefault(); break;
             }
             case 'c':
@@ -1316,7 +1567,7 @@
             .finally(done);
         fetch('themes/' + current + '/sounds.json')
             .then(function (r) { return r.json(); })
-            .then(function (s) { window.SNONUX_SOUNDS = s; SNONUX_SOUNDS = s; })
+            .then(function (s) { window.SNONUX_SOUNDS = s; SNONUX_SOUNDS = s; if (window.snonuxAmbientSyncPreset) window.snonuxAmbientSyncPreset(); })
             .catch(function () {})
             .finally(done);
     })();
