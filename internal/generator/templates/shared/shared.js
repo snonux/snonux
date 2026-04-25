@@ -704,6 +704,7 @@
         window._snonuxRebindHeader = bindHeaderTriggers;
         window._snonuxDismissSplash = dismiss;
         window._snonuxShowSplash = show;
+        window._snonuxPlaySplashChime = playSplashChime;
         if (document.documentElement.classList.contains('sno-splash-skip')) {
             dismiss();
             return;
@@ -1407,7 +1408,11 @@
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
         var splash = document.getElementById('splash-overlay');
         if (splash && !splash.classList.contains('splash--dismissed')) {
-            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (window._snonuxPlaySplashChime) window._snonuxPlaySplashChime();
+                if (window._snonuxDismissSplash) window._snonuxDismissSplash();
+            } else if (e.key === 'Escape') {
                 e.preventDefault();
                 if (window._snonuxDismissSplash) window._snonuxDismissSplash();
             } else if (e.key === 'w' && !e.repeat) {
