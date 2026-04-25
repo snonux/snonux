@@ -1242,10 +1242,18 @@
         syncFxButtonStates();
     }
 
+    function snonuxAmbientSavePreference(enabled) {
+        try { localStorage.setItem('snonuxAmbientEnabled', enabled ? '1' : '0'); } catch (_) {}
+    }
+    function snonuxAmbientLoadPreference() {
+        try { return localStorage.getItem('snonuxAmbientEnabled') === '1'; } catch (_) { return false; }
+    }
+
     function toggleAmbientMode() {
         if (window.snonuxAmbientToggle) window.snonuxAmbientToggle();
         pulseFxButton('ambient');
         syncFxButtonStates();
+        snonuxAmbientSavePreference(window.snonuxAmbientIsPlaying && window.snonuxAmbientIsPlaying());
     }
 
     function triggerFlashEffect() {
@@ -1277,13 +1285,21 @@
         syncFxButtonStates();
     })();
 
+    // Restore ambient preference on load (opt-in; default off).
+    (function initAmbientPreference() {
+        if (snonuxAmbientLoadPreference() && window.snonuxAmbientStart) {
+            window.snonuxAmbientStart('restore');
+        }
+        syncFxButtonStates();
+    })();
+
     // Inject keyboard controls hint into splash overlay (all themes)
     (function enhanceSplashHint() {
         var hint = document.querySelector('#splash-overlay .splash-hint');
         if (!hint || document.querySelector('#splash-overlay .splash-controls')) return;
         var extra = document.createElement('div');
         extra.className = 'splash-controls';
-        extra.innerHTML = '<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> drift \u2022 <kbd>w</kbd> wild \u2022 <kbd>m</kbd> ambient \u2022 <kbd>Enter</kbd> open';
+        extra.innerHTML = '<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> drift \u2022 <kbd>w</kbd> wild \u2022 <kbd>p</kbd> music \u2022 <kbd>Enter</kbd> open';
         hint.appendChild(extra);
     })();
 
@@ -1350,9 +1366,12 @@
             } else if (e.key === 'w' && !e.repeat) {
                 e.preventDefault();
                 toggleWildMode({ splashMode: true, kickSplash: true });
-            } else if (e.key === 'm' && !e.repeat) {
+            } else if (e.key === 'p' && !e.repeat) {
                 e.preventDefault();
                 toggleAmbientMode();
+            } else if (e.key === 'f' && !e.repeat) {
+                e.preventDefault();
+                triggerFlashEffect();
             } else if (e.key === 'c' && !e.repeat) {
                 e.preventDefault();
                 toggleCrtMode();
@@ -1370,6 +1389,14 @@
         }
         if (document.getElementById('post-modal').classList.contains('active')) {
             if (e.key === 'Escape') { closeModal(); e.preventDefault(); }
+            else if (e.key === 'p' && !e.repeat) {
+                e.preventDefault();
+                toggleAmbientMode();
+            }
+            else if (e.key === 'f' && !e.repeat) {
+                e.preventDefault();
+                triggerFlashEffect();
+            }
             else if (e.key === 't' && !e.repeat) {
                 e.preventDefault();
                 var pick = snonuxRandomTheme();
@@ -1416,7 +1443,7 @@
                 toggleWildMode();
                 e.preventDefault(); break;
             }
-            case 'm': {
+            case 'p': {
                 toggleAmbientMode();
                 e.preventDefault(); break;
             }
@@ -1426,7 +1453,7 @@
             case 'g':
                 toggleGhostMode();
                 e.preventDefault(); break;
-            case 'p':
+            case 'f':
                 triggerFlashEffect();
                 e.preventDefault(); break;
             case 'x':
