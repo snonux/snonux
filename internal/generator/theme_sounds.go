@@ -113,8 +113,20 @@ func soundsNeon() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "triangle", 523.25, 1046.5, 0.13, 0.1
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 880, 261.63, 0.16, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 180, 90, 0.12, 0.1
-	s.Ambient.Normal = ambient(0.08, 80, "square", []float64{523.25, 659.25}, []float64{1046.5})
-	s.Ambient.Wild = ambient(0.12, 140, "square", []float64{261.63, 523.25}, []float64{880, 1760})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 50, Wave: "sine",
+		DroneFreqs: []float64{523.25, 659.25, 783.99, 1046.5},
+		PulseFreqs: []float64{1046.5},
+		Attack:     0.6, Release: 1.5,
+		CutoffMin: 800, CutoffMax: 3000,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.055, BPM: 120, Wave: "triangle",
+		DroneFreqs: []float64{261.63, 523.25, 659.25},
+		PulseFreqs: []float64{1046.5, 2093},
+		Attack:     0.2, Release: 0.6,
+		CutoffMin: 1500, CutoffMax: 6000, DetuneCents: 8,
+	}
 	return s
 }
 
@@ -126,8 +138,20 @@ func soundsTerminal() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "square", 600, 1200, 0.12, 0.1
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 900, 400, 0.14, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 200, 100, 0.1, 0.1
-	s.Ambient.Normal = ambient(0.09, 72, "square", []float64{400, 600}, []float64{800})
-	s.Ambient.Wild = ambient(0.13, 144, "square", []float64{200, 400}, []float64{600, 1200})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.02, BPM: 40, Wave: "square",
+		DroneFreqs: []float64{60, 120},
+		PulseFreqs: []float64{800},
+		Attack:     0.1, Release: 0.3,
+		PulseInterval: 2.0,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.05, BPM: 160, Wave: "square",
+		DroneFreqs: []float64{50, 100},
+		PulseFreqs: []float64{400, 800, 1600},
+		Attack:     0.05, Release: 0.15,
+		PulseInterval: 0.25,
+	}
 	return s
 }
 
@@ -139,8 +163,19 @@ func soundsSynthwave() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 220, 440, 0.18, 0.1
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 440, 110, 0.17, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 150, 75, 0.14, 0.09
-	s.Ambient.Normal = ambient(0.07, 60, "sine", []float64{196, 293.66}, []float64{587.33})
-	s.Ambient.Wild = ambient(0.11, 110, "triangle", []float64{130.81, 196}, []float64{440, 880})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 55, Wave: "sine",
+		DroneFreqs: []float64{98, 196, 293.66},
+		PulseFreqs: []float64{587.33},
+		Attack:     0.8, Release: 1.5,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.06, BPM: 110, Wave: "triangle",
+		DroneFreqs: []float64{65.41, 130.81, 196},
+		PulseFreqs: []float64{440, 880},
+		Attack:     0.3, Release: 0.7,
+		DetuneCents: 12,
+	}
 	return s
 }
 
@@ -152,8 +187,22 @@ func soundsPlasma() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "triangle", 349.23, 698.46, 0.15, 0.1
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 523.25, 174.61, 0.17, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "triangle", 200, 100, 0.13, 0.09
-	s.Ambient.Normal = ambient(0.08, 90, "triangle", []float64{311.13, 466.16}, []float64{622.25})
-	s.Ambient.Wild = ambient(0.12, 160, "square", []float64{155.56, 311.13}, []float64{622.25, 1244.5})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.03, BPM: 70, Wave: "triangle",
+		DroneFreqs: []float64{329.63, 466.16},
+		PulseFreqs: []float64{622.25},
+		Attack:     0.4, Release: 0.9,
+		DetuneCents: 15,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.065, BPM: 140, Wave: "square",
+		DroneFreqs: []float64{164.81, 329.63},
+		PulseFreqs: []float64{622.25, 1244.5},
+		Attack:     0.1, Release: 0.4,
+		DetuneCents: 25,
+		CutoffMin:   400, CutoffMax: 3000,
+		NoiseGain: 0.02,
+	}
 	return s
 }
 
@@ -165,8 +214,19 @@ func soundsBrutalist() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "square", 200, 400, 0.12, 0.11
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 400, 100, 0.14, 0.1
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 120, 60, 0.1, 0.12
-	s.Ambient.Normal = ambient(0.10, 65, "square", []float64{100, 150}, []float64{200})
-	s.Ambient.Wild = ambient(0.14, 130, "square", []float64{50, 100}, []float64{150, 300})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 45, Wave: "triangle",
+		DroneFreqs: []float64{80, 120},
+		PulseFreqs: []float64{160},
+		Attack:     0.5, Release: 1.0,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.06, BPM: 100, Wave: "square",
+		DroneFreqs: []float64{40, 80},
+		PulseFreqs: []float64{120, 240},
+		Attack:     0.05, Release: 0.3,
+		Rhythm: []float64{1, 0.5, 1.5, 0.5},
+	}
 	return s
 }
 
@@ -178,8 +238,19 @@ func soundsVolcano() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "triangle", 261.63, 523.25, 0.16, 0.1
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 392, 98, 0.17, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 160, 80, 0.13, 0.1
-	s.Ambient.Normal = ambient(0.08, 50, "sine", []float64{98, 146.83}, []float64{196})
-	s.Ambient.Wild = ambient(0.12, 100, "triangle", []float64{65.41, 98}, []float64{196, 392})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 35, Wave: "sine",
+		DroneFreqs: []float64{82.41, 123.47},
+		PulseFreqs: []float64{164.81},
+		Attack:     1.0, Release: 2.0,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.055, BPM: 85, Wave: "triangle",
+		DroneFreqs: []float64{65.41, 98},
+		PulseFreqs: []float64{164.81, 329.63},
+		Attack:     0.2, Release: 0.6,
+		NoiseGain: 0.015,
+	}
 	return s
 }
 
@@ -191,8 +262,19 @@ func soundsAurora() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 523.25, 880, 0.2, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 704, 352, 0.18, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 220, 110, 0.15, 0.08
-	s.Ambient.Normal = ambient(0.06, 55, "sine", []float64{440, 880}, []float64{1320})
-	s.Ambient.Wild = ambient(0.10, 110, "triangle", []float64{220, 440}, []float64{880, 1760})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.02, BPM: 40, Wave: "sine",
+		DroneFreqs: []float64{440, 880, 1320},
+		PulseFreqs: []float64{1760},
+		Attack:     1.2, Release: 2.5,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.05, BPM: 95, Wave: "sine",
+		DroneFreqs: []float64{220, 440, 880},
+		PulseFreqs: []float64{1320, 1760},
+		Attack:     0.3, Release: 0.8,
+		DetuneCents: 20,
+	}
 	return s
 }
 
@@ -204,8 +286,18 @@ func soundsMatrix() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "square", 880, 1318.5, 0.11, 0.1
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 880, 330, 0.13, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 260, 130, 0.1, 0.09
-	s.Ambient.Normal = ambient(0.08, 85, "square", []float64{523.25, 659.25}, []float64{880})
-	s.Ambient.Wild = ambient(0.12, 170, "square", []float64{261.63, 523.25}, []float64{880, 1760})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 75, Wave: "square",
+		DroneFreqs: []float64{523.25, 659.25},
+		PulseFreqs: []float64{880, 1046.5},
+		Attack:     0.1, Release: 0.3,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.065, BPM: 160, Wave: "square",
+		DroneFreqs: []float64{261.63, 523.25},
+		PulseFreqs: []float64{880, 1318.5, 1760},
+		Attack:     0.05, Release: 0.15,
+	}
 	return s
 }
 
@@ -217,8 +309,20 @@ func soundsOcean() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 349.23, 523.25, 0.2, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 415.3, 246.94, 0.18, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 140, 70, 0.15, 0.08
-	s.Ambient.Normal = ambient(0.06, 45, "sine", []float64{174.61, 220}, []float64{349.23})
-	s.Ambient.Wild = ambient(0.10, 90, "triangle", []float64{130.81, 174.61}, []float64{349.23, 698.46})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.02, BPM: 30, Wave: "sine",
+		DroneFreqs: []float64{130.81, 174.61},
+		PulseFreqs: []float64{349.23},
+		Attack:     1.5, Release: 3.0,
+		NoiseGain: 0.02,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.055, BPM: 80, Wave: "triangle",
+		DroneFreqs: []float64{98, 130.81},
+		PulseFreqs: []float64{349.23, 698.46},
+		Attack:     0.3, Release: 0.7,
+		NoiseGain: 0.04,
+	}
 	return s
 }
 
@@ -230,8 +334,18 @@ func soundsDos() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "square", 400, 800, 0.1, 0.1
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 800, 200, 0.1, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 300, 150, 0.08, 0.1
-	s.Ambient.Normal = ambient(0.09, 100, "square", []float64{400, 800}, []float64{1200})
-	s.Ambient.Wild = ambient(0.13, 200, "square", []float64{200, 400}, []float64{800, 1600})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 60, Wave: "square",
+		DroneFreqs: []float64{200, 400},
+		PulseFreqs: []float64{800, 1200},
+		Attack:     0.05, Release: 0.15,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.065, BPM: 200, Wave: "square",
+		DroneFreqs: []float64{100, 200},
+		PulseFreqs: []float64{400, 800, 1600},
+		Attack:     0.02, Release: 0.08,
+	}
 	return s
 }
 
@@ -243,8 +357,20 @@ func soundsRetro() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "square", 800, 1600, 0.14, 0.1
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 1600, 400, 0.15, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 400, 200, 0.1, 0.1
-	s.Ambient.Normal = ambient(0.08, 95, "square", []float64{800, 1200}, []float64{1600})
-	s.Ambient.Wild = ambient(0.12, 190, "square", []float64{400, 800}, []float64{1600, 3200})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 80, Wave: "square",
+		DroneFreqs: []float64{523.25, 659.25},
+		PulseFreqs: []float64{1046.5},
+		Attack:     0.1, Release: 0.3,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.055, BPM: 155, Wave: "square",
+		DroneFreqs: []float64{261.63, 523.25},
+		PulseFreqs: []float64{1046.5, 2093},
+		Attack:     0.05, Release: 0.15,
+		DetuneCents: 30,
+		NoiseGain:   0.02,
+	}
 	return s
 }
 
@@ -256,8 +382,18 @@ func soundsCosmos() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "triangle", 392, 587.33, 0.22, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 587.33, 196, 0.2, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 170, 85, 0.16, 0.08
-	s.Ambient.Normal = ambient(0.06, 40, "sine", []float64{220, 440}, []float64{660})
-	s.Ambient.Wild = ambient(0.10, 80, "triangle", []float64{110, 220}, []float64{440, 880})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.02, BPM: 30, Wave: "sine",
+		DroneFreqs: []float64{220, 440, 660},
+		PulseFreqs: []float64{880},
+		Attack:     1.5, Release: 3.0,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.05, BPM: 75, Wave: "triangle",
+		DroneFreqs: []float64{110, 220, 440},
+		PulseFreqs: []float64{660, 880},
+		Attack:     0.3, Release: 0.8,
+	}
 	return s
 }
 
@@ -269,8 +405,19 @@ func soundsRetrofuture() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 330, 523.25, 0.18, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 415.3, 165, 0.17, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "triangle", 190, 95, 0.14, 0.09
-	s.Ambient.Normal = ambient(0.07, 70, "triangle", []float64{220, 330}, []float64{523.25})
-	s.Ambient.Wild = ambient(0.11, 140, "square", []float64{110, 220}, []float64{523.25, 1046.5})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 55, Wave: "triangle",
+		DroneFreqs: []float64{220, 330, 440},
+		PulseFreqs: []float64{523.25},
+		Attack:     0.8, Release: 1.8,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.055, BPM: 120, Wave: "square",
+		DroneFreqs: []float64{110, 220},
+		PulseFreqs: []float64{440, 880},
+		Attack:     0.05, Release: 0.15,
+		Rhythm: []float64{1, 2, 0.5, 1.5},
+	}
 	return s
 }
 
@@ -284,8 +431,19 @@ func soundsSpaceage() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 440, 880, 0.18, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 659.25, 330, 0.17, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 240, 120, 0.13, 0.08
-	s.Ambient.Normal = ambient(0.06, 75, "sine", []float64{440, 880}, []float64{1320})
-	s.Ambient.Wild = ambient(0.10, 150, "triangle", []float64{220, 440}, []float64{880, 1760})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.02, BPM: 50, Wave: "sine",
+		DroneFreqs: []float64{440, 880},
+		PulseFreqs: []float64{1320},
+		Attack:     0.8, Release: 1.5,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.05, BPM: 110, Wave: "triangle",
+		DroneFreqs: []float64{220, 440},
+		PulseFreqs: []float64{880, 1320},
+		Attack:     0.1, Release: 0.4,
+		PulseInterval: 0.5,
+	}
 	return s
 }
 
@@ -300,8 +458,21 @@ func soundsTropical() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 440, 880, 0.18, 0.08
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 660, 330, 0.17, 0.075
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 200, 100, 0.12, 0.07
-	s.Ambient.Normal = ambient(0.06, 80, "sine", []float64{523.25, 659.25}, []float64{1046.5})
-	s.Ambient.Wild = ambient(0.10, 160, "triangle", []float64{261.63, 523.25}, []float64{1046.5, 2093})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.02, BPM: 65, Wave: "sine",
+		DroneFreqs: []float64{261.63, 329.63, 392, 523.25},
+		PulseFreqs: []float64{659.25},
+		Attack:     0.6, Release: 1.5,
+		NoiseGain: 0.015,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.055, BPM: 140, Wave: "triangle",
+		DroneFreqs: []float64{130.81, 261.63, 329.63, 392},
+		PulseFreqs: []float64{523.25, 659.25},
+		Attack:     0.1, Release: 0.3,
+		NoiseGain: 0.03,
+		Rhythm:    []float64{0.5, 1, 0.5, 2},
+	}
 	return s
 }
 
@@ -313,8 +484,20 @@ func soundsNoir() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 220, 392, 0.18, 0.085
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "triangle", 330, 165, 0.2, 0.08
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "triangle", 130, 65, 0.14, 0.08
-	s.Ambient.Normal = ambient(0.06, 50, "sine", []float64{174.61, 220}, []float64{330})
-	s.Ambient.Wild = ambient(0.10, 100, "triangle", []float64{130.81, 174.61}, []float64{330, 660})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.02, BPM: 40, Wave: "sine",
+		DroneFreqs: []float64{174.61, 220, 261.63},
+		PulseFreqs: []float64{330},
+		Attack:     1.0, Release: 2.0,
+		NoiseGain: 0.015,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.05, BPM: 90, Wave: "triangle",
+		DroneFreqs: []float64{130.81, 174.61, 220},
+		PulseFreqs: []float64{330, 440},
+		Attack:     0.3, Release: 0.7,
+		PulseInterval: 1.2,
+	}
 	return s
 }
 
@@ -326,8 +509,18 @@ func soundsCathedral() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "sine", 392, 783.99, 0.22, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 523.25, 196, 0.22, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 180, 90, 0.18, 0.08
-	s.Ambient.Normal = ambient(0.07, 40, "sine", []float64{293.66, 440}, []float64{587.33})
-	s.Ambient.Wild = ambient(0.11, 80, "triangle", []float64{146.83, 293.66}, []float64{587.33, 1174.66})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 35, Wave: "sine",
+		DroneFreqs: []float64{293.66, 440, 587.33},
+		PulseFreqs: []float64{880},
+		Attack:     1.5, Release: 3.0,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.055, BPM: 70, Wave: "triangle",
+		DroneFreqs: []float64{146.83, 293.66, 440},
+		PulseFreqs: []float64{587.33, 880, 1174.66},
+		Attack:     0.3, Release: 0.8,
+	}
 	return s
 }
 
@@ -339,8 +532,19 @@ func soundsSurveillance() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "square", 660, 1320, 0.12, 0.09
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 990, 330, 0.14, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 280, 140, 0.09, 0.09
-	s.Ambient.Normal = ambient(0.07, 70, "square", []float64{440, 660}, []float64{880})
-	s.Ambient.Wild = ambient(0.11, 140, "square", []float64{220, 440}, []float64{880, 1760})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 55, Wave: "square",
+		DroneFreqs: []float64{440, 660},
+		PulseFreqs: []float64{880},
+		Attack:     0.2, Release: 0.5,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.06, BPM: 140, Wave: "square",
+		DroneFreqs: []float64{220, 440},
+		PulseFreqs: []float64{880, 1760},
+		Attack:     0.05, Release: 0.15,
+		PulseInterval: 0.3,
+	}
 	return s
 }
 
@@ -352,8 +556,21 @@ func soundsBiomech() themeSounds {
 	s.Open.Wave, s.Open.Start, s.Open.End, s.Open.Dur, s.Open.Gain = "triangle", 220, 523.25, 0.18, 0.095
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 392, 130.81, 0.2, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "triangle", 160, 80, 0.14, 0.09
-	s.Ambient.Normal = ambient(0.07, 65, "triangle", []float64{164.81, 246.94}, []float64{440})
-	s.Ambient.Wild = ambient(0.11, 130, "square", []float64{82.41, 164.81}, []float64{440, 880})
+	s.Ambient.Normal = ambientPreset{
+		Gain: 0.025, BPM: 50, Wave: "triangle",
+		DroneFreqs: []float64{164.81, 246.94},
+		PulseFreqs: []float64{440},
+		Attack:     0.7, Release: 1.5,
+		DetuneCents: 8,
+	}
+	s.Ambient.Wild = ambientPreset{
+		Gain: 0.055, BPM: 115, Wave: "square",
+		DroneFreqs: []float64{82.41, 164.81},
+		PulseFreqs: []float64{440, 880},
+		Attack:     0.1, Release: 0.3,
+		DetuneCents: 18,
+		Rhythm:      []float64{1, 0.5, 1.5, 0.75},
+	}
 	return s
 }
 
