@@ -4,6 +4,7 @@
 package integrationtests
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"image"
@@ -352,7 +353,8 @@ func TestInputCleanup(t *testing.T) {
 	}
 }
 
-// TestKeyboardNavJS verifies that the generated HTML includes navigation attributes.
+// TestKeyboardNavJS verifies that the generated HTML includes navigation attributes
+// and that the shared JS binds the correct hotkeys.
 func TestKeyboardNavJS(t *testing.T) {
 	inputDir, outputDir := makeDirs(t)
 
@@ -369,15 +371,43 @@ func TestKeyboardNavJS(t *testing.T) {
 	assertContains(t, sharedCSS, `.post-active`, "shared.css .post-active rule")
 	sharedJS := readFile(t, filepath.Join(outputDir, "shared.js"))
 	assertContains(t, sharedJS, `playNavSound`, "shared.js playNavSound function")
+
+	// Final shortcut mapping: p = ambient playback start/pause, f = flash.
+	assertContains(t, sharedJS, "case 'p':", "shared.js p key handler")
+	assertContains(t, sharedJS, "toggleAmbientMode();", "shared.js p toggles ambient")
+	assertContains(t, sharedJS, "case 'f':", "shared.js f key handler")
+	assertContains(t, sharedJS, "triggerFlashEffect();", "shared.js f triggers flash")
+
+	// Nav hints and splash hints should display the updated keys.
+	assertContains(t, index, "<kbd>p</kbd> music", "index.html nav hint p=ambient")
+	assertContains(t, index, "<kbd>f</kbd> flash", "index.html nav hint f=flash")
+}
+
+// TestIndexHTMLBakesSounds verifies that the generated index.html bakes the
+// default theme's sounds into window.SNONUX_SOUNDS so the ambient engine can
+// start before any async theme fetches complete.
+func TestIndexHTMLBakesSounds(t *testing.T) {
+	inputDir, outputDir := makeDirs(t)
+
+	if err := os.WriteFile(filepath.Join(inputDir, "hello.txt"), []byte("sounds test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runPipeline(t, inputDir, outputDir)
+
+	index := readFile(t, filepath.Join(outputDir, "index.html"))
+	assertContains(t, index, "window.SNONUX_SOUNDS", "index.html bakes SNONUX_SOUNDS")
+	assertContains(t, index, `"ambient"`, "index.html sounds include ambient key")
+	assertContains(t, index, `"normal"`, "index.html sounds include ambient.normal")
+	assertContains(t, index, `"wild"`, "index.html sounds include ambient.wild")
 }
 
 // TestThemeSelection verifies that every registered theme renders a valid
 // index.html containing core structural elements (post text, nav script).
 func TestThemeSelection(t *testing.T) {
-	themes := []string{
-		"aurora", "brutalist", "cosmos", "matrix", "neon",
-		"ocean", "plasma", "retro", "synthwave", "terminal", "volcano",
-		"noir", "cathedral", "surveillance", "biomech",
+	themes := generator.ListThemes()
+	if len(themes) == 0 {
+		t.Fatal("no themes returned by ListThemes()")
 	}
 
 	for _, theme := range themes {
@@ -418,6 +448,26 @@ func TestThemeSelection(t *testing.T) {
 				}
 				if info.Size() == 0 {
 					t.Fatalf("theme asset %s is empty", path)
+				}
+			}
+
+			// sounds.json must include ambient data.
+			soundsPath := filepath.Join(outputDir, "themes", theme, "sounds.json")
+			soundsData, err := os.ReadFile(soundsPath)
+			if err != nil {
+				t.Fatalf("read sounds.json: %v", err)
+			}
+			var sounds map[string]interface{}
+			if err := json.Unmarshal(soundsData, &sounds); err != nil {
+				t.Fatalf("sounds.json invalid JSON: %v", err)
+			}
+			ambient, ok := sounds["ambient"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("sounds.json missing ambient object for theme %q", theme)
+			}
+			for _, key := range []string{"normal", "wild"} {
+				if _, ok := ambient[key]; !ok {
+					t.Errorf("sounds.json ambient missing %q variant for theme %q", key, theme)
 				}
 			}
 

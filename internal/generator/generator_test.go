@@ -145,6 +145,109 @@ func TestThemeSoundsJSON_ambientSchema(t *testing.T) {
 	}
 }
 
+func TestThemeSoundPresetsAmbientPopulated(t *testing.T) {
+	t.Parallel()
+
+	for name := range themeSet {
+		preset, ok := themeSoundPresets[name]
+		if !ok {
+			t.Errorf("theme %q missing from themeSoundPresets", name)
+			continue
+		}
+
+		normal := preset.Ambient.Normal
+		wild := preset.Ambient.Wild
+
+		if len(normal.DroneFreqs) == 0 && len(normal.PulseFreqs) == 0 {
+			t.Errorf("theme %q ambient.Normal has no drone or pulse frequencies", name)
+		}
+		if len(wild.DroneFreqs) == 0 && len(wild.PulseFreqs) == 0 {
+			t.Errorf("theme %q ambient.Wild has no drone or pulse frequencies", name)
+		}
+	}
+}
+
+func TestThemeSoundPresetsAmbientValuesBounded(t *testing.T) {
+	t.Parallel()
+
+	for name := range themeSet {
+		preset, ok := themeSoundPresets[name]
+		if !ok {
+			continue
+		}
+
+		for _, mode := range []string{"normal", "wild"} {
+			var a ambientPreset
+			if mode == "normal" {
+				a = preset.Ambient.Normal
+			} else {
+				a = preset.Ambient.Wild
+			}
+
+			if a.Gain <= 0 || a.Gain > 0.15 {
+				t.Errorf("theme %q ambient.%s gain=%f; want (0, 0.15]", name, mode, a.Gain)
+			}
+			if a.BPM <= 0 || a.BPM > 250 {
+				t.Errorf("theme %q ambient.%s bpm=%f; want (0, 250]", name, mode, a.BPM)
+			}
+			if a.PulseInterval < 0 || a.PulseInterval > 10 {
+				t.Errorf("theme %q ambient.%s pulseInterval=%f; want [0, 10]", name, mode, a.PulseInterval)
+			}
+			if a.Attack <= 0 || a.Attack > 5 {
+				t.Errorf("theme %q ambient.%s attack=%f; want (0, 5]", name, mode, a.Attack)
+			}
+			if a.Release <= 0 || a.Release > 5 {
+				t.Errorf("theme %q ambient.%s release=%f; want (0, 5]", name, mode, a.Release)
+			}
+			if a.NoiseGain < 0 || a.NoiseGain > 0.1 {
+				t.Errorf("theme %q ambient.%s noiseGain=%f; want [0, 0.1]", name, mode, a.NoiseGain)
+			}
+			if a.DetuneCents < 0 || a.DetuneCents > 50 {
+				t.Errorf("theme %q ambient.%s detuneCents=%f; want [0, 50]", name, mode, a.DetuneCents)
+			}
+			for i, f := range a.DroneFreqs {
+				if f <= 0 {
+					t.Errorf("theme %q ambient.%s droneFreqs[%d]=%f; want positive", name, mode, i, f)
+				}
+			}
+			for i, f := range a.PulseFreqs {
+				if f <= 0 {
+					t.Errorf("theme %q ambient.%s pulseFreqs[%d]=%f; want positive", name, mode, i, f)
+				}
+			}
+			if a.CutoffMin < 0 || a.CutoffMin > 10000 {
+				t.Errorf("theme %q ambient.%s cutoffMin=%f; want [0, 10000]", name, mode, a.CutoffMin)
+			}
+			if a.CutoffMax < 0 || a.CutoffMax > 10000 {
+				t.Errorf("theme %q ambient.%s cutoffMax=%f; want [0, 10000]", name, mode, a.CutoffMax)
+			}
+		}
+	}
+}
+
+func TestThemeSoundsJSON_neonAmbientRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	j := themeSoundsJSON("neon")
+	var s themeSounds
+	if err := json.Unmarshal([]byte(j), &s); err != nil {
+		t.Fatalf("themeSoundsJSON(\"neon\") unmarshal error: %v", err)
+	}
+
+	if s.Ambient.Normal.Gain <= 0 {
+		t.Errorf("neon ambient.normal gain missing or non-positive: %f", s.Ambient.Normal.Gain)
+	}
+	if s.Ambient.Wild.Gain <= 0 {
+		t.Errorf("neon ambient.wild gain missing or non-positive: %f", s.Ambient.Wild.Gain)
+	}
+	if len(s.Ambient.Normal.DroneFreqs) == 0 && len(s.Ambient.Normal.PulseFreqs) == 0 {
+		t.Error("neon ambient.normal has no frequencies")
+	}
+	if len(s.Ambient.Wild.DroneFreqs) == 0 && len(s.Ambient.Wild.PulseFreqs) == 0 {
+		t.Error("neon ambient.wild has no frequencies")
+	}
+}
+
 func TestFormatPostTime(t *testing.T) {
 	t.Parallel()
 
