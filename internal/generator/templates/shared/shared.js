@@ -385,10 +385,28 @@
         var isWild = false;
         var currentPreset = null;
 
+        function wildifyPreset(base) {
+            if (!base) return base;
+            var w = {};
+            for (var k in base) w[k] = base[k];
+            // Denser pulses for wild mode
+            if (w.bpm) w.bpm = w.bpm * 1.5;
+            if (w.pulseInterval) w.pulseInterval = w.pulseInterval / 1.5;
+            // More noise texture
+            if (w.noiseGain != null) w.noiseGain = Math.min(w.noiseGain * 1.6, 0.08);
+            // Slightly higher gain, capped for safety
+            if (w.gain != null) w.gain = Math.min(w.gain * 1.3, 0.15);
+            // Deeper filter sweep for pulses
+            w.filterFreq = (w.filterFreq || 700) * 1.6;
+            w.filterQ = (w.filterQ || 0.8) * 2.0;
+            return w;
+        }
+
         function getPreset() {
             var ambient = SNONUX_SOUNDS.ambient;
             if (!ambient) return null;
-            return isWild ? (ambient.wild || ambient.normal) : ambient.normal;
+            var base = isWild ? (ambient.wild || ambient.normal) : ambient.normal;
+            return isWild ? wildifyPreset(base) : base;
         }
 
         function ensureCtx() {
@@ -488,7 +506,21 @@
             var gain = c.createGain();
             osc.type = wt;
             osc.frequency.value = freq;
-            osc.connect(gain);
+
+            var lastNode = osc;
+            if (preset.filterFreq) {
+                var filter = c.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = preset.filterFreq;
+                filter.Q.value = preset.filterQ || 1;
+                var now = c.currentTime;
+                filter.frequency.setValueAtTime(preset.filterFreq, now);
+                filter.frequency.exponentialRampToValueAtTime(Math.max(preset.filterFreq * 0.2, 100), now + attack + release);
+                lastNode.connect(filter);
+                lastNode = filter;
+            }
+
+            lastNode.connect(gain);
             gain.connect(masterGain);
             var now = c.currentTime;
             gain.gain.setValueAtTime(0, now);
@@ -1208,6 +1240,7 @@
     }
 
     function setWildMode(on, opts) {
+        var wasPlaying = window.snonuxAmbientIsPlaying && window.snonuxAmbientIsPlaying();
         window._snoWildActive = !!on;
         if (window.snonuxWildToggle) window.snonuxWildToggle();
         snonuxSetWildState(window._snoWildActive);
@@ -1219,11 +1252,25 @@
         }
         pulseFxButton('wild');
         syncFxButtonStates();
-        // Ambient follows wild state: switch preset and start wild ambient on activation
-        if (window.snonuxAmbientSetWild) window.snonuxAmbientSetWild(window._snoWildActive);
-        if (window._snoWildActive && window.snonuxAmbientStart && !window.snonuxAmbientIsPlaying()) {
-            window.snonuxAmbientStart('wild');
+        // Ambient follows wild state: switch preset and start wild ambient on activation.
+        // If ambient was not playing before wild mode, mark it as wild-forced so we can
+        // stop it on deactivation unless the user opted in during the session.
+        if (window._snoWildActive) {
+            if (window.snonuxAmbientSetWild) window.snonuxAmbientSetWild(window._snoWildActive);
+            if (!wasPlaying && window.snonuxAmbientStart) {
+                window._snonuxAmbientWildForced = true;
+                window.snonuxAmbientStart('wild');
+            }
+        } else {
+            // If ambient was wild-forced and the user never opted in, fade to silence.
+            if (window._snonuxAmbientWildForced && !snonuxAmbientLoadPreference()) {
+                if (window.snonuxAmbientPause) window.snonuxAmbientPause('wild-off');
+            }
+            window._snonuxAmbientWildForced = false;
+            if (window.snonuxAmbientSetWild) window.snonuxAmbientSetWild(window._snoWildActive);
         }
+        // Re-sync button states after ambient may have started or stopped.
+        syncFxButtonStates();
     }
 
     function toggleWildMode(opts) {
