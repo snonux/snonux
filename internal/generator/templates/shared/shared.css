@@ -1,0 +1,925 @@
+/* Non-active posts are translucent so the WebGL background shows through.
+   The active/highlighted post snaps to full opacity for clear reading.
+   Hover on a non-active post partially reveals it before selection. */
+.post { position:relative; }
+.post:not(.post-active) { opacity: 0.55; transition: opacity 0.25s ease; }
+.post:not(.post-active):hover { opacity: 0.85; }
+.post.post-active { opacity: 1 !important; transition: opacity 0.15s ease; }
+/* Thumbnail sizing in list view; modal overrides to full width. */
+.post-image { max-height:220px; max-width:100%; object-fit:cover; cursor:pointer; }
+#post-modal .post-image { max-height:none; width:100%; max-width:100%; object-fit:contain; cursor:default; }
+/* Semi-transparent modal backdrop so the WebGL scene stays visible behind
+   the expanded post. Theme-specific modal-inner keeps its own background. */
+.post-modal { background:rgba(0,0,0,0.55) !important; backdrop-filter:blur(6px) !important; }
+#post-modal.active { display:flex !important; align-items:center; justify-content:center; }
+#post-modal .modal-inner { width:fit-content; max-width:min(100%, 90vw); max-height:calc(100vh - 80px); overflow:auto; margin:0 auto !important; will-change:transform; }
+/* Content area max-width across all themes */
+.overlay { max-width:1200px; margin-left:auto; margin-right:auto; }
+/* Pagination: newer + older in a footer bar (below scrollable posts, like the header) */
+.page-nav-dual { display:flex; justify-content:center; align-items:center; flex-wrap:wrap;
+                gap:clamp(16px,4vw,48px); }
+/* Flex column layout: let #post-content shrink so overflow-y scrolls; footer stays visible */
+#post-content.content { min-height:0; }
+.page-nav-footer { flex-shrink:0; width:100%; box-sizing:border-box; }
+.page-nav-footer .page-nav { margin:0; }
+/* ~Half-height footer bar vs default .page-nav padding */
+.page-nav-footer .page-nav a { padding-top:4px; padding-bottom:4px; }
+/* Shared nav FX keyframes — themes apply these classes for brief effects */
+/* Modal open: post zooms/flies into the modal overlay */
+@keyframes sno-modal-zoom { 0%{transform:scale(0.82) translateY(18px);opacity:0} 60%{transform:scale(1.02) translateY(-3px);opacity:1} 100%{transform:scale(1) translateY(0);opacity:1} }
+@keyframes sno-modal-fly-up { 0%{transform:translateY(60px) scale(0.92);opacity:0} 70%{transform:translateY(-4px) scale(1.01);opacity:1} 100%{transform:translateY(0) scale(1);opacity:1} }
+@keyframes sno-modal-slide-in { 0%{transform:translateX(-40px) scale(0.96);opacity:0} 65%{transform:translateX(4px) scale(1.005);opacity:1} 100%{transform:translateX(0) scale(1);opacity:1} }
+@keyframes sno-modal-expand { 0%{transform:scale(0.05) rotate(-4deg);opacity:0} 55%{transform:scale(1.04) rotate(0.5deg);opacity:1} 100%{transform:scale(1) rotate(0);opacity:1} }
+.sno-modal-zoom   .modal-inner { animation:sno-modal-zoom    0.36s cubic-bezier(0.22,1,0.36,1) both !important; }
+.sno-modal-fly    .modal-inner { animation:sno-modal-fly-up   0.34s cubic-bezier(0.22,1,0.36,1) both !important; }
+.sno-modal-slide  .modal-inner { animation:sno-modal-slide-in 0.32s cubic-bezier(0.22,1,0.36,1) both !important; }
+.sno-modal-expand .modal-inner { animation:sno-modal-expand   0.4s  cubic-bezier(0.22,1,0.36,1) both !important; }
+@keyframes sno-shake { 0%,100%{transform:translate(0)} 14%{transform:translate(-7px,4px)} 28%{transform:translate(7px,-5px)} 42%{transform:translate(-5px,6px)} 56%{transform:translate(6px,-4px)} 70%{transform:translate(-4px,3px)} 86%{transform:translate(4px,-2px)} }
+@keyframes sno-zoom-fwd { 0%{transform:scale(1)} 40%{transform:scale(1.05)} 100%{transform:scale(1)} }
+@keyframes sno-glitch { 0%,100%{transform:translate(0) skewX(0)} 20%{transform:translate(-5px,0) skewX(-4deg)} 40%{transform:translate(5px,0) skewX(4deg)} 60%{transform:translate(-3px,0)} 80%{transform:translate(3px,0)} }
+@keyframes sno-bounce-left { 0%{transform:translateX(0)} 25%{transform:translateX(-18px)} 50%{transform:translateX(6px)} 75%{transform:translateX(-3px)} 100%{transform:translateX(0)} }
+@keyframes sno-bounce-right { 0%{transform:translateX(0)} 25%{transform:translateX(18px)} 50%{transform:translateX(-6px)} 75%{transform:translateX(3px)} 100%{transform:translateX(0)} }
+@keyframes sno-bounce-left-wild { 0%{transform:translateX(0) rotate(0)} 15%{transform:translateX(-48px) rotate(-3deg)} 35%{transform:translateX(22px) rotate(2deg)} 55%{transform:translateX(-12px) rotate(-1.2deg)} 75%{transform:translateX(6px) rotate(0.5deg)} 100%{transform:translateX(0) rotate(0)} }
+@keyframes sno-bounce-right-wild { 0%{transform:translateX(0) rotate(0)} 15%{transform:translateX(48px) rotate(3deg)} 35%{transform:translateX(-22px) rotate(-2deg)} 55%{transform:translateX(12px) rotate(1.2deg)} 75%{transform:translateX(-6px) rotate(-0.5deg)} 100%{transform:translateX(0) rotate(0)} }
+.sno-fx-bounce-left  { animation:sno-bounce-left  0.35s cubic-bezier(.36,.07,.19,.97) both !important; }
+.sno-fx-bounce-right { animation:sno-bounce-right 0.35s cubic-bezier(.36,.07,.19,.97) both !important; }
+.sno-fx-bounce-left-wild  { animation:sno-bounce-left-wild  0.5s cubic-bezier(.36,.07,.19,.97) both !important; }
+.sno-fx-bounce-right-wild { animation:sno-bounce-right-wild 0.5s cubic-bezier(.36,.07,.19,.97) both !important; }
+/* Vertical boundary bounce (top/bottom post list) */
+@keyframes sno-bounce-up { 0%{transform:translateY(0)} 25%{transform:translateY(-14px)} 50%{transform:translateY(5px)} 75%{transform:translateY(-2px)} 100%{transform:translateY(0)} }
+@keyframes sno-bounce-down { 0%{transform:translateY(0)} 25%{transform:translateY(14px)} 50%{transform:translateY(-5px)} 75%{transform:translateY(2px)} 100%{transform:translateY(0)} }
+@keyframes sno-bounce-up-wild { 0%{transform:translateY(0) rotate(0)} 15%{transform:translateY(-40px) rotate(-2.5deg)} 35%{transform:translateY(18px) rotate(1.5deg)} 55%{transform:translateY(-9px) rotate(-0.8deg)} 75%{transform:translateY(4px) rotate(0.3deg)} 100%{transform:translateY(0) rotate(0)} }
+@keyframes sno-bounce-down-wild { 0%{transform:translateY(0) rotate(0)} 15%{transform:translateY(40px) rotate(2.5deg)} 35%{transform:translateY(-18px) rotate(-1.5deg)} 55%{transform:translateY(9px) rotate(0.8deg)} 75%{transform:translateY(-4px) rotate(-0.3deg)} 100%{transform:translateY(0) rotate(0)} }
+.sno-fx-bounce-up    { animation:sno-bounce-up   0.35s cubic-bezier(.36,.07,.19,.97) both !important; }
+.sno-fx-bounce-down  { animation:sno-bounce-down 0.35s cubic-bezier(.36,.07,.19,.97) both !important; }
+.sno-fx-bounce-up-wild   { animation:sno-bounce-up-wild   0.5s cubic-bezier(.36,.07,.19,.97) both !important; }
+.sno-fx-bounce-down-wild { animation:sno-bounce-down-wild 0.5s cubic-bezier(.36,.07,.19,.97) both !important; }
+/* Post hover ripple — radial ring emanates from center on hover */
+@keyframes sno-hover-ripple { 0%{transform:translate(-50%,-50%) scale(0);opacity:0.5} 100%{transform:translate(-50%,-50%) scale(1);opacity:0} }
+.post:not(.post-active)::before { content:''; position:absolute; top:50%; left:50%; width:120%; height:120%;
+  border-radius:50%; border:2px solid currentColor; pointer-events:none;
+  transform:translate(-50%,-50%) scale(0); opacity:0; z-index:0; }
+.post:not(.post-active):hover::before { animation:sno-hover-ripple 0.6s ease-out forwards; }
+/* Modal scroll-end flash — brief glow at bottom of modal-inner when scrolled to end */
+@keyframes sno-scroll-end-flash { 0%{opacity:0.7} 100%{opacity:0} }
+.modal-inner .sno-scroll-end { position:sticky; bottom:0; left:0; right:0; height:3px; pointer-events:none;
+  background:linear-gradient(90deg, transparent, currentColor, transparent); opacity:0; }
+.modal-inner .sno-scroll-end.sno-scroll-end-active { animation:sno-scroll-end-flash 0.5s ease-out forwards; }
+/* Idle breathing — gentle glow pulse on active post after inactivity */
+@keyframes sno-idle-breathe { 0%,100%{box-shadow:inherit} 50%{box-shadow:0 0 18px 4px currentColor} }
+.post-active.sno-idle-breathe { animation:sno-idle-breathe 3s ease-in-out infinite; }
+/* First-visit particle burst */
+@keyframes sno-particle-fly { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--px),var(--py)) scale(0);opacity:0} }
+#sno-burst { position:fixed; inset:0; z-index:9999; pointer-events:none; }
+#sno-burst span { position:absolute; width:6px; height:6px; border-radius:50%; background:currentColor;
+  animation:sno-particle-fly var(--pdur) ease-out forwards; animation-delay:var(--pdel); opacity:0; }
+/* Cursor sparkle trail (normal mode) */
+@keyframes sno-sparkle { 0%{transform:scale(1);opacity:0.8} 100%{transform:scale(0);opacity:0} }
+.sno-sparkle { position:fixed; pointer-events:none; z-index:9990; border-radius:50%; }
+/* Post afterimage — ghost of previously selected post */
+@keyframes sno-afterimage { 0%{opacity:0.4;transform:scale(1)} 100%{opacity:0;transform:scale(0.97)} }
+.sno-afterimage { position:absolute; inset:0; pointer-events:none; z-index:0;
+  border:1px solid currentColor; border-radius:inherit; opacity:0; }
+.sno-afterimage-active { animation:sno-afterimage 0.5s ease-out forwards; }
+/* Wild flying emoji */
+@keyframes sno-fly-lr { 0%{transform:translateX(-60px) translateY(var(--fy,0)) rotate(0)} 100%{transform:translateX(calc(100vw + 60px)) translateY(var(--fy,0)) rotate(var(--frot,360deg))} }
+@keyframes sno-fly-rl { 0%{transform:translateX(calc(100vw + 60px)) translateY(var(--fy,0)) rotate(0)} 100%{transform:translateX(-60px) translateY(var(--fy,0)) rotate(var(--frot,-360deg))} }
+#sno-flyzone { position:fixed; inset:0; z-index:9985; pointer-events:none; overflow:hidden; }
+#sno-flyzone span { position:absolute; top:var(--ftop,50%); font-size:clamp(1.2rem,2.5vw,2rem);
+  animation-timing-function:linear; animation-fill-mode:forwards; }
+/* Wild random post flip */
+@keyframes sno-flip-post { 0%{transform:scaleY(1)} 25%{transform:scaleY(-1)} 75%{transform:scaleY(-1)} 100%{transform:scaleY(1)} }
+.sno-fx-flip { animation:sno-flip-post 1.4s ease-in-out both !important; transform-origin:center; }
+/* Wild hue drift on body */
+@keyframes sno-hue-drift { 0%{filter:hue-rotate(0)} 100%{filter:hue-rotate(360deg)} }
+body.sno-wild-hue { animation:sno-hue-drift 12s linear infinite; }
+@keyframes sno-wild-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+/* Storm overlay that flickers like distant lightning while wild mode is on */
+@keyframes sno-wild-flicker { 0%,84%,87%,91%,94%,100%{opacity:0} 85%,90%{opacity:0.75} 86%,92%{opacity:0.35} }
+.sno-fx-shake { animation:sno-shake 0.38s cubic-bezier(.36,.07,.19,.97) both !important; transform-origin:center; }
+.sno-fx-zoom  { animation:sno-zoom-fwd 0.32s ease both !important; }
+.sno-fx-glitch { animation:sno-glitch 0.3s ease both !important; }
+/* Wild mode badge — only visible (opacity:1) when .sno-wild-on is present */
+#sno-wild-badge { position:fixed; top:10px; right:12px; z-index:5000; padding:3px 12px;
+  font-size:0.64rem; letter-spacing:0.2em; text-transform:uppercase; border-radius:2px;
+  pointer-events:none; opacity:0; transition:opacity 0.4s;
+  background:rgba(220,0,0,0.92); color:#fff; border:1px solid rgba(255,100,100,0.8);
+  font-family:monospace; }
+/* Animation only runs when wild is actually on, preventing invisible badge pulse */
+#sno-wild-badge.sno-wild-on { opacity:1; animation:sno-wild-pulse 0.9s ease-in-out infinite; }
+#sno-wild-root { position:fixed; inset:0; z-index:18; pointer-events:none; opacity:0;
+  transition:opacity 0.35s ease; overflow:hidden; isolation:isolate; }
+body.sno-wild-active #sno-wild-root { opacity:1; }
+#sno-wild-root .sno-wild-layer,
+#sno-wild-root #sno-wild-scraps,
+#sno-wild-root #sno-wild-banner,
+#sno-wild-root #sno-wild-ticker { position:absolute; inset:0; }
+#sno-wild-colorwash {
+  background-image:var(--sno-wild-colorwash, none);
+  background-size:var(--sno-wild-colorwash-size, cover);
+  background-position:center;
+  mix-blend-mode:screen;
+  opacity:var(--sno-wild-colorwash-opacity, 0.55);
+  animation:sno-wild-drift 9s ease-in-out infinite;
+}
+#sno-wild-rain {
+  background-image:var(--sno-wild-rain, none);
+  background-size:var(--sno-wild-rain-size, 220px 220px);
+  background-repeat:repeat;
+  background-position:0 0;
+  mix-blend-mode:screen;
+  opacity:var(--sno-wild-rain-opacity, 0.18);
+  animation:sno-wild-rainfall var(--sno-wild-rain-speed, 1.2s) linear infinite;
+}
+#sno-wild-wave {
+  inset:auto 0 -8vh 0;
+  height:70vh;
+  background:var(--sno-wild-wave, none);
+  opacity:var(--sno-wild-wave-opacity, 0.32);
+  transform-origin:50% 100%;
+  animation:sno-wild-surge 6.4s ease-in-out infinite;
+}
+#sno-wild-beacon {
+  background:var(--sno-wild-beacon, none);
+  opacity:var(--sno-wild-beacon-opacity, 0.38);
+  filter:blur(var(--sno-wild-beacon-blur, 0px));
+  mix-blend-mode:screen;
+  animation:sno-wild-lens 4.5s ease-in-out infinite;
+}
+#sno-wild-noise {
+  background-image:
+    linear-gradient(90deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 100%),
+    linear-gradient(180deg, rgba(255,255,255,0.07) 0 1px, transparent 1px 100%),
+    repeating-linear-gradient(180deg,
+      rgba(255,255,255,0.08) 0 2px,
+      rgba(0,0,0,0.02) 2px 4px,
+      transparent 4px 8px);
+  background-size:3px 3px, 100% 3px, 100% 8px;
+  mix-blend-mode:overlay;
+  opacity:var(--sno-wild-noise-opacity, 0.12);
+  animation:sno-wild-static-shift 0.22s steps(2) infinite;
+}
+#sno-wild-banner {
+  inset:18px auto auto 50%;
+  transform:translateX(-50%);
+  width:max-content;
+  max-width:min(92vw, 920px);
+  height:auto;
+  padding:10px 18px;
+  border:1px solid var(--sno-wild-accent, rgba(255,255,255,0.8));
+  background:var(--sno-wild-banner-bg, rgba(0,0,0,0.82));
+  color:var(--sno-wild-banner-color, #fff);
+  font:700 clamp(0.75rem, 1vw + 0.55rem, 1.15rem)/1.1 monospace;
+  letter-spacing:0.38em;
+  text-transform:uppercase;
+  text-align:center;
+  box-shadow:0 0 28px var(--sno-wild-banner-glow, rgba(255,255,255,0.25));
+  text-shadow:0 0 18px var(--sno-wild-banner-glow, rgba(255,255,255,0.25));
+  white-space:nowrap;
+  animation:sno-wild-banner-flicker 1.2s steps(2) infinite;
+}
+#sno-wild-ticker {
+  inset:auto 0 12px 0;
+  height:30px;
+  overflow:hidden;
+  opacity:0.92;
+  color:var(--sno-wild-accent, #fff);
+  font:700 0.76rem/30px monospace;
+  letter-spacing:0.32em;
+  text-transform:uppercase;
+  text-shadow:0 0 14px var(--sno-wild-banner-glow, rgba(255,255,255,0.28));
+}
+#sno-wild-ticker span {
+  position:absolute;
+  left:0;
+  top:0;
+  display:inline-block;
+  white-space:nowrap;
+  padding-left:100%;
+  animation:sno-wild-marquee 13s linear infinite;
+}
+#sno-wild-scraps span {
+  position:absolute;
+  left:var(--x);
+  top:var(--y);
+  transform:rotate(var(--rot));
+  color:var(--sno-wild-scrap-color, rgba(255,255,255,0.82));
+  font:700 clamp(0.6rem, 0.45rem + 0.45vw, 0.94rem)/1 monospace;
+  letter-spacing:0.24em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  opacity:0;
+  text-shadow:0 0 10px var(--sno-wild-banner-glow, rgba(255,255,255,0.18));
+  animation:sno-wild-scrap var(--dur, 6s) linear infinite;
+  animation-delay:var(--delay, 0s);
+}
+body.sno-wild-active .overlay,
+body.sno-wild-active header,
+body.sno-wild-active .post,
+body.sno-wild-active .page-nav-footer { will-change:transform, filter, opacity; }
+body.sno-wild-active .overlay { position:relative; z-index:24 !important; isolation:isolate; }
+body.sno-wild-active .post:not(.post-active) {
+  opacity:0.32 !important;
+  filter:saturate(0.78) brightness(0.82);
+}
+body.sno-wild-active .post.post-active {
+  z-index:2;
+  opacity:1 !important;
+  background:rgba(0,0,0,0.84) !important;
+  backdrop-filter:blur(14px) saturate(0.94);
+  -webkit-backdrop-filter:blur(14px) saturate(0.94);
+  box-shadow:
+    0 0 0 2px var(--sno-wild-accent, rgba(255,255,255,0.82)),
+    0 18px 44px rgba(0,0,0,0.55),
+    inset 0 0 0 1px rgba(255,255,255,0.06) !important;
+  text-shadow:none !important;
+  filter:none !important;
+  animation:none !important;
+  transform:none !important;
+}
+body.sno-wild-active .post.post-active::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+  background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01) 38%, rgba(0,0,0,0.08));
+}
+body.sno-wild-active .post.post-active > * { position:relative; z-index:1; }
+@keyframes sno-wild-drift {
+  0%,100% { transform:translate3d(0,0,0) scale(1); }
+  50% { transform:translate3d(-2%,1.5%,0) scale(1.08); }
+}
+@keyframes sno-wild-rainfall {
+  from { background-position:0 0, 0 0, 0 0; }
+  to { background-position:0 280px, 160px 420px, -140px 640px; }
+}
+@keyframes sno-wild-surge {
+  0%,100% { transform:translateY(16%) scaleY(0.92) skewX(0deg); }
+  50% { transform:translateY(-8%) scaleY(1.12) skewX(-4deg); }
+}
+@keyframes sno-wild-lens {
+  0%,100% { transform:scale(0.9); opacity:0.18; }
+  50% { transform:scale(1.24); opacity:0.52; }
+}
+@keyframes sno-wild-static-shift {
+  0% { transform:translate3d(0,0,0); }
+  25% { transform:translate3d(-1.2%,0.6%,0); }
+  50% { transform:translate3d(1%, -0.6%,0); }
+  75% { transform:translate3d(0.7%,1.1%,0); }
+  100% { transform:translate3d(0,0,0); }
+}
+@keyframes sno-wild-banner-flicker {
+  0%,100% { opacity:0.95; }
+  12% { opacity:0.4; }
+  13% { opacity:1; }
+  32% { opacity:0.6; }
+  33% { opacity:1; }
+  61% { opacity:0.48; }
+  62% { opacity:0.98; }
+}
+@keyframes sno-wild-marquee {
+  from { transform:translateX(0); }
+  to { transform:translateX(-46%); }
+}
+@keyframes sno-wild-scrap {
+  0%   { transform:translate3d(0,0,0) rotate(var(--rot)); opacity:0; }
+  12%  { opacity:0.78; }
+  45%  { transform:translate3d(var(--dx), var(--dy), 0) rotate(calc(var(--rot) + 10deg)); opacity:0.92; }
+  100% { transform:translate3d(calc(var(--dx) * -0.75), calc(var(--dy) * -0.75), 0) rotate(calc(var(--rot) - 8deg)); opacity:0.18; }
+}
+@keyframes sno-wild-hard-blink {
+  0%,44%,100% { filter:invert(0) grayscale(0) contrast(1.04); }
+  45%,49% { filter:invert(1) grayscale(1) contrast(1.8); }
+  50%,53% { filter:invert(0) grayscale(0) contrast(1.15); }
+  54%,58% { filter:invert(1) grayscale(1) contrast(1.9); }
+}
+@keyframes sno-wild-jitter {
+  0%,100% { transform:translate(0,0); }
+  20% { transform:translate(-4px,2px); }
+  40% { transform:translate(5px,-4px); }
+  60% { transform:translate(-3px,4px); }
+  80% { transform:translate(3px,-1px); }
+}
+@keyframes sno-wild-roll {
+  0%,100% { transform:translateY(0); }
+  28% { transform:translateY(-12px); }
+  29% { transform:translateY(16px); }
+  58% { transform:translateY(-8px); }
+  59% { transform:translateY(6px); }
+}
+@keyframes sno-wild-collapse {
+  0%,100% { transform:perspective(1200px) rotateX(0deg) scale(1); }
+  50% { transform:perspective(1200px) rotateX(10deg) scale(1.04) translateY(1.2%); }
+}
+@keyframes sno-wild-compress {
+  0%,100% { transform:scaleY(1); }
+  40% { transform:scaleY(0.9); }
+  70% { transform:scaleY(1.08); }
+}
+@keyframes sno-wild-text-burn {
+  0%,100% { text-shadow:0 0 0 transparent; }
+  33% { text-shadow:-2px 0 rgba(255,60,60,0.75), 2px 0 rgba(100,255,255,0.7); }
+  66% { text-shadow:2px 0 rgba(255,240,80,0.75), -2px 0 rgba(90,90,255,0.7); }
+}
+body[data-sno-theme="aurora"] {
+  --sno-wild-colorwash:
+    linear-gradient(112deg, transparent 0 16%, rgba(0,255,179,0.2) 26%, transparent 38%, rgba(0,207,232,0.24) 48%, transparent 60%, rgba(192,132,252,0.24) 70%, transparent 84%),
+    radial-gradient(circle at 50% 28%, rgba(255,255,255,0.18) 0%, rgba(0,255,179,0.08) 20%, transparent 48%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 68%, rgba(236,255,255,0.9) 76% 80%, transparent 88%),
+    linear-gradient(180deg, transparent 0 72%, rgba(0,255,179,0.6) 80% 84%, transparent 92%),
+    linear-gradient(180deg, transparent 0 64%, rgba(192,132,252,0.55) 72% 78%, transparent 86%);
+  --sno-wild-rain-size:160px 240px, 220px 280px, 290px 330px;
+  --sno-wild-rain-opacity:0.3;
+  --sno-wild-rain-speed:1.05s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,255,179,0.08) 38%, rgba(192,132,252,0.22) 76%, rgba(3,8,17,0.88) 100%);
+  --sno-wild-wave-opacity:0.62;
+  --sno-wild-beacon:radial-gradient(circle at 50% 24%, rgba(255,255,255,0.3) 0%, rgba(0,255,179,0.14) 18%, transparent 54%);
+  --sno-wild-accent:#8fffe7;
+  --sno-wild-banner-bg:rgba(3,16,28,0.74);
+  --sno-wild-banner-color:#e9fff8;
+  --sno-wild-banner-glow:rgba(0,255,179,0.34);
+  --sno-wild-scrap-color:rgba(224,248,240,0.8);
+}
+body.sno-wild-active[data-sno-theme="aurora"] header,
+body.sno-wild-active[data-sno-theme="aurora"] .nav-hints,
+body.sno-wild-active[data-sno-theme="aurora"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="aurora"] .page-nav-footer { animation:sno-wild-text-burn 1.9s steps(1) infinite; }
+body[data-sno-theme="brutalist"] {
+  --sno-wild-colorwash:
+    linear-gradient(134deg, transparent 0 24%, rgba(255,255,255,0.08) 24.5% 25.2%, transparent 26% 42%, rgba(255,255,255,0.06) 42.5% 43.2%, transparent 44%),
+    linear-gradient(28deg, transparent 0 30%, rgba(195,32,32,0.22) 30.5% 31.5%, transparent 32% 65%, rgba(255,255,255,0.07) 65.4% 66.2%, transparent 67%),
+    radial-gradient(circle at 50% 10%, rgba(255,130,80,0.18) 0%, transparent 44%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 72%, rgba(133,65,22,0.9) 82% 84%, transparent 90%),
+    linear-gradient(180deg, transparent 0 60%, rgba(255,255,255,0.35) 70% 72%, transparent 80%);
+  --sno-wild-rain-size:240px 300px, 340px 360px;
+  --sno-wild-rain-opacity:0.22;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(24,24,24,0.22) 38%, rgba(92,16,16,0.4) 78%, rgba(0,0,0,0.88) 100%);
+  --sno-wild-accent:#ff5d52;
+  --sno-wild-banner-bg:rgba(12,12,12,0.84);
+  --sno-wild-banner-color:#fff3ef;
+  --sno-wild-banner-glow:rgba(255,93,82,0.28);
+  --sno-wild-scrap-color:rgba(255,214,204,0.82);
+}
+body.sno-wild-active[data-sno-theme="brutalist"] header,
+body.sno-wild-active[data-sno-theme="brutalist"] .nav-hints,
+body.sno-wild-active[data-sno-theme="brutalist"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="brutalist"] .page-nav-footer { animation:sno-wild-jitter 0.22s steps(2) infinite; }
+body[data-sno-theme="cosmos"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 48%, rgba(255,255,255,0.5) 0 2%, rgba(99,0,164,0.5) 6%, rgba(12,4,33,0.05) 16%, transparent 26%),
+    radial-gradient(circle at 50% 48%, transparent 0 22%, rgba(255,255,255,0.18) 26% 27%, transparent 31%),
+    conic-gradient(from 0deg at 50% 48%, rgba(255,255,255,0.28), transparent 18%, rgba(135,206,250,0.2) 32%, transparent 52%, rgba(255,240,150,0.24) 68%, transparent 84%, rgba(255,255,255,0.28));
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 70%, rgba(255,255,255,0.92) 80% 82%, transparent 90%),
+    linear-gradient(180deg, transparent 0 72%, rgba(180,128,255,0.7) 82% 84%, transparent 92%);
+  --sno-wild-rain-size:260px 280px, 320px 360px;
+  --sno-wild-rain-opacity:0.26;
+  --sno-wild-beacon:radial-gradient(circle at 50% 48%, rgba(255,255,255,0.75) 0%, rgba(155,115,255,0.24) 14%, transparent 36%);
+  --sno-wild-wave:radial-gradient(circle at 50% 110%, rgba(255,255,255,0.12) 0%, rgba(20,6,44,0.52) 45%, rgba(2,2,12,0.94) 100%);
+  --sno-wild-accent:#f8d9ff;
+  --sno-wild-banner-bg:rgba(8,6,24,0.82);
+  --sno-wild-banner-color:#ffffff;
+  --sno-wild-banner-glow:rgba(238,214,255,0.34);
+  --sno-wild-scrap-color:rgba(240,228,255,0.82);
+}
+body.sno-wild-active[data-sno-theme="cosmos"] header,
+body.sno-wild-active[data-sno-theme="cosmos"] .nav-hints,
+body.sno-wild-active[data-sno-theme="cosmos"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="cosmos"] .page-nav-footer { animation:sno-wild-collapse 4.2s ease-in-out infinite; }
+body[data-sno-theme="dos"] {
+  --sno-wild-colorwash:
+    linear-gradient(90deg, rgba(255,255,255,0.12) 0 50%, rgba(0,0,0,0.16) 50% 100%),
+    radial-gradient(circle at 50% 14%, rgba(85,255,255,0.18) 0%, transparent 38%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 62%, rgba(255,255,255,0.95) 68% 72%, transparent 78%),
+    linear-gradient(180deg, transparent 0 54%, rgba(85,255,255,0.85) 60% 64%, transparent 70%),
+    linear-gradient(180deg, transparent 0 70%, rgba(255,255,85,0.75) 76% 80%, transparent 86%);
+  --sno-wild-rain-size:120px 180px, 190px 220px, 280px 260px;
+  --sno-wild-rain-opacity:0.34;
+  --sno-wild-rain-speed:0.62s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,170,0.18) 42%, rgba(0,0,0,0.82) 100%);
+  --sno-wild-accent:#ffff55;
+  --sno-wild-banner-bg:#0000aa;
+  --sno-wild-banner-color:#ffffff;
+  --sno-wild-banner-glow:rgba(85,255,255,0.28);
+  --sno-wild-scrap-color:#ffff55;
+}
+body.sno-wild-active[data-sno-theme="dos"] header,
+body.sno-wild-active[data-sno-theme="dos"] .nav-hints,
+body.sno-wild-active[data-sno-theme="dos"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="dos"] .page-nav-footer {
+  animation:sno-wild-hard-blink 0.72s steps(1) infinite, sno-wild-jitter 0.14s steps(2) infinite;
+}
+body[data-sno-theme="matrix"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 0%, rgba(0,255,65,0.18) 0%, transparent 42%),
+    linear-gradient(180deg, rgba(0,40,0,0) 0%, rgba(0,255,65,0.09) 60%, rgba(0,0,0,0.62) 100%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 54%, rgba(187,255,210,1) 62% 68%, transparent 76%),
+    linear-gradient(180deg, transparent 0 44%, rgba(0,255,65,0.9) 52% 58%, transparent 66%),
+    linear-gradient(180deg, transparent 0 68%, rgba(140,255,180,0.72) 76% 82%, transparent 90%);
+  --sno-wild-rain-size:90px 180px, 130px 210px, 200px 280px;
+  --sno-wild-rain-opacity:0.5;
+  --sno-wild-rain-speed:0.38s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,255,65,0.04) 40%, rgba(0,0,0,0.92) 100%);
+  --sno-wild-accent:#98ffac;
+  --sno-wild-banner-bg:rgba(0,10,0,0.78);
+  --sno-wild-banner-color:#d8ffe2;
+  --sno-wild-banner-glow:rgba(0,255,65,0.32);
+  --sno-wild-scrap-color:rgba(152,255,172,0.84);
+}
+body.sno-wild-active[data-sno-theme="matrix"] header,
+body.sno-wild-active[data-sno-theme="matrix"] .nav-hints,
+body.sno-wild-active[data-sno-theme="matrix"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="matrix"] .page-nav-footer { animation:sno-wild-text-burn 1.1s steps(1) infinite; }
+body[data-sno-theme="neon"] {
+  --sno-wild-colorwash:
+    conic-gradient(from 90deg at 50% 20%, rgba(255,231,0,0.16), transparent 18%, rgba(255,0,204,0.22) 32%, transparent 50%, rgba(0,245,255,0.24) 66%, transparent 84%, rgba(255,231,0,0.16)),
+    radial-gradient(circle at 50% 15%, rgba(255,255,255,0.22) 0%, rgba(0,245,255,0.08) 26%, transparent 56%);
+  --sno-wild-rain:
+    linear-gradient(118deg, transparent 0 46%, rgba(255,255,255,0.95) 49% 50%, transparent 53%),
+    linear-gradient(62deg, transparent 0 45%, rgba(0,245,255,0.75) 48% 49%, transparent 52%),
+    linear-gradient(132deg, transparent 0 42%, rgba(255,0,204,0.82) 45% 46%, transparent 49%);
+  --sno-wild-rain-size:280px 280px, 360px 360px, 420px 420px;
+  --sno-wild-rain-opacity:0.34;
+  --sno-wild-rain-speed:0.72s;
+  --sno-wild-beacon:radial-gradient(circle at 50% 20%, rgba(255,255,255,0.44) 0%, rgba(255,0,204,0.18) 14%, transparent 42%);
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,0,204,0.08) 44%, rgba(11,0,26,0.88) 100%);
+  --sno-wild-accent:#ffe700;
+  --sno-wild-banner-bg:rgba(11,0,26,0.8);
+  --sno-wild-banner-color:#faff9c;
+  --sno-wild-banner-glow:rgba(255,231,0,0.42);
+  --sno-wild-scrap-color:rgba(255,245,174,0.88);
+}
+body.sno-wild-active[data-sno-theme="neon"] header,
+body.sno-wild-active[data-sno-theme="neon"] .nav-hints,
+body.sno-wild-active[data-sno-theme="neon"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="neon"] .page-nav-footer { animation:sno-wild-text-burn 1.3s steps(1) infinite; }
+body[data-sno-theme="ocean"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 120%, rgba(0,180,255,0.22) 0%, rgba(0,31,63,0.08) 34%, transparent 56%),
+    radial-gradient(circle at 20% 28%, rgba(147,255,227,0.16) 0%, transparent 32%),
+    radial-gradient(circle at 78% 22%, rgba(120,255,235,0.14) 0%, transparent 30%);
+  --sno-wild-rain:
+    linear-gradient(165deg, transparent 0 58%, rgba(220,255,255,0.95) 62% 66%, transparent 72%),
+    linear-gradient(175deg, transparent 0 48%, rgba(98,255,228,0.72) 52% 56%, transparent 62%),
+    linear-gradient(170deg, transparent 0 68%, rgba(170,255,240,0.78) 72% 76%, transparent 82%);
+  --sno-wild-rain-size:170px 260px, 240px 320px, 310px 360px;
+  --sno-wild-rain-opacity:0.26;
+  --sno-wild-rain-speed:0.82s;
+  --sno-wild-wave:radial-gradient(circle at 50% 100%, rgba(0,255,220,0.3) 0%, rgba(0,80,120,0.32) 28%, rgba(1,20,40,0.92) 74%);
+  --sno-wild-wave-opacity:0.86;
+  --sno-wild-beacon:radial-gradient(circle at 50% 88%, rgba(147,255,227,0.18) 0%, transparent 38%);
+  --sno-wild-accent:#bafcff;
+  --sno-wild-banner-bg:rgba(0,24,42,0.8);
+  --sno-wild-banner-color:#e1ffff;
+  --sno-wild-banner-glow:rgba(120,255,235,0.34);
+  --sno-wild-scrap-color:rgba(202,240,248,0.86);
+}
+body.sno-wild-active[data-sno-theme="ocean"] header,
+body.sno-wild-active[data-sno-theme="ocean"] .nav-hints,
+body.sno-wild-active[data-sno-theme="ocean"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="ocean"] .page-nav-footer { animation:sno-wild-collapse 5.2s ease-in-out infinite; }
+body[data-sno-theme="plasma"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 48%, rgba(255,255,255,0.66) 0%, rgba(165,230,255,0.18) 10%, transparent 24%),
+    conic-gradient(from 0deg at 50% 48%, rgba(255,255,255,0.28), rgba(157,255,255,0.16), rgba(251,146,255,0.28), rgba(255,255,255,0.28)),
+    radial-gradient(circle at 50% 110%, rgba(65,14,90,0.34) 0%, transparent 52%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 70%, rgba(255,255,255,0.92) 78% 82%, transparent 90%),
+    linear-gradient(180deg, transparent 0 60%, rgba(132,255,255,0.72) 68% 72%, transparent 80%);
+  --sno-wild-rain-size:220px 260px, 320px 360px;
+  --sno-wild-rain-opacity:0.28;
+  --sno-wild-beacon:radial-gradient(circle at 50% 48%, rgba(255,255,255,0.78) 0%, rgba(128,224,255,0.2) 12%, transparent 36%);
+  --sno-wild-wave:linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(144,220,255,0.12) 44%, rgba(8,2,20,0.9) 100%);
+  --sno-wild-accent:#fef3ff;
+  --sno-wild-banner-bg:rgba(18,6,36,0.8);
+  --sno-wild-banner-color:#ffffff;
+  --sno-wild-banner-glow:rgba(160,224,255,0.42);
+  --sno-wild-scrap-color:rgba(248,240,255,0.88);
+}
+body.sno-wild-active[data-sno-theme="plasma"] header,
+body.sno-wild-active[data-sno-theme="plasma"] .nav-hints,
+body.sno-wild-active[data-sno-theme="plasma"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="plasma"] .page-nav-footer { animation:sno-wild-text-burn 1.5s steps(1) infinite; }
+body[data-sno-theme="retro"] {
+  --sno-wild-colorwash:
+    linear-gradient(90deg, rgba(255,80,0,0.18) 0 18%, transparent 24% 76%, rgba(255,220,80,0.14) 82% 100%),
+    linear-gradient(180deg, rgba(255,255,255,0.08), transparent 16%, rgba(255,255,255,0.06) 34%, transparent 54%, rgba(255,255,255,0.05) 78%, transparent 100%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 46%, rgba(255,255,255,0.88) 52% 56%, transparent 62%),
+    linear-gradient(180deg, transparent 0 64%, rgba(255,190,50,0.82) 70% 74%, transparent 80%);
+  --sno-wild-rain-size:160px 220px, 260px 300px;
+  --sno-wild-rain-opacity:0.24;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,190,50,0.08) 42%, rgba(10,4,0,0.9) 100%);
+  --sno-wild-accent:#ffcf63;
+  --sno-wild-banner-bg:rgba(24,10,0,0.82);
+  --sno-wild-banner-color:#ffe7a5;
+  --sno-wild-banner-glow:rgba(255,190,50,0.34);
+  --sno-wild-scrap-color:rgba(255,215,120,0.86);
+}
+body.sno-wild-active[data-sno-theme="retro"] header,
+body.sno-wild-active[data-sno-theme="retro"] .nav-hints,
+body.sno-wild-active[data-sno-theme="retro"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="retro"] .page-nav-footer {
+  animation:sno-wild-roll 0.85s linear infinite, sno-wild-jitter 0.18s steps(2) infinite;
+}
+body[data-sno-theme="retrofuture"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 20%, rgba(255,220,140,0.24) 0%, transparent 38%),
+    linear-gradient(180deg, rgba(169,111,46,0.08) 0%, rgba(133,86,33,0.16) 60%, rgba(50,29,12,0.52) 100%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 66%, rgba(255,232,180,0.82) 74% 78%, transparent 86%),
+    linear-gradient(180deg, transparent 0 58%, rgba(170,120,60,0.7) 66% 70%, transparent 78%);
+  --sno-wild-rain-size:180px 240px, 260px 320px;
+  --sno-wild-rain-opacity:0.22;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,206,128,0.07) 42%, rgba(28,18,9,0.92) 100%);
+  --sno-wild-accent:#ffd793;
+  --sno-wild-banner-bg:rgba(26,16,8,0.82);
+  --sno-wild-banner-color:#fff4d6;
+  --sno-wild-banner-glow:rgba(255,215,147,0.3);
+  --sno-wild-scrap-color:rgba(255,233,190,0.86);
+}
+body.sno-wild-active[data-sno-theme="retrofuture"] header,
+body.sno-wild-active[data-sno-theme="retrofuture"] .nav-hints,
+body.sno-wild-active[data-sno-theme="retrofuture"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="retrofuture"] .page-nav-footer { animation:sno-wild-text-burn 1.6s steps(1) infinite; }
+body[data-sno-theme="spaceage"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(255,170,90,0.16) 0%, transparent 24%, rgba(80,220,255,0.12) 54%, transparent 100%),
+    radial-gradient(circle at 50% -10%, rgba(255,255,255,0.46) 0%, rgba(255,180,120,0.16) 18%, transparent 42%);
+  --sno-wild-rain:
+    linear-gradient(160deg, transparent 0 52%, rgba(255,220,190,0.95) 58% 62%, transparent 68%),
+    linear-gradient(170deg, transparent 0 42%, rgba(255,138,84,0.74) 48% 52%, transparent 58%),
+    linear-gradient(180deg, transparent 0 62%, rgba(120,220,255,0.68) 68% 72%, transparent 78%);
+  --sno-wild-rain-size:180px 260px, 260px 320px, 360px 420px;
+  --sno-wild-rain-opacity:0.28;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,149,90,0.08) 44%, rgba(0,10,18,0.9) 100%);
+  --sno-wild-accent:#ffd0a8;
+  --sno-wild-banner-bg:rgba(3,18,26,0.82);
+  --sno-wild-banner-color:#fff1e0;
+  --sno-wild-banner-glow:rgba(255,172,124,0.34);
+  --sno-wild-scrap-color:rgba(255,225,206,0.82);
+}
+body.sno-wild-active[data-sno-theme="spaceage"] header,
+body.sno-wild-active[data-sno-theme="spaceage"] .nav-hints,
+body.sno-wild-active[data-sno-theme="spaceage"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="spaceage"] .page-nav-footer {
+  animation:sno-wild-compress 1.8s ease-in-out infinite, sno-wild-jitter 0.42s steps(2) infinite;
+}
+body[data-sno-theme="synthwave"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(255,20,147,0.14) 0%, transparent 20%, rgba(0,255,255,0.12) 52%, transparent 74%),
+    radial-gradient(circle at 50% 18%, rgba(255,255,255,0.34) 0%, rgba(255,20,147,0.14) 14%, transparent 36%),
+    linear-gradient(90deg, rgba(255,20,147,0.14) 0 1px, transparent 1px 11%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 68%, rgba(255,255,255,0.95) 76% 80%, transparent 88%),
+    linear-gradient(180deg, transparent 0 60%, rgba(255,20,147,0.82) 68% 72%, transparent 80%),
+    linear-gradient(180deg, transparent 0 50%, rgba(0,255,255,0.74) 58% 62%, transparent 70%);
+  --sno-wild-rain-size:160px 220px, 260px 320px, 360px 400px;
+  --sno-wild-rain-opacity:0.32;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,20,147,0.08) 42%, rgba(5,1,22,0.92) 100%);
+  --sno-wild-accent:#ff7de9;
+  --sno-wild-banner-bg:rgba(18,0,34,0.84);
+  --sno-wild-banner-color:#ffe9ff;
+  --sno-wild-banner-glow:rgba(255,125,233,0.4);
+  --sno-wild-scrap-color:rgba(255,225,255,0.86);
+}
+body.sno-wild-active[data-sno-theme="synthwave"] header,
+body.sno-wild-active[data-sno-theme="synthwave"] .nav-hints,
+body.sno-wild-active[data-sno-theme="synthwave"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="synthwave"] .page-nav-footer { animation:sno-wild-collapse 3.8s ease-in-out infinite; }
+body[data-sno-theme="terminal"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(51,255,51,0.14) 0%, transparent 24%, rgba(0,0,0,0.14) 46%, transparent 68%, rgba(51,255,51,0.1) 100%),
+    radial-gradient(circle at 50% 10%, rgba(255,255,255,0.18) 0%, transparent 38%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 52%, rgba(255,255,255,0.94) 58% 62%, transparent 68%),
+    linear-gradient(180deg, transparent 0 44%, rgba(51,255,51,0.9) 50% 54%, transparent 60%),
+    linear-gradient(180deg, transparent 0 64%, rgba(140,255,140,0.7) 70% 74%, transparent 80%);
+  --sno-wild-rain-size:100px 180px, 140px 210px, 220px 260px;
+  --sno-wild-rain-opacity:0.4;
+  --sno-wild-rain-speed:0.42s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(51,255,51,0.06) 42%, rgba(0,0,0,0.95) 100%);
+  --sno-wild-accent:#8dff8d;
+  --sno-wild-banner-bg:rgba(0,10,0,0.8);
+  --sno-wild-banner-color:#d7ffd7;
+  --sno-wild-banner-glow:rgba(51,255,51,0.34);
+  --sno-wild-scrap-color:rgba(141,255,141,0.84);
+}
+body.sno-wild-active[data-sno-theme="terminal"] header,
+body.sno-wild-active[data-sno-theme="terminal"] .nav-hints,
+body.sno-wild-active[data-sno-theme="terminal"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="terminal"] .page-nav-footer {
+  animation:sno-wild-hard-blink 0.82s steps(1) infinite, sno-wild-jitter 0.16s steps(2) infinite;
+}
+body.sno-wild-active[data-sno-theme="terminal"] .post.post-active {
+  filter:invert(1) grayscale(1) contrast(1.28) !important;
+  background:#fff !important;
+  color:#000 !important;
+  text-shadow:none !important;
+}
+body.sno-wild-active[data-sno-theme="terminal"] .post.post-active a { color:#000 !important; }
+body.sno-wild-active[data-sno-theme="terminal"] .post.post-active .post-time,
+body.sno-wild-active[data-sno-theme="terminal"] .post.post-active .post-header strong { color:#000 !important; }
+body[data-sno-theme="tropicale"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 18%, rgba(0,110,160,0.1) 46%, rgba(0,40,70,0.38) 100%),
+    radial-gradient(circle at 50% 110%, rgba(0,210,255,0.24) 0%, transparent 44%);
+  --sno-wild-rain:
+    linear-gradient(168deg, transparent 0 54%, rgba(255,255,255,0.98) 60% 64%, transparent 70%),
+    linear-gradient(176deg, transparent 0 42%, rgba(200,255,255,0.72) 48% 52%, transparent 58%),
+    linear-gradient(172deg, transparent 0 64%, rgba(255,230,180,0.52) 70% 74%, transparent 80%);
+  --sno-wild-rain-size:150px 260px, 230px 320px, 320px 400px;
+  --sno-wild-rain-opacity:0.44;
+  --sno-wild-rain-speed:0.5s;
+  --sno-wild-wave:radial-gradient(circle at 50% 100%, rgba(175,255,255,0.28) 0%, rgba(0,135,190,0.32) 26%, rgba(0,24,44,0.92) 74%);
+  --sno-wild-wave-opacity:0.88;
+  --sno-wild-accent:#fff2bf;
+  --sno-wild-banner-bg:rgba(0,34,56,0.82);
+  --sno-wild-banner-color:#fff7db;
+  --sno-wild-banner-glow:rgba(255,242,191,0.34);
+  --sno-wild-scrap-color:rgba(255,244,213,0.84);
+}
+body.sno-wild-active[data-sno-theme="tropicale"] header,
+body.sno-wild-active[data-sno-theme="tropicale"] .nav-hints,
+body.sno-wild-active[data-sno-theme="tropicale"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="tropicale"] .page-nav-footer { animation:sno-wild-jitter 0.3s steps(2) infinite; }
+body[data-sno-theme="volcano"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(60,60,60,0.28) 0%, rgba(40,40,40,0.18) 26%, transparent 48%, rgba(255,140,0,0.18) 72%, rgba(255,214,102,0.14) 100%),
+    radial-gradient(circle at 50% 8%, rgba(255,255,255,0.24) 0%, rgba(255,150,60,0.1) 18%, transparent 42%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 42%, rgba(110,110,110,0.92) 48% 54%, transparent 60%),
+    linear-gradient(180deg, transparent 0 54%, rgba(255,170,80,0.82) 60% 66%, transparent 72%),
+    linear-gradient(180deg, transparent 0 64%, rgba(255,235,140,0.54) 70% 76%, transparent 82%);
+  --sno-wild-rain-size:150px 230px, 220px 300px, 320px 360px;
+  --sno-wild-rain-opacity:0.38;
+  --sno-wild-rain-speed:0.68s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,120,20,0.1) 42%, rgba(55,20,0,0.9) 100%);
+  --sno-wild-accent:#ffdf76;
+  --sno-wild-banner-bg:rgba(22,8,0,0.84);
+  --sno-wild-banner-color:#fff0c2;
+  --sno-wild-banner-glow:rgba(255,190,70,0.34);
+  --sno-wild-scrap-color:rgba(255,230,170,0.86);
+}
+body.sno-wild-active[data-sno-theme="volcano"] header,
+body.sno-wild-active[data-sno-theme="volcano"] .nav-hints,
+body.sno-wild-active[data-sno-theme="volcano"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="volcano"] .page-nav-footer { animation:sno-wild-jitter 0.24s steps(2) infinite; }
+body[data-sno-theme="noir"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 18% 18%, rgba(36,65,130,0.2) 0%, transparent 24%),
+    radial-gradient(circle at 82% 24%, rgba(169,55,43,0.24) 0%, transparent 24%),
+    linear-gradient(180deg, rgba(240,234,214,0.08) 0%, transparent 26%, rgba(0,0,0,0.14) 48%, transparent 72%, rgba(240,234,214,0.06) 100%);
+  --sno-wild-rain:
+    linear-gradient(168deg, transparent 0 56%, rgba(255,255,255,0.96) 62% 66%, transparent 72%),
+    linear-gradient(174deg, transparent 0 48%, rgba(210,220,255,0.72) 54% 58%, transparent 64%),
+    linear-gradient(170deg, transparent 0 64%, rgba(255,170,170,0.68) 70% 74%, transparent 80%);
+  --sno-wild-rain-size:170px 260px, 250px 340px, 340px 420px;
+  --sno-wild-rain-opacity:0.34;
+  --sno-wild-rain-speed:0.58s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,255,255,0.04) 44%, rgba(0,0,0,0.96) 100%);
+  --sno-wild-beacon:linear-gradient(90deg, rgba(36,65,130,0.12), transparent 28%, rgba(169,55,43,0.14) 72%, transparent);
+  --sno-wild-accent:#f0ead6;
+  --sno-wild-banner-bg:rgba(5,5,5,0.84);
+  --sno-wild-banner-color:#fff6e2;
+  --sno-wild-banner-glow:rgba(240,234,214,0.28);
+  --sno-wild-scrap-color:rgba(255,242,224,0.84);
+}
+body.sno-wild-active[data-sno-theme="noir"] header,
+body.sno-wild-active[data-sno-theme="noir"] .nav-hints,
+body.sno-wild-active[data-sno-theme="noir"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="noir"] .page-nav-footer { animation:sno-wild-roll 1.1s linear infinite, sno-wild-text-burn 1.8s steps(1) infinite; }
+body[data-sno-theme="cathedral"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 10%, rgba(217,191,120,0.22) 0%, transparent 26%),
+    conic-gradient(from 0deg at 50% 18%, rgba(79,127,209,0.18), rgba(113,35,61,0.22), rgba(217,191,120,0.18), rgba(79,127,209,0.18)),
+    linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 26%, rgba(0,0,0,0.18) 100%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 64%, rgba(255,220,140,0.92) 72% 76%, transparent 84%),
+    linear-gradient(180deg, transparent 0 58%, rgba(255,140,90,0.72) 66% 70%, transparent 78%),
+    linear-gradient(180deg, transparent 0 52%, rgba(120,160,255,0.66) 60% 64%, transparent 72%);
+  --sno-wild-rain-size:180px 220px, 260px 320px, 320px 420px;
+  --sno-wild-rain-opacity:0.26;
+  --sno-wild-wave:radial-gradient(circle at 50% 100%, rgba(217,191,120,0.18) 0%, rgba(113,35,61,0.24) 34%, rgba(8,6,10,0.94) 78%);
+  --sno-wild-beacon:radial-gradient(circle at 50% 18%, rgba(255,244,210,0.36) 0%, rgba(217,191,120,0.16) 18%, transparent 40%);
+  --sno-wild-accent:#f5d89a;
+  --sno-wild-banner-bg:rgba(18,11,20,0.84);
+  --sno-wild-banner-color:#fff4d8;
+  --sno-wild-banner-glow:rgba(217,191,120,0.34);
+  --sno-wild-scrap-color:rgba(255,239,206,0.86);
+}
+body.sno-wild-active[data-sno-theme="cathedral"] header,
+body.sno-wild-active[data-sno-theme="cathedral"] .nav-hints,
+body.sno-wild-active[data-sno-theme="cathedral"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="cathedral"] .page-nav-footer { animation:sno-wild-collapse 4.4s ease-in-out infinite, sno-wild-text-burn 1.7s steps(1) infinite; }
+body[data-sno-theme="surveillance"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(99,243,168,0.12) 0%, transparent 22%, rgba(255,77,92,0.08) 56%, transparent 100%),
+    linear-gradient(90deg, rgba(99,243,168,0.08) 0 1px, transparent 1px 8%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 52%, rgba(188,255,212,0.96) 58% 62%, transparent 68%),
+    linear-gradient(180deg, transparent 0 44%, rgba(99,243,168,0.82) 50% 54%, transparent 60%),
+    linear-gradient(180deg, transparent 0 62%, rgba(255,77,92,0.68) 68% 72%, transparent 78%);
+  --sno-wild-rain-size:100px 180px, 160px 220px, 260px 320px;
+  --sno-wild-rain-opacity:0.4;
+  --sno-wild-rain-speed:0.38s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(99,243,168,0.06) 42%, rgba(0,0,0,0.95) 100%);
+  --sno-wild-accent:#bcffd4;
+  --sno-wild-banner-bg:rgba(6,12,9,0.84);
+  --sno-wild-banner-color:#ecfff5;
+  --sno-wild-banner-glow:rgba(99,243,168,0.34);
+  --sno-wild-scrap-color:rgba(188,255,212,0.86);
+}
+body.sno-wild-active[data-sno-theme="surveillance"] header,
+body.sno-wild-active[data-sno-theme="surveillance"] .nav-hints,
+body.sno-wild-active[data-sno-theme="surveillance"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="surveillance"] .page-nav-footer { animation:sno-wild-hard-blink 0.94s steps(1) infinite, sno-wild-jitter 0.18s steps(2) infinite; }
+body[data-sno-theme="biomech"] {
+  --sno-wild-colorwash:
+    radial-gradient(circle at 50% 44%, rgba(245,91,125,0.22) 0%, transparent 24%),
+    conic-gradient(from 0deg at 50% 44%, rgba(147,255,216,0.2), rgba(128,63,93,0.28), rgba(208,199,187,0.14), rgba(147,255,216,0.2)),
+    linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(147,255,216,0.04) 40%, rgba(0,0,0,0.24) 100%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 64%, rgba(245,91,125,0.86) 72% 76%, transparent 84%),
+    linear-gradient(180deg, transparent 0 56%, rgba(147,255,216,0.84) 64% 68%, transparent 76%),
+    linear-gradient(180deg, transparent 0 48%, rgba(208,199,187,0.62) 56% 60%, transparent 68%);
+  --sno-wild-rain-size:150px 220px, 240px 340px, 320px 420px;
+  --sno-wild-rain-opacity:0.3;
+  --sno-wild-wave:radial-gradient(circle at 50% 100%, rgba(245,91,125,0.18) 0%, rgba(128,63,93,0.3) 32%, rgba(5,4,8,0.96) 78%);
+  --sno-wild-beacon:radial-gradient(circle at 50% 44%, rgba(255,210,220,0.28) 0%, rgba(147,255,216,0.12) 14%, transparent 36%);
+  --sno-wild-accent:#93ffd8;
+  --sno-wild-banner-bg:rgba(10,8,14,0.84);
+  --sno-wild-banner-color:#e7fff6;
+  --sno-wild-banner-glow:rgba(147,255,216,0.34);
+  --sno-wild-scrap-color:rgba(216,255,242,0.88);
+}
+body.sno-wild-active[data-sno-theme="biomech"] header,
+body.sno-wild-active[data-sno-theme="biomech"] .nav-hints,
+body.sno-wild-active[data-sno-theme="biomech"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="biomech"] .page-nav-footer { animation:sno-wild-collapse 3.6s ease-in-out infinite, sno-wild-jitter 0.22s steps(2) infinite; }
+body[data-sno-theme="paper"] {
+  --sno-wild-colorwash:
+    linear-gradient(180deg, rgba(184,58,46,0.1) 0%, transparent 18%, rgba(62,93,138,0.06) 52%, rgba(0,0,0,0.04) 100%),
+    radial-gradient(circle at 22% 24%, rgba(0,0,0,0.05) 0%, transparent 18%),
+    radial-gradient(circle at 78% 72%, rgba(0,0,0,0.05) 0%, transparent 18%);
+  --sno-wild-rain:
+    linear-gradient(180deg, transparent 0 54%, rgba(0,0,0,0.34) 60% 64%, transparent 70%),
+    linear-gradient(180deg, transparent 0 62%, rgba(184,58,46,0.46) 68% 72%, transparent 78%),
+    linear-gradient(180deg, transparent 0 48%, rgba(62,93,138,0.42) 54% 58%, transparent 64%);
+  --sno-wild-rain-size:160px 220px, 260px 320px, 360px 420px;
+  --sno-wild-rain-opacity:0.24;
+  --sno-wild-rain-speed:0.74s;
+  --sno-wild-wave:linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(0,0,0,0.03) 44%, rgba(215,199,167,0.2) 100%);
+  --sno-wild-accent:#b83a2e;
+  --sno-wild-banner-bg:rgba(250,244,231,0.88);
+  --sno-wild-banner-color:#16120f;
+  --sno-wild-banner-glow:rgba(184,58,46,0.18);
+  --sno-wild-scrap-color:rgba(22,18,15,0.76);
+}
+body.sno-wild-active[data-sno-theme="paper"] header,
+body.sno-wild-active[data-sno-theme="paper"] .nav-hints,
+body.sno-wild-active[data-sno-theme="paper"] .post:not(.post-active),
+body.sno-wild-active[data-sno-theme="paper"] .page-nav-footer { animation:sno-wild-roll 0.9s linear infinite, sno-wild-text-burn 2.2s steps(1) infinite; }
+/* Host note under the site subtitle (all themes) */
+.logo-host { font-size:0.65rem; opacity:0.55; margin-top:4px; letter-spacing:0.3px; line-height:1.3; }
+/* Atom feed link in header (paired with transmit in .nav) */
+.nav { display:flex; align-items:center; gap:clamp(10px,2.2vw,20px); flex-wrap:wrap; justify-content:flex-end; }
+a.header-feed-link { font-size:0.8rem; text-decoration:none; opacity:0.82; letter-spacing:0.04em; white-space:nowrap; }
+a.header-feed-link:hover { opacity:1; text-decoration:underline; }
+/* Header logo/title can reopen the splash overlay. */
+.logo-mark, .logo-title h1, #sn-logo { cursor:pointer; }
+/* Full-viewport splash (theme-specific colours/animation on each .splash-THEMENAME) */
+#splash-overlay { position:fixed; inset:0; z-index:2000; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; text-align:center; padding:max(16px,4vw); box-sizing:border-box; cursor:pointer;
+  transition:opacity .55s ease, visibility .55s ease, transform .55s ease; }
+#splash-overlay.splash--dismissed { opacity:0 !important; visibility:hidden !important;
+  pointer-events:none !important; transform:scale(1.02); }
+#splash-overlay:focus { outline:2px solid rgba(255,255,255,0.35); outline-offset:4px; }
+/* Vignette over WebGL so 3D motion does not overpower the edges */
+#splash-overlay::before { content:""; position:absolute; inset:0; z-index:1; pointer-events:none;
+  background: radial-gradient(ellipse 92% 82% at 50% 42%, rgba(0,0,0,0) 32%, rgba(0,0,0,0.26) 68%, rgba(0,0,0,0.48) 100%); }
+.splash-title { font-weight:700; letter-spacing:0.06em; line-height:1.15; }
+.splash-tag { margin-top:0.35rem; font-size:0.76rem; letter-spacing:0.2em; text-transform:uppercase; }
+.splash-hint { margin-top:1.25rem; font-size:0.72rem; letter-spacing:0.12em; }
+#splash-overlay .splash-gl-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; z-index:0; pointer-events:none; }
+/* Frosted panel so title/tag/hint stay readable over busy shaders */
+#splash-overlay .splash-inner { position:relative; z-index:2; max-width:min(520px,92vw);
+  padding: clamp(1.15rem, 3.2vw, 1.75rem) clamp(1.3rem, 3.8vw, 1.95rem); border-radius:14px;
+  background: rgba(0, 0, 0, 0.58); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  will-change:transform; }
+.splash-controls { margin-top:0.55rem; font-size:0.58rem; letter-spacing:0.14em;
+  text-transform:uppercase; opacity:0.55; line-height:1.6; }
+.splash-controls kbd { display:inline-block; background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.2); border-radius:3px; padding:0 4px;
+  font-family:monospace; font-size:0.62rem; margin:0 1px; }
+#splash-overlay.splash-brutalist .splash-inner.splash-frame {
+  padding: clamp(1.4rem, 4.5vw, 2.25rem) clamp(1.1rem, 3.5vw, 1.9rem); background: rgba(0, 0, 0, 0.78); }
+html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidden !important; pointer-events:none !important; }
+/* Images embedded in markdown posts */
+.post-text img { max-width:100%; max-height:320px; object-fit:contain; border-radius:6px; cursor:pointer; }
+#post-modal .post-text img, #modal-content img { max-height:none; cursor:default; }
+/* Markdown post typography: restore spacing stripped by the global reset.
+   Rules apply to both the list-view .post-text and the zoomed-in #modal-content
+   so the formatting is identical in both views. */
+.post-text p, #modal-content p { margin:0.65em 0; }
+.post-text ul, .post-text ol, #modal-content ul, #modal-content ol { margin:0.65em 0; padding-left:1.8em; }
+.post-text li, #modal-content li { margin:0.3em 0; }
+.post-text p:first-child, #modal-content p:first-child { margin-top:0; }
+.post-text p:last-child, .post-text ul:last-child, .post-text ol:last-child,
+#modal-content p:last-child, #modal-content ul:last-child, #modal-content ol:last-child { margin-bottom:0; }
+/* === CRT / VHS filter toggle === */
+#sno-crt-overlay { position:fixed; inset:0; z-index:9990; pointer-events:none; opacity:0; transition:opacity 0.35s ease; }
+body.sno-crt-on #sno-crt-overlay { opacity:1; }
+#sno-crt-overlay .crt-scanlines { position:absolute; inset:0;
+  background:repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 4px); }
+#sno-crt-overlay .crt-flicker { position:absolute; inset:0;
+  background:rgba(255,255,255,0.03); animation:sno-crt-flicker 0.15s infinite; pointer-events:none; }
+@keyframes sno-crt-flicker { 0%,100%{opacity:1} 50%{opacity:0.85} }
+body.sno-crt-on .overlay { filter: contrast(1.12) brightness(0.94) saturate(0.85) url(#sno-crt-distort); }
+/* Ghost mode */
+body.sno-ghost-mode .post:not(.post-active) { opacity:0.08 !important; filter:grayscale(0.6); transition:opacity 0.4s ease, filter 0.4s ease; }
+body.sno-ghost-mode .post.post-active { opacity:1 !important; box-shadow:0 0 28px 6px currentColor !important; }
+body.sno-ghost-mode header,
+body.sno-ghost-mode .page-nav-footer,
+body.sno-ghost-mode .nav-hints { opacity:0.25 !important; transition:opacity 0.4s ease; }
+/* Post transition animations */
+@keyframes sno-enter-from-below { 0%{transform:translateY(22px) scale(0.97);opacity:0.55} 100%{transform:translateY(0) scale(1);opacity:1} }
+@keyframes sno-enter-from-above { 0%{transform:translateY(-22px) scale(0.97);opacity:0.55} 100%{transform:translateY(0) scale(1);opacity:1} }
+.sno-enter-down { animation:sno-enter-from-below 0.3s cubic-bezier(0.22,1,0.36,1) both !important; }
+.sno-enter-up   { animation:sno-enter-from-above 0.3s cubic-bezier(0.22,1,0.36,1) both !important; }
+/* Seasonal auto-effects — CSS-only animated particles */
+@keyframes sno-snow-fall { from{background-position:0 0,60px 40px,120px 80px} to{background-position:0 240px,60px 280px,120px 320px} }
+@keyframes sno-spring-drift { from{background-position:0 0,80px 60px} to{background-position:40px 180px,120px 240px} }
+@keyframes sno-firefly { 0%,100%{opacity:0.2;background-position:0 0,100px 80px,50px 150px} 50%{opacity:0.6;background-position:20px 30px,120px 110px,70px 180px} }
+@keyframes sno-leaves-fall { from{background-position:0 0,70px 50px,140px 100px} to{background-position:-30px 200px,40px 250px,110px 300px} }
+body.sno-season-winter::after { content:''; position:fixed; inset:0; z-index:2; pointer-events:none;
+  background-image: radial-gradient(circle,rgba(255,255,255,0.75) 1px,transparent 1px), radial-gradient(circle,rgba(230,240,255,0.5) 1.5px,transparent 1.5px), radial-gradient(circle,rgba(255,255,255,0.35) 1px,transparent 1px);
+  background-size: 120px 120px, 180px 180px, 240px 240px; background-position:0 0,60px 40px,120px 80px;
+  animation:sno-snow-fall 10s linear infinite; opacity:0.3; }
+body.sno-season-spring::after { content:''; position:fixed; inset:0; z-index:2; pointer-events:none;
+  background-image: radial-gradient(circle,rgba(255,192,203,0.55) 1.5px,transparent 1.5px), radial-gradient(circle,rgba(255,255,180,0.4) 1px,transparent 1px);
+  background-size: 160px 160px, 220px 220px; background-position:0 0,80px 60px;
+  animation:sno-spring-drift 12s linear infinite; opacity:0.25; }
+body.sno-season-summer::after { content:''; position:fixed; inset:0; z-index:2; pointer-events:none;
+  background-image: radial-gradient(circle,rgba(180,255,80,0.5) 1.5px,transparent 1.5px), radial-gradient(circle,rgba(200,255,120,0.35) 1px,transparent 1px), radial-gradient(circle,rgba(160,240,60,0.25) 1.5px,transparent 1.5px);
+  background-size: 200px 200px, 280px 280px, 360px 360px; background-position:0 0,100px 80px,50px 150px;
+  animation:sno-firefly 6s ease-in-out infinite; opacity:0.35; }
+body.sno-season-autumn::after { content:''; position:fixed; inset:0; z-index:2; pointer-events:none;
+  background-image: radial-gradient(circle,rgba(210,105,30,0.5) 1.5px,transparent 1.5px), radial-gradient(circle,rgba(205,92,92,0.4) 1px,transparent 1px), radial-gradient(circle,rgba(218,165,32,0.35) 1.5px,transparent 1.5px);
+  background-size: 140px 140px, 200px 200px, 260px 260px; background-position:0 0,70px 50px,140px 100px;
+  animation:sno-leaves-fall 14s linear infinite; opacity:0.28; }
+/* Konami unlocked banner */
+#sno-konami-banner { position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); z-index:9999; padding:14px 36px; font:700 1.8rem monospace; letter-spacing:0.4em; text-transform:uppercase; background:rgba(220,0,0,0.92); color:#fff; border:2px solid #fff; box-shadow:0 0 50px rgba(255,0,0,0.6); pointer-events:none; opacity:0; transition:opacity 0.3s; white-space:nowrap; }
+/* Reorganized nav-hints shared layout */
+.nav-hints { display:flex; flex-direction:column; gap:0; padding:0 !important; }
+.nav-hints-row { display:flex; align-items:center; flex-wrap:wrap; gap:clamp(10px, 2vw, 18px); padding:4px 24px; }
+.nav-hints-row + .nav-hints-row { border-top:1px solid rgba(128,128,128,0.12); }
+.nav-hints-label { font-size:0.58rem; text-transform:uppercase; letter-spacing:0.18em; opacity:0.45; min-width:2.2em; }
+.nav-fx-button {
+  appearance:none;
+  border:0;
+  background:none;
+  color:inherit;
+  font:inherit;
+  padding:0;
+  margin:0;
+  display:inline-flex;
+  align-items:center;
+  gap:0.35rem;
+  cursor:pointer;
+  opacity:0.86;
+  transition:opacity 0.18s ease, transform 0.18s ease, text-shadow 0.18s ease;
+}
+.nav-fx-button:hover { opacity:1; }
+.nav-fx-button[aria-pressed="true"] { opacity:1; text-shadow:0 0 10px currentColor; }
+.nav-fx-button.sno-fx-triggered { transform:translateY(1px) scale(0.98); }
+.nav-fx-button:focus-visible {
+  outline:1px solid currentColor;
+  outline-offset:4px;
+  border-radius:3px;
+}
+/* Parallax tilt */
+body.sno-parallax-on { perspective:1200px; }
+body.sno-parallax-on .overlay { transform-style:preserve-3d; transition:transform 0.1s ease-out; will-change:transform; }
+body.sno-parallax-on .post { transform-style:preserve-3d; transition:transform 0.1s ease-out; }
+/* Hacker hover scramble */
+.sno-scramble-target { display:inline-block; }
+/* Vaporwave sunset (synthwave/retro only) */
+#sno-vaporwave-sunset { position:fixed; bottom:0; left:0; right:0; height:35vh; z-index:1; pointer-events:none; opacity:0; transition:opacity 1s ease; }
+body.sno-vaporwave-on #sno-vaporwave-sunset { opacity:1; }
+/* Post scatter */
+@keyframes sno-scatter-out { 0%{transform:translate(0,0) rotate(0)} 40%{transform:translate(var(--sx),var(--sy)) rotate(var(--sr))} 100%{transform:translate(0,0) rotate(0)} }
+.sno-scatter { animation:sno-scatter-out 0.9s cubic-bezier(0.22,1,0.36,1) both !important; }
+/* Screenshot flash */
+#sno-shutter-flash { position:fixed; inset:0; z-index:9999; pointer-events:none; background:#fff; opacity:0; }
+/* Matrix decode on images */
+@keyframes sno-matrix-decode { 0%{filter:brightness(2) contrast(2) saturate(0) blur(1px);clip-path:inset(0 0 100% 0)} 30%{filter:brightness(1.5) contrast(3) saturate(0) blur(0.5px);clip-path:inset(0 0 60% 0)} 60%{filter:brightness(1.2) contrast(2) saturate(0.5) blur(0px);clip-path:inset(0 0 20% 0)} 100%{filter:brightness(1) contrast(1) saturate(1);clip-path:inset(0 0 0% 0)} }
+body[data-sno-theme="matrix"] .post-text img,
+body[data-sno-theme="terminal"] .post-text img,
+body[data-sno-theme="dos"] .post-text img { animation:sno-matrix-decode 0.8s ease-out both; }

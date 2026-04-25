@@ -179,10 +179,19 @@ func TestBuildPageData_navLinks(t *testing.T) {
 		},
 	}
 
+	meta, err := loadThemeMeta("neon")
+	if err != nil {
+		t.Fatalf("loadThemeMeta: %v", err)
+	}
+	all, err := allThemesJSON()
+	if err != nil {
+		t.Fatalf("allThemesJSON: %v", err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			data := buildPageData([]*post.Post{p}, tt.pageIndex, tt.totalPages, "neon")
+			data := buildPageData([]*post.Post{p}, tt.pageIndex, tt.totalPages, "neon", meta, all)
 			if data.PrevPage != tt.wantPrev {
 				t.Fatalf("PrevPage=%q; want %q", data.PrevPage, tt.wantPrev)
 			}
@@ -202,19 +211,24 @@ func TestBuildPageData_navLinks(t *testing.T) {
 	}
 }
 
-func TestGetTheme_unknownFallsBackToNeon(t *testing.T) {
+func TestValidThemeName_unknownFallsBackToNeon(t *testing.T) {
 	t.Parallel()
-	if got, want := getTheme("no-such-theme-"), getTheme("neon"); got != want {
-		t.Fatal("expected neon fallback")
+	if got := validThemeName("no-such-theme-"); got != "neon" {
+		t.Fatalf("validThemeName(\"no-such-theme-\") = %q; want \"neon\"", got)
+	}
+	if got := validThemeName("matrix"); got != "matrix" {
+		t.Fatalf("validThemeName(\"matrix\") = %q; want \"matrix\"", got)
 	}
 }
 
-func TestInjectSharedHead_addsFaviconLink(t *testing.T) {
+func TestLoadThemeMeta_neonHasFields(t *testing.T) {
 	t.Parallel()
-
-	got := injectSharedHead(getTheme("neon"))
-	if !strings.Contains(got, `rel="icon" href="favicon.ico"`) {
-		t.Fatalf("favicon link missing from theme head")
+	m, err := loadThemeMeta("neon")
+	if err != nil {
+		t.Fatalf("loadThemeMeta(neon): %v", err)
+	}
+	if m.Title == "" || m.HeaderHTML == "" || m.SplashInnerHTML == "" {
+		t.Fatalf("neon meta missing required fields: %+v", m)
 	}
 }
 

@@ -1,0 +1,79 @@
+        :root { --dos-blue:#0000aa; --dos-lblue:#5555ff; --dos-white:#aaaaaa;
+                --dos-bwhite:#ffffff; --dos-yellow:#ffff55; --dos-cyan:#55ffff;
+                --dos-red:#ff5555; --dos-bg:#000088; --dos-black:#000000; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'VT323','Courier New',monospace; background:var(--dos-blue);
+               color:var(--dos-bwhite); overflow:hidden; height:100vh; font-size:18px; }
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
+        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        header { padding:8px 20px; background:var(--dos-white); color:var(--dos-blue);
+                 display:flex; align-items:center; justify-content:space-between; }
+        .logo { display:flex; align-items:center; gap:12px; }
+        .logo-mark { font-size:1.8rem; color:var(--dos-blue); font-weight:bold; }
+        .logo-title h1 { font-size:1.4rem; color:var(--dos-blue); font-weight:normal; letter-spacing:2px; }
+        .logo-title .subtitle { font-size:0.85rem; color:var(--dos-blue); margin-top:1px; }
+        .logo-title .subtitle a { color:var(--dos-blue); text-decoration:underline; }
+        .logo-title .subtitle a:hover { color:var(--dos-black); }
+        .transmit-btn { border:2px solid var(--dos-blue); color:var(--dos-blue); padding:4px 14px;
+                        text-decoration:none; font-size:1rem; letter-spacing:1px;
+                        transition:all 0.1s; }
+        .transmit-btn:hover { background:var(--dos-blue); color:var(--dos-bwhite); }
+        a.header-feed-link { color:var(--dos-blue); }
+        a.header-feed-link:hover { color:var(--dos-black); }
+        .nav-hints { background:var(--dos-blue); border-bottom:2px solid var(--dos-lblue);
+                     color:var(--dos-cyan); padding:4px 20px; display:flex; gap:16px;
+                     font-size:0.85rem; flex-wrap:wrap; }
+        .nav-hints kbd { background:var(--dos-black); border:1px solid var(--dos-lblue);
+                         color:var(--dos-yellow); padding:0 5px; margin:0 2px; }
+        .content { flex:1; overflow-y:auto; padding:12px 20px;
+                   scrollbar-width:thin; scrollbar-color:var(--dos-lblue) var(--dos-blue); }
+        .page-nav { display:flex; justify-content:center; margin:10px 0; }
+        .page-nav a { border:2px solid var(--dos-lblue); color:var(--dos-yellow); padding:6px 18px;
+                      text-decoration:none; font-size:1rem; letter-spacing:1px; }
+        .page-nav a:hover { background:var(--dos-lblue); color:var(--dos-bwhite); }
+        .page-nav-footer { flex-shrink:0; padding:6px 20px; display:flex; justify-content:center;
+            background:var(--dos-white); color:var(--dos-blue); }
+        .page-nav-footer .page-nav a { border-color:var(--dos-blue); color:var(--dos-blue); }
+        .page-nav-footer .page-nav a:hover { background:var(--dos-blue); color:var(--dos-bwhite); }
+        .post { background:var(--dos-black); border:2px solid var(--dos-lblue);
+                padding:12px 14px; margin-bottom:8px; cursor:pointer;
+                transition:border-color 0.1s; }
+        .post:hover { border-color:var(--dos-yellow);
+                      box-shadow:0 0 0 1px var(--dos-yellow); }
+        .post-active { border-color:var(--dos-yellow) !important;
+                       background:rgba(0,0,170,0.3) !important;
+                       box-shadow:0 0 0 2px var(--dos-yellow),inset 3px 0 0 var(--dos-yellow) !important; }
+        .post-header { display:flex; justify-content:space-between; margin-bottom:8px; font-size:1rem; }
+        .post-header strong { color:var(--dos-yellow); }
+        .post-time { color:var(--dos-cyan); font-size:0.95rem; }
+        .post-text { line-height:1.5; font-size:1.05rem; }
+        .post-text a { color:var(--dos-cyan); text-decoration:underline; }
+        .post-text a:hover { color:var(--dos-yellow); }
+        .post-image { max-width:100%; margin-top:8px; border:2px solid var(--dos-lblue); }
+        .post-audio { width:100%; margin-top:8px; }
+        .post-modal { display:none; position:fixed; inset:0; z-index:100;
+                      background:rgba(0,0,0,0.95); overflow-y:auto; padding:40px 20px; }
+        .post-modal.active { display:block; }
+        .modal-inner { max-width:740px; margin:0 auto; background:var(--dos-black);
+                       border:2px solid var(--dos-yellow); padding:24px;
+                       box-shadow:0 0 20px rgba(85,85,255,0.4); }
+        .modal-close { float:right; background:var(--dos-white); border:2px outset var(--dos-bwhite);
+                       color:var(--dos-blue); font-family:'VT323','Courier New',monospace;
+                       font-size:1rem; cursor:pointer; padding:2px 8px; }
+        .modal-close:hover { background:var(--dos-blue); color:var(--dos-bwhite);
+                             border-style:inset; }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:6px 12px;} .content{padding:8px 12px;} }
+        [data-sno-theme="dos"] .splash-overlay { background:var(--dos-blue); font-family:'VT323','Courier New',monospace; }
+        [data-sno-theme="dos"] .splash-inner { position:relative; z-index:1; }
+        [data-sno-theme="dos"] .splash-title {
+            font-size:clamp(1.4rem,4.5vw,2rem); color:var(--dos-bwhite);
+            letter-spacing:0.15em;
+            animation: splashDosBlink 1s step-end infinite;
+        }
+        @keyframes splashDosBlink { 0%,100%{border-right:0.6em solid var(--dos-bwhite)} 50%{border-right:0.6em solid transparent} }
+        [data-sno-theme="dos"] .splash-tag { color:var(--dos-yellow); letter-spacing:0.15em; }
+        [data-sno-theme="dos"] .splash-hint { color:var(--dos-cyan); }
+        [data-sno-theme="dos"] .splash-inner {
+            background:var(--dos-black); border:2px solid var(--dos-lblue);
+            text-shadow:none; box-shadow:4px 4px 0 rgba(0,0,0,0.5);
+        }

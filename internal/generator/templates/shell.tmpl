@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.DefaultTitle}}</title>
+    <link rel="icon" href="favicon.ico" sizes="any">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+        // Theme registry (filled at gen time). Keep in sync with templates/themes/*.
+        var SNONUX_ALL_THEMES = {{.AllThemesJSON}};
+        var SNONUX_DEFAULT_THEME = "{{.DefaultTheme}}";
+
+        // Per-page navigation state (computed at gen time, used by shared.js).
+        window.snonuxPrevPageURL = {{.PrevPageJSON}};
+        window.snonuxNextPageURL = {{.NextPageJSON}};
+
+        // Default theme's Web Audio preset is baked in so the splash chime
+        // can fire instantly. shared.js may overwrite this with the saved
+        // theme's sounds.json if the user picked a different one.
+        window.SNONUX_SOUNDS = {{.DefaultSoundsJSON}};
+
+        // Pick the active theme synchronously so paint blocks on the right
+        // stylesheet — no FOUC. Falls back to the default if localStorage
+        // holds nothing (or something we don't recognise).
+        (function () {
+            var saved = null;
+            try { saved = localStorage.getItem('snonuxTheme'); } catch (_) {}
+            var theme = (saved && SNONUX_ALL_THEMES.indexOf(saved) >= 0) ? saved : SNONUX_DEFAULT_THEME;
+            window.SNONUX_CURRENT_THEME = theme;
+            document.documentElement.setAttribute('data-sno-theme', theme);
+            // document.write blocks parsing until the stylesheet loads, which
+            // is exactly what we want for paint to happen after theme CSS is
+            // ready. Slightly old-school but reliable across browsers.
+            document.write('<link rel="stylesheet" href="themes/' + theme + '/theme.css">');
+        })();
+    </script>
+    <link rel="stylesheet" href="shared.css">
+    <script src="shared.js" defer></script>
+    <!--
+      theme.js is appended dynamically by shared.js *after* the splash markup
+      reflects the active theme. Loading it earlier would let the splash WebGL
+      initialiser attach to the default theme's canvas just before shared.js
+      replaces the overlay content, leaving the WebGL bound to a detached node.
+    -->
+</head>
+<body>
+    {{template "splashGate"}}
+    <div id="splash-overlay" class="splash-overlay" role="dialog" aria-modal="true" aria-label="Open microblog" tabindex="-1">{{.DefaultSplashHTML}}</div>
+    <canvas id="three-canvas"></canvas>
+    <div class="overlay">
+        <header>{{.DefaultHeaderHTML}}</header>
+        {{template "navhints" .}}
+        <div class="content" id="post-content">
+            {{range $i, $post := .Posts}}
+            <div class="post" id="post-{{$post.ID}}" data-index="{{$i}}">
+                <div class="post-header">
+                    <div><strong>@snonux</strong></div>
+                    <div class="post-time">{{$post.FormattedTime}}</div>
+                </div>
+                <div class="post-text">{{$post.ContentHTML}}</div>
+            </div>
+            {{end}}
+        </div>
+        {{if or .PrevPage .NextPage}}
+        <footer class="page-nav-footer" aria-label="Pagination">
+            <div class="page-nav page-nav-dual">
+                {{if .PrevPage}}<a href="{{.PrevPage}}" id="sno-prev-page">{{.DefaultPrevText}}</a>{{end}}
+                {{if .NextPage}}<a href="{{.NextPage}}" id="sno-next-page">{{.DefaultNextText}}</a>{{end}}
+            </div>
+        </footer>
+        {{end}}
+    </div>
+    {{template "navmodal" .}}
+</body>
+</html>

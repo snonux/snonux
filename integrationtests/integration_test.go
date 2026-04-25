@@ -118,8 +118,16 @@ func TestTxtInput(t *testing.T) {
 	// index.html must contain the post text.
 	index := readFile(t, filepath.Join(outputDir, "index.html"))
 	assertContains(t, index, "Hello, Nexus!", "index.html")
+	// splash WebGL canvas is part of the per-theme splash markup baked in.
 	assertContains(t, index, "splash-gl-canvas", "index.html splash WebGL canvas")
 	assertContains(t, index, `href="atom.xml"`, "index.html atom feed link")
+	// shared bundles must also be written.
+	if _, err := os.Stat(filepath.Join(outputDir, "shared.css")); err != nil {
+		t.Fatalf("shared.css missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outputDir, "shared.js")); err != nil {
+		t.Fatalf("shared.js missing: %v", err)
+	}
 }
 
 // TestMarkdownInput verifies Markdown files are converted to HTML.
@@ -356,8 +364,11 @@ func TestKeyboardNavJS(t *testing.T) {
 
 	index := readFile(t, filepath.Join(outputDir, "index.html"))
 	assertContains(t, index, `data-index="0"`, "index.html data-index attribute")
-	assertContains(t, index, `.post-active`, "index.html .post-active CSS")
-	assertContains(t, index, `playNavSound`, "index.html playNavSound function")
+	// Shared CSS and JS now live as separate files referenced from the shell.
+	sharedCSS := readFile(t, filepath.Join(outputDir, "shared.css"))
+	assertContains(t, sharedCSS, `.post-active`, "shared.css .post-active rule")
+	sharedJS := readFile(t, filepath.Join(outputDir, "shared.js"))
+	assertContains(t, sharedJS, `playNavSound`, "shared.js playNavSound function")
 }
 
 // TestThemeSelection verifies that every registered theme renders a valid
@@ -395,8 +406,24 @@ func TestThemeSelection(t *testing.T) {
 
 			index := readFile(t, filepath.Join(outputDir, "index.html"))
 			assertContains(t, index, "theme test post", "post text")
-			assertContains(t, index, "playNavSound", "nav JS")
 			assertContains(t, index, `data-index="0"`, "data-index attribute")
+			assertContains(t, index, `SNONUX_DEFAULT_THEME = "`+theme+`"`, "default theme baked in")
+
+			// Per-theme assets are written under themes/<theme>/.
+			for _, fname := range []string{"theme.css", "theme.js", "meta.json", "sounds.json"} {
+				path := filepath.Join(outputDir, "themes", theme, fname)
+				info, err := os.Stat(path)
+				if err != nil {
+					t.Fatalf("theme asset missing %s: %v", path, err)
+				}
+				if info.Size() == 0 {
+					t.Fatalf("theme asset %s is empty", path)
+				}
+			}
+
+			// shared.js holds the nav logic.
+			sharedJS := readFile(t, filepath.Join(outputDir, "shared.js"))
+			assertContains(t, sharedJS, "playNavSound", "shared.js playNavSound")
 		})
 	}
 }

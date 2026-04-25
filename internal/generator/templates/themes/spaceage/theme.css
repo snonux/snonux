@@ -1,0 +1,80 @@
+        :root { --teal:#00e8e8; --dim:#1a4455; --red:#ff3320; --silver:#c8d8e0; --bg:#030a0f; --bg2:#020608; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Space Mono','Courier New',monospace; background:var(--bg); color:var(--silver);
+               overflow:hidden; height:100vh; }
+        /* Subtle horizontal scanlines — lighter than retro, cleaner space feel */
+        body::before { content:''; position:fixed; inset:0; z-index:999; pointer-events:none;
+            background:repeating-linear-gradient(0deg,transparent,transparent 3px,
+                rgba(0,0,0,0.08) 3px,rgba(0,0,0,0.08) 4px); }
+        #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
+        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        header { padding:12px 24px; background:rgba(2,6,8,0.88); backdrop-filter:blur(8px);
+                 border-bottom:2px solid var(--teal);
+                 display:flex; align-items:center; justify-content:space-between; }
+        .logo { display:flex; align-items:center; gap:14px; }
+        .logo-mark { font-size:1.5rem; color:var(--teal); text-shadow:0 0 18px var(--teal);
+                     letter-spacing:3px; font-weight:700; }
+        .logo-title h1 { font-size:1.1rem; color:var(--teal); text-shadow:0 0 12px var(--teal);
+                         letter-spacing:5px; font-weight:700; }
+        .logo-title .subtitle { font-size:0.68rem; color:var(--dim); margin-top:3px; letter-spacing:1px; }
+        .logo-title .subtitle a { color:var(--teal); text-decoration:none; opacity:0.8; }
+        .logo-title .subtitle a:hover { opacity:1; text-shadow:0 0 6px var(--teal); }
+        /* HAL eye: red dot beside the transmit button */
+        .transmit-btn { position:relative; border:1px solid var(--teal); color:var(--teal); padding:8px 18px;
+                        text-decoration:none; font-size:0.78rem; letter-spacing:3px;
+                        transition:all 0.15s; }
+        .transmit-btn::before { content:'●'; color:var(--red); text-shadow:0 0 8px var(--red);
+                                 position:absolute; left:-18px; top:50%; transform:translateY(-50%);
+                                 font-size:0.65rem; animation:hal-blink 4s ease-in-out infinite; }
+        @keyframes hal-blink { 0%,90%,100%{opacity:1} 95%{opacity:0.2} }
+        .transmit-btn:hover { background:var(--teal); color:var(--bg); }
+        a.header-feed-link { color:var(--dim); font-size:0.78rem; letter-spacing:1px; }
+        a.header-feed-link:hover { color:var(--teal); }
+        .nav-hints { background:rgba(2,6,8,0.82); border-bottom:1px solid var(--dim);
+                     color:var(--dim); padding:4px 24px; display:flex; gap:18px;
+                     font-size:0.66rem; flex-wrap:wrap; letter-spacing:1px; }
+        .nav-hints kbd { background:transparent; border:1px solid var(--dim); color:var(--teal);
+                         padding:0 5px; font-size:0.66rem; margin:0 2px; }
+        .content { flex:1; overflow-y:auto; padding:16px 24px;
+                   scrollbar-width:thin; scrollbar-color:var(--dim) var(--bg); }
+        .page-nav { display:flex; justify-content:center; margin:12px 0; }
+        .page-nav a { border:1px solid var(--dim); color:var(--teal); padding:7px 22px;
+                      text-decoration:none; font-size:0.78rem; letter-spacing:3px; }
+        .page-nav a:hover { background:var(--teal); color:var(--bg); border-color:var(--teal); }
+        .page-nav-footer { flex-shrink:0; padding:6px 24px; display:flex; justify-content:center;
+            background:rgba(2,6,8,0.88); backdrop-filter:blur(8px); border-top:2px solid var(--teal); }
+        .post { background:rgba(3,10,15,0.82); border:1px solid var(--dim); padding:16px 18px;
+                margin-bottom:10px; cursor:pointer; transition:border-color 0.2s, box-shadow 0.2s; }
+        .post:hover { border-color:var(--teal); box-shadow:0 0 12px rgba(0,232,232,0.18); }
+        .post-active { border-color:var(--teal) !important;
+                       background:rgba(0,232,232,0.04) !important;
+                       box-shadow:0 0 18px rgba(0,232,232,0.28),inset 3px 0 0 var(--teal) !important; }
+        .post-header { display:flex; justify-content:space-between; margin-bottom:10px; font-size:0.82rem; }
+        .post-time { color:var(--dim); font-size:0.75rem; letter-spacing:1px; }
+        .post-text { line-height:1.65; font-size:0.86rem; color:var(--silver); }
+        .post-text a { color:var(--teal); text-decoration:underline; }
+        .post-image { max-width:100%; margin-top:10px; border:1px solid var(--dim);
+                      filter:saturate(0.85) brightness(0.92); }
+        .post-audio { width:100%; margin-top:10px; }
+        .post-modal { display:none; position:fixed; inset:0; z-index:100;
+                      background:rgba(2,6,8,0.97); overflow-y:auto; padding:40px 20px; }
+        .post-modal.active { display:block; }
+        .modal-inner { max-width:740px; margin:0 auto; background:var(--bg);
+                       border:1px solid var(--teal); padding:36px;
+                       box-shadow:0 0 50px rgba(0,232,232,0.18); }
+        .modal-close { float:right; background:none; border:none; color:var(--dim);
+                       font-family:'Space Mono',monospace; font-size:0.85rem; cursor:pointer; letter-spacing:3px; }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:10px 16px;} }
+        /* Splash screen: space age orbital */
+        [data-sno-theme="spaceage"] .splash-overlay { background:var(--bg); }
+        [data-sno-theme="spaceage"] .splash-inner { position:relative; z-index:1; }
+        [data-sno-theme="spaceage"] .splash-title {
+            font-family:'Space Mono',monospace; font-weight:700;
+            font-size:clamp(1.1rem,3.5vw,1.6rem); color:var(--teal);
+            text-shadow:0 0 20px var(--teal),0 0 40px rgba(0,232,232,0.4);
+            letter-spacing:0.35em;
+            animation: spaceagePulse 3s ease-in-out infinite;
+        }
+        @keyframes spaceagePulse { 0%,100%{text-shadow:0 0 20px var(--teal),0 0 40px rgba(0,232,232,0.4)} 50%{text-shadow:0 0 30px var(--teal),0 0 60px rgba(0,232,232,0.6)} }
+        [data-sno-theme="spaceage"] .splash-tag { color:var(--silver); letter-spacing:2px; font-family:'Space Mono',monospace; font-size:0.78rem; }
+        [data-sno-theme="spaceage"] .splash-hint { color:var(--dim); letter-spacing:2px; font-family:'Space Mono',monospace; font-size:0.72rem; }
