@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"encoding/json"
 	"html/template"
 	"os"
 	"path/filepath"
@@ -104,6 +105,43 @@ func TestThemeSoundsJSONNonEmpty(t *testing.T) {
 	j := themeSoundsJSON("neon")
 	if len(j) < 50 {
 		t.Fatalf("themeSoundsJSON too short: %q", j)
+	}
+}
+
+func TestThemeSoundsJSON_ambientSchema(t *testing.T) {
+	t.Parallel()
+
+	// Verify the ambient schema is present and valid for every registered theme.
+	for name := range themeSet {
+		j := themeSoundsJSON(name)
+		if len(j) < 50 {
+			t.Fatalf("themeSoundsJSON(%q) too short: %q", name, j)
+		}
+
+		// Parse as generic map to validate structure without coupling to field order.
+		var parsed map[string]interface{}
+		if err := json.Unmarshal([]byte(j), &parsed); err != nil {
+			t.Fatalf("themeSoundsJSON(%q) invalid JSON: %v", name, err)
+		}
+
+		// Core sound fields must remain present for backwards compatibility.
+		for _, key := range []string{"splash", "nav", "open", "close", "bounce"} {
+			if _, ok := parsed[key]; !ok {
+				t.Errorf("themeSoundsJSON(%q) missing required key %q", name, key)
+			}
+		}
+
+		// Ambient must be present and contain normal + wild variants.
+		ambient, ok := parsed["ambient"].(map[string]interface{})
+		if !ok {
+			t.Errorf("themeSoundsJSON(%q) missing ambient object", name)
+			continue
+		}
+		for _, key := range []string{"normal", "wild"} {
+			if _, ok := ambient[key]; !ok {
+				t.Errorf("themeSoundsJSON(%q) ambient missing %q variant", name, key)
+			}
+		}
 	}
 }
 
