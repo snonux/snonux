@@ -158,11 +158,11 @@ func TestThemeSoundPresetsAmbientPopulated(t *testing.T) {
 		normal := preset.Ambient.Normal
 		wild := preset.Ambient.Wild
 
-		if len(normal.DroneFreqs) == 0 && len(normal.PulseFreqs) == 0 {
-			t.Errorf("theme %q ambient.Normal has no drone or pulse frequencies", name)
+		if len(normal.DroneFreqs) == 0 && len(normal.PulseFreqs) == 0 && len(normal.Melody) == 0 {
+			t.Errorf("theme %q ambient.Normal has no drone, pulse, or melody frequencies", name)
 		}
-		if len(wild.DroneFreqs) == 0 && len(wild.PulseFreqs) == 0 {
-			t.Errorf("theme %q ambient.Wild has no drone or pulse frequencies", name)
+		if len(wild.DroneFreqs) == 0 && len(wild.PulseFreqs) == 0 && len(wild.Melody) == 0 {
+			t.Errorf("theme %q ambient.Wild has no drone, pulse, or melody frequencies", name)
 		}
 	}
 }
@@ -213,6 +213,14 @@ func TestThemeSoundPresetsAmbientValuesBounded(t *testing.T) {
 			for i, f := range a.PulseFreqs {
 				if f <= 0 {
 					t.Errorf("theme %q ambient.%s pulseFreqs[%d]=%f; want positive", name, mode, i, f)
+				}
+			}
+			for i, m := range a.Melody {
+				if m.Freq <= 0 {
+					t.Errorf("theme %q ambient.%s melody[%d].freq=%f; want positive", name, mode, i, m.Freq)
+				}
+				if m.Dur <= 0 {
+					t.Errorf("theme %q ambient.%s melody[%d].dur=%f; want positive", name, mode, i, m.Dur)
 				}
 			}
 			if a.CutoffMin < 0 || a.CutoffMin > 10000 {

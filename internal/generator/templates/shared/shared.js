@@ -366,6 +366,7 @@
     function snonuxWaveType(w) {
         if (w === 'square') return 'square';
         if (w === 'triangle') return 'triangle';
+        if (w === 'sawtooth') return 'sawtooth';
         return 'sine';
     }
 
@@ -384,6 +385,8 @@
         var isPlaying = false;
         var isWild = false;
         var currentPreset = null;
+        var melodyTimer = null;
+        var melodyIndex = 0;
 
         function wildifyPreset(base) {
             if (!base) return base;
@@ -475,9 +478,69 @@
             noiseSrc = src;
         }
 
+        function stopMelody() {
+            if (melodyTimer) { clearTimeout(melodyTimer); melodyTimer = null; }
+            melodyIndex = 0;
+        }
+
+        function playMelodyNote(note, preset) {
+            var c = ensureCtx();
+            var freq = note.freq || 440;
+            var dur = note.dur || 0.3;
+            if (freq <= 0 || dur <= 0) return;
+            var wt = snonuxWaveType(preset.wave);
+            var g = note.gain != null ? note.gain : (preset.gain != null ? preset.gain : 0.08);
+            var pulseGain = Math.min(g * 0.6, 0.12);
+
+            var osc = c.createOscillator();
+            var gain = c.createGain();
+            osc.type = wt;
+            osc.frequency.value = freq;
+
+            var lastNode = osc;
+            if (preset.filterFreq) {
+                var filter = c.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = preset.filterFreq;
+                filter.Q.value = preset.filterQ || 1;
+                var now = c.currentTime;
+                filter.frequency.setValueAtTime(preset.filterFreq, now);
+                filter.frequency.exponentialRampToValueAtTime(Math.max(preset.filterFreq * 0.2, 100), now + dur);
+                lastNode.connect(filter);
+                lastNode = filter;
+            }
+
+            lastNode.connect(gain);
+            gain.connect(masterGain);
+            var now = c.currentTime;
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(pulseGain, now + Math.min(0.05, dur * 0.2));
+            gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+            osc.start(now);
+            osc.stop(now + dur + 0.02);
+        }
+
+        function scheduleMelodyNote(preset) {
+            if (!isPlaying || !preset || !preset.melody || preset.melody.length === 0) return;
+            var note = preset.melody[melodyIndex];
+            playMelodyNote(note, preset);
+            melodyIndex = (melodyIndex + 1) % preset.melody.length;
+            var gap = preset.pulseInterval || (preset.bpm ? 60.0 / preset.bpm : 0.5);
+            var isEndOfPhrase = melodyIndex === 0;
+            var delay = note.dur * 1000 * 0.7 + (isEndOfPhrase ? gap * 1000 * 1.5 : gap * 1000 * 0.2);
+            melodyTimer = setTimeout(function() {
+                if (!isPlaying) return;
+                scheduleMelodyNote(currentPreset);
+            }, delay);
+        }
+
         function schedulePulse() {
             if (!isPlaying || !currentPreset) return;
             var preset = currentPreset;
+            if (preset.melody && preset.melody.length > 0) {
+                scheduleMelodyNote(preset);
+                return;
+            }
             var interval = preset.pulseInterval;
             if (!interval && preset.bpm) {
                 interval = 60.0 / preset.bpm;
@@ -542,6 +605,7 @@
         function stopAll() {
             clearTimeout(pulseTimer);
             pulseTimer = null;
+            stopMelody();
             stopDrones();
             stopNoise();
         }
@@ -552,6 +616,7 @@
             currentPreset = preset;
             ensureCtx();
             isPlaying = true;
+            melodyIndex = 0;
 
             startDrones(preset);
             startNoise(preset);

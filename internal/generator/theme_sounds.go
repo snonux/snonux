@@ -5,23 +5,31 @@ import (
 	"html/template"
 )
 
+// melodyNote is a single note in a looping ambient melody.
+type melodyNote struct {
+	Freq float64 `json:"freq"`
+	Dur  float64 `json:"dur"`
+	Gain float64 `json:"gain,omitempty"`
+}
+
 // ambientPreset describes a generative ambient background layer for a theme.
 // All fields are optional at runtime; missing values should be treated as
 // silence or safe defaults by the consumer.
 type ambientPreset struct {
-	BPM           float64   `json:"bpm,omitempty"`
-	PulseInterval float64   `json:"pulseInterval,omitempty"`
-	Gain          float64   `json:"gain,omitempty"`
-	Wave          string    `json:"wave,omitempty"`
-	DroneFreqs    []float64 `json:"droneFreqs,omitempty"`
-	PulseFreqs    []float64 `json:"pulseFreqs,omitempty"`
-	CutoffMin     float64   `json:"cutoffMin,omitempty"`
-	CutoffMax     float64   `json:"cutoffMax,omitempty"`
-	NoiseGain     float64   `json:"noiseGain,omitempty"`
-	Attack        float64   `json:"attack,omitempty"`
-	Release       float64   `json:"release,omitempty"`
-	DetuneCents   float64   `json:"detuneCents,omitempty"`
-	Rhythm        []float64 `json:"rhythm,omitempty"`
+	BPM           float64      `json:"bpm,omitempty"`
+	PulseInterval float64      `json:"pulseInterval,omitempty"`
+	Gain          float64      `json:"gain,omitempty"`
+	Wave          string       `json:"wave,omitempty"`
+	DroneFreqs    []float64    `json:"droneFreqs,omitempty"`
+	PulseFreqs    []float64    `json:"pulseFreqs,omitempty"`
+	CutoffMin     float64      `json:"cutoffMin,omitempty"`
+	CutoffMax     float64      `json:"cutoffMax,omitempty"`
+	NoiseGain     float64      `json:"noiseGain,omitempty"`
+	Attack        float64      `json:"attack,omitempty"`
+	Release       float64      `json:"release,omitempty"`
+	DetuneCents   float64      `json:"detuneCents,omitempty"`
+	Rhythm        []float64    `json:"rhythm,omitempty"`
+	Melody        []melodyNote `json:"melody,omitempty"`
 }
 
 // ambientSounds holds normal and wild-mode ambient presets for a theme.
@@ -69,17 +77,9 @@ type themeSounds struct {
 	Ambient ambientSounds `json:"ambient,omitempty"`
 }
 
-// ambient is a concise helper for building an ambientPreset with sensible defaults.
-func ambient(gain, bpm float64, wave string, drone, pulse []float64) ambientPreset {
-	return ambientPreset{
-		Gain:       gain,
-		BPM:        bpm,
-		Wave:       wave,
-		DroneFreqs: drone,
-		PulseFreqs: pulse,
-		Attack:     0.4,
-		Release:    0.8,
-	}
+// n is a concise helper for building a melodyNote.
+func n(freq, dur float64) melodyNote {
+	return melodyNote{Freq: freq, Dur: dur}
 }
 
 // themeSoundPresets maps CLI theme names to synth parameters (see themes.go registry).
@@ -116,16 +116,20 @@ func soundsNeon() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 50, Wave: "sine",
 		DroneFreqs: []float64{523.25, 659.25, 783.99, 1046.5},
-		PulseFreqs: []float64{1046.5},
-		Attack:     0.6, Release: 1.5,
-		CutoffMin: 800, CutoffMax: 3000,
+		Attack: 0.6, Release: 1.5, CutoffMin: 800, CutoffMax: 3000,
+		Melody: []melodyNote{
+			n(523.25, 0.15), n(659.25, 0.15), n(783.99, 0.15), n(1046.5, 0.15),
+			n(783.99, 0.15), n(659.25, 0.15), n(523.25, 0.15), n(659.25, 0.15),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 120, Wave: "triangle",
 		DroneFreqs: []float64{261.63, 523.25, 659.25},
-		PulseFreqs: []float64{1046.5, 2093},
-		Attack:     0.2, Release: 0.6,
-		CutoffMin: 1500, CutoffMax: 6000, DetuneCents: 8,
+		Attack: 0.2, Release: 0.6, CutoffMin: 1500, CutoffMax: 6000, DetuneCents: 8,
+		Melody: []melodyNote{
+			n(523.25, 0.08), n(659.25, 0.08), n(783.99, 0.08), n(1046.5, 0.08),
+			n(1318.5, 0.08), n(1046.5, 0.08), n(783.99, 0.08), n(659.25, 0.08),
+		},
 	}
 	return s
 }
@@ -141,16 +145,18 @@ func soundsTerminal() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.02, BPM: 40, Wave: "square",
 		DroneFreqs: []float64{60, 120},
-		PulseFreqs: []float64{800},
-		Attack:     0.1, Release: 0.3,
-		PulseInterval: 2.0,
+		Attack: 0.1, Release: 0.3, PulseInterval: 2.0,
+		Melody: []melodyNote{
+			n(196.00, 0.6), n(246.94, 0.3),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.05, BPM: 160, Wave: "square",
 		DroneFreqs: []float64{50, 100},
-		PulseFreqs: []float64{400, 800, 1600},
-		Attack:     0.05, Release: 0.15,
-		PulseInterval: 0.25,
+		Attack: 0.05, Release: 0.15, PulseInterval: 0.25,
+		Melody: []melodyNote{
+			n(196.00, 0.15), n(246.94, 0.15), n(293.66, 0.15), n(392.00, 0.15),
+		},
 	}
 	return s
 }
@@ -166,15 +172,21 @@ func soundsSynthwave() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 55, Wave: "sine",
 		DroneFreqs: []float64{98, 196, 293.66},
-		PulseFreqs: []float64{587.33},
-		Attack:     0.8, Release: 1.5,
+		Attack: 0.8, Release: 1.5,
+		Melody: []melodyNote{
+			n(220.00, 0.3), n(261.63, 0.3), n(329.63, 0.3),
+			n(293.66, 0.3), n(261.63, 0.3), n(246.94, 0.3), n(220.00, 0.3),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 110, Wave: "triangle",
 		DroneFreqs: []float64{65.41, 130.81, 196},
-		PulseFreqs: []float64{440, 880},
-		Attack:     0.3, Release: 0.7,
-		DetuneCents: 12,
+		Attack: 0.3, Release: 0.7, DetuneCents: 12,
+		Melody: []melodyNote{
+			n(220.00, 0.15), n(261.63, 0.15), n(329.63, 0.15), n(392.00, 0.15),
+			n(329.63, 0.15), n(261.63, 0.15), n(220.00, 0.15), n(261.63, 0.15),
+			n(329.63, 0.15), n(440.00, 0.15),
+		},
 	}
 	return s
 }
@@ -190,18 +202,20 @@ func soundsPlasma() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.03, BPM: 70, Wave: "triangle",
 		DroneFreqs: []float64{329.63, 466.16},
-		PulseFreqs: []float64{622.25},
-		Attack:     0.4, Release: 0.9,
-		DetuneCents: 15,
+		Attack: 0.4, Release: 0.9, DetuneCents: 15,
+		Melody: []melodyNote{
+			n(261.63, 0.25), n(369.99, 0.25), n(261.63, 0.25), n(369.99, 0.25),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.065, BPM: 140, Wave: "square",
 		DroneFreqs: []float64{164.81, 329.63},
-		PulseFreqs: []float64{622.25, 1244.5},
-		Attack:     0.1, Release: 0.4,
-		DetuneCents: 25,
-		CutoffMin:   400, CutoffMax: 3000,
-		NoiseGain: 0.02,
+		Attack: 0.1, Release: 0.4, DetuneCents: 25,
+		CutoffMin: 400, CutoffMax: 3000, NoiseGain: 0.02,
+		Melody: []melodyNote{
+			n(261.63, 0.12), n(369.99, 0.12), n(261.63, 0.12), n(369.99, 0.12),
+			n(523.25, 0.12), n(369.99, 0.12), n(261.63, 0.12), n(369.99, 0.12),
+		},
 	}
 	return s
 }
@@ -217,15 +231,18 @@ func soundsBrutalist() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 45, Wave: "triangle",
 		DroneFreqs: []float64{80, 120},
-		PulseFreqs: []float64{160},
-		Attack:     0.5, Release: 1.0,
+		Attack: 0.5, Release: 1.0,
+		Melody: []melodyNote{
+			n(65.41, 1.2), n(98.00, 0.4), n(65.41, 1.2),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 100, Wave: "square",
 		DroneFreqs: []float64{40, 80},
-		PulseFreqs: []float64{120, 240},
-		Attack:     0.05, Release: 0.3,
-		Rhythm: []float64{1, 0.5, 1.5, 0.5},
+		Attack: 0.05, Release: 0.3,
+		Melody: []melodyNote{
+			n(65.41, 0.4), n(98.00, 0.2), n(65.41, 0.4), n(77.78, 0.2),
+		},
 	}
 	return s
 }
@@ -241,15 +258,19 @@ func soundsVolcano() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 35, Wave: "sine",
 		DroneFreqs: []float64{82.41, 123.47},
-		PulseFreqs: []float64{164.81},
-		Attack:     1.0, Release: 2.0,
+		Attack: 1.0, Release: 2.0,
+		Melody: []melodyNote{
+			n(65.41, 0.5), n(77.78, 0.5), n(98.00, 0.5), n(130.81, 0.5),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 85, Wave: "triangle",
 		DroneFreqs: []float64{65.41, 98},
-		PulseFreqs: []float64{164.81, 329.63},
-		Attack:     0.2, Release: 0.6,
-		NoiseGain: 0.015,
+		Attack: 0.2, Release: 0.6, NoiseGain: 0.015,
+		Melody: []melodyNote{
+			n(65.41, 0.25), n(77.78, 0.25), n(98.00, 0.25), n(130.81, 0.25),
+			n(155.56, 0.25), n(196.00, 0.25),
+		},
 	}
 	return s
 }
@@ -265,15 +286,20 @@ func soundsAurora() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.02, BPM: 40, Wave: "sine",
 		DroneFreqs: []float64{440, 880, 1320},
-		PulseFreqs: []float64{1760},
-		Attack:     1.2, Release: 2.5,
+		Attack: 1.2, Release: 2.5,
+		Melody: []melodyNote{
+			n(659.25, 0.3), n(783.99, 0.3), n(987.77, 0.3), n(1318.5, 0.3),
+			n(987.77, 0.3), n(783.99, 0.3), n(659.25, 0.3), n(783.99, 0.3),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.05, BPM: 95, Wave: "sine",
 		DroneFreqs: []float64{220, 440, 880},
-		PulseFreqs: []float64{1320, 1760},
-		Attack:     0.3, Release: 0.8,
-		DetuneCents: 20,
+		Attack: 0.3, Release: 0.8, DetuneCents: 20,
+		Melody: []melodyNote{
+			n(659.25, 0.15), n(783.99, 0.15), n(987.77, 0.15), n(1318.5, 0.15),
+			n(1567.98, 0.15), n(1318.5, 0.15), n(987.77, 0.15), n(783.99, 0.15),
+		},
 	}
 	return s
 }
@@ -289,14 +315,20 @@ func soundsMatrix() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 75, Wave: "square",
 		DroneFreqs: []float64{523.25, 659.25},
-		PulseFreqs: []float64{880, 1046.5},
-		Attack:     0.1, Release: 0.3,
+		Attack: 0.1, Release: 0.3,
+		Melody: []melodyNote{
+			n(293.66, 0.2), n(440.00, 0.2), n(587.33, 0.2), n(739.99, 0.2),
+			n(587.33, 0.2), n(440.00, 0.2), n(293.66, 0.2),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.065, BPM: 160, Wave: "square",
 		DroneFreqs: []float64{261.63, 523.25},
-		PulseFreqs: []float64{880, 1318.5, 1760},
-		Attack:     0.05, Release: 0.15,
+		Attack: 0.05, Release: 0.15,
+		Melody: []melodyNote{
+			n(293.66, 0.1), n(440.00, 0.1), n(587.33, 0.1), n(739.99, 0.1),
+			n(880.00, 0.1), n(739.99, 0.1), n(587.33, 0.1), n(440.00, 0.1),
+		},
 	}
 	return s
 }
@@ -312,16 +344,20 @@ func soundsOcean() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.02, BPM: 30, Wave: "sine",
 		DroneFreqs: []float64{130.81, 174.61},
-		PulseFreqs: []float64{349.23},
-		Attack:     1.5, Release: 3.0,
-		NoiseGain: 0.02,
+		Attack: 1.5, Release: 3.0, NoiseGain: 0.02,
+		Melody: []melodyNote{
+			n(130.81, 0.35), n(164.81, 0.35), n(196.00, 0.35), n(164.81, 0.35),
+			n(130.81, 0.35), n(196.00, 0.35), n(164.81, 0.35), n(130.81, 0.35),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 80, Wave: "triangle",
 		DroneFreqs: []float64{98, 130.81},
-		PulseFreqs: []float64{349.23, 698.46},
-		Attack:     0.3, Release: 0.7,
-		NoiseGain: 0.04,
+		Attack: 0.3, Release: 0.7, NoiseGain: 0.04,
+		Melody: []melodyNote{
+			n(130.81, 0.18), n(164.81, 0.18), n(196.00, 0.18), n(261.63, 0.18),
+			n(196.00, 0.18), n(164.81, 0.18), n(130.81, 0.18), n(98.00, 0.18),
+		},
 	}
 	return s
 }
@@ -337,14 +373,20 @@ func soundsDos() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 60, Wave: "square",
 		DroneFreqs: []float64{200, 400},
-		PulseFreqs: []float64{800, 1200},
-		Attack:     0.05, Release: 0.15,
+		Attack: 0.05, Release: 0.15,
+		Melody: []melodyNote{
+			n(261.63, 0.18), n(329.63, 0.18), n(392.00, 0.18), n(523.25, 0.18),
+			n(392.00, 0.18), n(329.63, 0.18), n(261.63, 0.18),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.065, BPM: 200, Wave: "square",
 		DroneFreqs: []float64{100, 200},
-		PulseFreqs: []float64{400, 800, 1600},
-		Attack:     0.02, Release: 0.08,
+		Attack: 0.02, Release: 0.08,
+		Melody: []melodyNote{
+			n(261.63, 0.08), n(329.63, 0.08), n(392.00, 0.08), n(523.25, 0.08),
+			n(659.25, 0.08), n(523.25, 0.08), n(392.00, 0.08), n(329.63, 0.08),
+		},
 	}
 	return s
 }
@@ -360,16 +402,21 @@ func soundsRetro() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 80, Wave: "square",
 		DroneFreqs: []float64{523.25, 659.25},
-		PulseFreqs: []float64{1046.5},
-		Attack:     0.1, Release: 0.3,
+		Attack: 0.1, Release: 0.3,
+		Melody: []melodyNote{
+			n(261.63, 0.25), n(349.23, 0.25), n(440.00, 0.25), n(523.25, 0.25),
+			n(440.00, 0.25), n(349.23, 0.25), n(261.63, 0.25),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 155, Wave: "square",
 		DroneFreqs: []float64{261.63, 523.25},
-		PulseFreqs: []float64{1046.5, 2093},
-		Attack:     0.05, Release: 0.15,
-		DetuneCents: 30,
-		NoiseGain:   0.02,
+		Attack: 0.05, Release: 0.15,
+		DetuneCents: 30, NoiseGain: 0.02,
+		Melody: []melodyNote{
+			n(261.63, 0.12), n(349.23, 0.12), n(440.00, 0.12), n(523.25, 0.12),
+			n(698.46, 0.12), n(523.25, 0.12), n(440.00, 0.12), n(349.23, 0.12),
+		},
 	}
 	return s
 }
@@ -385,14 +432,20 @@ func soundsCosmos() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.02, BPM: 30, Wave: "sine",
 		DroneFreqs: []float64{220, 440, 660},
-		PulseFreqs: []float64{880},
-		Attack:     1.5, Release: 3.0,
+		Attack: 1.5, Release: 3.0,
+		Melody: []melodyNote{
+			n(130.81, 0.5), n(196.00, 0.5), n(261.63, 0.5), n(329.63, 0.5),
+			n(261.63, 0.5), n(196.00, 0.5), n(130.81, 0.5),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.05, BPM: 75, Wave: "triangle",
 		DroneFreqs: []float64{110, 220, 440},
-		PulseFreqs: []float64{660, 880},
-		Attack:     0.3, Release: 0.8,
+		Attack: 0.3, Release: 0.8,
+		Melody: []melodyNote{
+			n(130.81, 0.2), n(196.00, 0.2), n(261.63, 0.2), n(329.63, 0.2),
+			n(392.00, 0.2), n(329.63, 0.2), n(261.63, 0.2), n(196.00, 0.2),
+		},
 	}
 	return s
 }
@@ -408,21 +461,25 @@ func soundsRetrofuture() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 55, Wave: "triangle",
 		DroneFreqs: []float64{220, 330, 440},
-		PulseFreqs: []float64{523.25},
-		Attack:     0.8, Release: 1.8,
+		Attack: 0.8, Release: 1.8,
+		Melody: []melodyNote{
+			n(261.63, 0.3), n(311.13, 0.3), n(392.00, 0.3), n(466.16, 0.3),
+			n(392.00, 0.3), n(311.13, 0.3), n(261.63, 0.3),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 120, Wave: "square",
 		DroneFreqs: []float64{110, 220},
-		PulseFreqs: []float64{440, 880},
-		Attack:     0.05, Release: 0.15,
-		Rhythm: []float64{1, 2, 0.5, 1.5},
+		Attack: 0.05, Release: 0.15,
+		Melody: []melodyNote{
+			n(261.63, 0.12), n(311.13, 0.12), n(392.00, 0.12), n(466.16, 0.12),
+			n(523.25, 0.12), n(466.16, 0.12), n(392.00, 0.12), n(311.13, 0.12),
+		},
 	}
 	return s
 }
 
 // soundsSpaceage returns synth parameters for the Space Age theme.
-// Clean teal-toned tones evoke retro-futuristic space-age electronics.
 func soundsSpaceage() themeSounds {
 	var s themeSounds
 	s.Splash.Freqs = []float64{440, 554.37, 659.25, 880}
@@ -434,22 +491,25 @@ func soundsSpaceage() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.02, BPM: 50, Wave: "sine",
 		DroneFreqs: []float64{440, 880},
-		PulseFreqs: []float64{1320},
-		Attack:     0.8, Release: 1.5,
+		Attack: 0.8, Release: 1.5,
+		Melody: []melodyNote{
+			n(261.63, 0.35), n(329.63, 0.35), n(392.00, 0.35), n(523.25, 0.35),
+			n(392.00, 0.35), n(329.63, 0.35), n(261.63, 0.35),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.05, BPM: 110, Wave: "triangle",
 		DroneFreqs: []float64{220, 440},
-		PulseFreqs: []float64{880, 1320},
-		Attack:     0.1, Release: 0.4,
-		PulseInterval: 0.5,
+		Attack: 0.1, Release: 0.4, PulseInterval: 0.5,
+		Melody: []melodyNote{
+			n(261.63, 0.15), n(329.63, 0.15), n(392.00, 0.15), n(523.25, 0.15),
+			n(659.25, 0.15), n(523.25, 0.15), n(392.00, 0.15), n(329.63, 0.15),
+		},
 	}
 	return s
 }
 
 // soundsTropical returns synth parameters for the Tropical Beach theme.
-// Warm sine arpeggio across a C-major pentatonic — steel drum impression on splash.
-// Nav uses a breathy mid-freq sine "bird tone"; open/close sweep like breaking surf.
 func soundsTropical() themeSounds {
 	var s themeSounds
 	s.Splash.Freqs = []float64{523.25, 659.25, 783.99, 1046.5}
@@ -461,17 +521,20 @@ func soundsTropical() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.02, BPM: 65, Wave: "sine",
 		DroneFreqs: []float64{261.63, 329.63, 392, 523.25},
-		PulseFreqs: []float64{659.25},
-		Attack:     0.6, Release: 1.5,
-		NoiseGain: 0.015,
+		Attack: 0.6, Release: 1.5, NoiseGain: 0.015,
+		Melody: []melodyNote{
+			n(261.63, 0.28), n(293.66, 0.28), n(329.63, 0.28), n(392.00, 0.28), n(440.00, 0.28),
+			n(392.00, 0.28), n(329.63, 0.28), n(293.66, 0.28), n(261.63, 0.28),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 140, Wave: "triangle",
 		DroneFreqs: []float64{130.81, 261.63, 329.63, 392},
-		PulseFreqs: []float64{523.25, 659.25},
-		Attack:     0.1, Release: 0.3,
-		NoiseGain: 0.03,
-		Rhythm:    []float64{0.5, 1, 0.5, 2},
+		Attack: 0.1, Release: 0.3, NoiseGain: 0.03,
+		Melody: []melodyNote{
+			n(261.63, 0.12), n(293.66, 0.12), n(329.63, 0.12), n(392.00, 0.12), n(440.00, 0.12),
+			n(523.25, 0.12), n(440.00, 0.12), n(392.00, 0.12), n(329.63, 0.12), n(293.66, 0.12),
+		},
 	}
 	return s
 }
@@ -487,16 +550,20 @@ func soundsNoir() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.02, BPM: 40, Wave: "sine",
 		DroneFreqs: []float64{174.61, 220, 261.63},
-		PulseFreqs: []float64{330},
-		Attack:     1.0, Release: 2.0,
-		NoiseGain: 0.015,
+		Attack: 1.0, Release: 2.0, NoiseGain: 0.015,
+		Melody: []melodyNote{
+			n(130.81, 0.45), n(155.56, 0.45), n(196.00, 0.45), n(233.08, 0.45),
+			n(196.00, 0.45), n(155.56, 0.45), n(130.81, 0.45),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.05, BPM: 90, Wave: "triangle",
 		DroneFreqs: []float64{130.81, 174.61, 220},
-		PulseFreqs: []float64{330, 440},
-		Attack:     0.3, Release: 0.7,
-		PulseInterval: 1.2,
+		Attack: 0.3, Release: 0.7, PulseInterval: 1.2,
+		Melody: []melodyNote{
+			n(130.81, 0.2), n(155.56, 0.2), n(196.00, 0.2), n(233.08, 0.2),
+			n(261.63, 0.2), n(233.08, 0.2), n(196.00, 0.2), n(155.56, 0.2),
+		},
 	}
 	return s
 }
@@ -512,14 +579,20 @@ func soundsCathedral() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 35, Wave: "sine",
 		DroneFreqs: []float64{293.66, 440, 587.33},
-		PulseFreqs: []float64{880},
-		Attack:     1.5, Release: 3.0,
+		Attack: 1.5, Release: 3.0,
+		Melody: []melodyNote{
+			n(130.81, 0.5), n(164.81, 0.5), n(196.00, 0.5), n(261.63, 0.5), n(329.63, 0.5),
+			n(261.63, 0.5), n(196.00, 0.5), n(164.81, 0.5), n(130.81, 0.5),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 70, Wave: "triangle",
 		DroneFreqs: []float64{146.83, 293.66, 440},
-		PulseFreqs: []float64{587.33, 880, 1174.66},
-		Attack:     0.3, Release: 0.8,
+		Attack: 0.3, Release: 0.8,
+		Melody: []melodyNote{
+			n(130.81, 0.22), n(164.81, 0.22), n(196.00, 0.22), n(261.63, 0.22), n(329.63, 0.22),
+			n(392.00, 0.22), n(329.63, 0.22), n(261.63, 0.22), n(196.00, 0.22), n(164.81, 0.22),
+		},
 	}
 	return s
 }
@@ -535,15 +608,19 @@ func soundsSurveillance() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 55, Wave: "square",
 		DroneFreqs: []float64{440, 660},
-		PulseFreqs: []float64{880},
-		Attack:     0.2, Release: 0.5,
+		Attack: 0.2, Release: 0.5,
+		Melody: []melodyNote{
+			n(261.63, 0.35), n(349.23, 0.35), n(261.63, 0.35), n(349.23, 0.35),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 140, Wave: "square",
 		DroneFreqs: []float64{220, 440},
-		PulseFreqs: []float64{880, 1760},
-		Attack:     0.05, Release: 0.15,
-		PulseInterval: 0.3,
+		Attack: 0.05, Release: 0.15, PulseInterval: 0.3,
+		Melody: []melodyNote{
+			n(261.63, 0.12), n(349.23, 0.12), n(261.63, 0.12), n(349.23, 0.12),
+			n(523.25, 0.12), n(349.23, 0.12), n(261.63, 0.12), n(349.23, 0.12),
+		},
 	}
 	return s
 }
@@ -559,17 +636,20 @@ func soundsBiomech() themeSounds {
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 50, Wave: "triangle",
 		DroneFreqs: []float64{164.81, 246.94},
-		PulseFreqs: []float64{440},
-		Attack:     0.7, Release: 1.5,
-		DetuneCents: 8,
+		Attack: 0.7, Release: 1.5, DetuneCents: 8,
+		Melody: []melodyNote{
+			n(130.81, 0.3), n(155.56, 0.3), n(185.00, 0.3), n(220.00, 0.3),
+			n(185.00, 0.3), n(155.56, 0.3), n(130.81, 0.3),
+		},
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 115, Wave: "square",
 		DroneFreqs: []float64{82.41, 164.81},
-		PulseFreqs: []float64{440, 880},
-		Attack:     0.1, Release: 0.3,
-		DetuneCents: 18,
-		Rhythm:      []float64{1, 0.5, 1.5, 0.75},
+		Attack: 0.1, Release: 0.3, DetuneCents: 18,
+		Melody: []melodyNote{
+			n(130.81, 0.13), n(155.56, 0.13), n(185.00, 0.13), n(220.00, 0.13),
+			n(261.63, 0.13), n(220.00, 0.13), n(185.00, 0.13), n(155.56, 0.13),
+		},
 	}
 	return s
 }
