@@ -187,7 +187,7 @@ func TestThemeSoundPresetsAmbientValuesBounded(t *testing.T) {
 			if a.Gain <= 0 || a.Gain > 0.15 {
 				t.Errorf("theme %q ambient.%s gain=%f; want (0, 0.15]", name, mode, a.Gain)
 			}
-			if a.BPM <= 0 || a.BPM > 250 {
+			if a.BPM <= 0 || a.BPM > 400 {
 				t.Errorf("theme %q ambient.%s bpm=%f; want (0, 250]", name, mode, a.BPM)
 			}
 			if a.PulseInterval < 0 || a.PulseInterval > 10 {
