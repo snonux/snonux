@@ -438,7 +438,11 @@
             if (freqs.length === 0) return;
             var wt = snonuxWaveType(preset.wave);
             var detune = preset.detuneCents || 0;
-            var perOscGain = 1.0 / Math.max(1, freqs.length);
+            // Drones must respect the theme's ambient gain so they don't
+            // drown the melody.  Four drones at 0.25 each = 1.0 total,
+            // which clips and buries everything else.
+            var gBase = preset.gain != null ? preset.gain : 0.08;
+            var perOscGain = gBase / Math.max(1, freqs.length);
             freqs.forEach(function(freq) {
                 var osc = c.createOscillator();
                 var g = c.createGain();
@@ -471,6 +475,7 @@
             src.buffer = buffer;
             src.loop = true;
             noiseGainNode = c.createGain();
+            // Keep noise subtle so it doesn't bury the melody.
             noiseGainNode.gain.value = preset.noiseGain;
             src.connect(noiseGainNode);
             noiseGainNode.connect(masterGain);
@@ -489,15 +494,30 @@
             var dur = note.dur || 0.3;
             if (freq <= 0 || dur <= 0) return;
             var wt = snonuxWaveType(preset.wave);
+            // masterGain is now a binary "gate" (fades to 1 when on), so per-note
+            // volume carries the real preset.gain. Without the old masterGain
+            // squaring, this makes music audible at normal levels.
             var g = note.gain != null ? note.gain : (preset.gain != null ? preset.gain : 0.08);
-            var pulseGain = Math.min(g * 0.6, 0.12);
+            var pulseGain = Math.min(g, 0.08);
 
-            var osc = c.createOscillator();
+            // Build a richer timbre with two slightly detuned oscillators so
+            // melody lines sound like actual notes instead of sterile blips.
+            var osc1 = c.createOscillator();
+            var osc2 = c.createOscillator();
+            var mix = c.createGain();
             var gain = c.createGain();
-            osc.type = wt;
-            osc.frequency.value = freq;
 
-            var lastNode = osc;
+            osc1.type = wt;
+            osc1.frequency.value = freq;
+            osc2.type = wt;
+            osc2.frequency.value = freq;
+            osc2.detune.value = 5 + Math.random() * 3; // subtle chorus
+
+            mix.gain.value = 0.5;
+            osc1.connect(mix);
+            osc2.connect(mix);
+
+            var lastNode = mix;
             if (preset.filterFreq) {
                 var filter = c.createBiquadFilter();
                 filter.type = 'lowpass';
@@ -513,11 +533,22 @@
             lastNode.connect(gain);
             gain.connect(masterGain);
             var now = c.currentTime;
+
+            // Proper ADSR-ish envelope: attack up, sustain, then release.
+            var attack = Math.min(0.04, dur * 0.15);
+            var release = Math.min(0.12, dur * 0.35);
+            var sustainTime = Math.max(0, dur - attack - release);
+
             gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(pulseGain, now + Math.min(0.05, dur * 0.2));
+            gain.gain.linearRampToValueAtTime(pulseGain, now + attack);
+            if (sustainTime > 0) {
+                gain.gain.setValueAtTime(pulseGain, now + attack + sustainTime);
+            }
             gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-            osc.start(now);
-            osc.stop(now + dur + 0.02);
+            osc1.start(now);
+            osc1.stop(now + dur + 0.02);
+            osc2.start(now);
+            osc2.stop(now + dur + 0.02);
         }
 
         function scheduleMelodyNote(preset) {
@@ -525,13 +556,21 @@
             var note = preset.melody[melodyIndex];
             playMelodyNote(note, preset);
             melodyIndex = (melodyIndex + 1) % preset.melody.length;
-            var gap = preset.pulseInterval || (preset.bpm ? 60.0 / preset.bpm : 0.5);
-            var isEndOfPhrase = melodyIndex === 0;
-            var delay = note.dur * 1000 * 0.7 + (isEndOfPhrase ? gap * 1000 * 1.5 : gap * 1000 * 0.2);
+            // Timing to the next note: explicit 'step' on the current note
+            // controls exactly when the sequencer advances.  If step is
+            // omitted the scheduler falls back to dur + a tiny BPM-scaled
+            // gap so the line stays intelligible.
+            var step;
+            if (note.step != null && note.step > 0) {
+                step = note.step;
+            } else {
+                var beat = preset.bpm ? 60.0 / preset.bpm : 0.5;
+                step = note.dur + beat * 0.15;
+            }
             melodyTimer = setTimeout(function() {
                 if (!isPlaying) return;
                 scheduleMelodyNote(currentPreset);
-            }, delay);
+            }, step * 1000);
         }
 
         function schedulePulse() {
@@ -615,16 +654,38 @@
             if (!preset) return;
             currentPreset = preset;
             ensureCtx();
-            isPlaying = true;
-            melodyIndex = 0;
 
-            startDrones(preset);
-            startNoise(preset);
-            schedulePulse();
+            // Begin scheduling only once the AudioContext is running.
+            // Modern browsers start AudioContext in 'suspended' state; firing
+            // note events before it is running schedules them into the void.
+            function begin() {
+                if (!isPlaying) return; // user toggled off while awaiting resume
+                // Audio must actually be running or all scheduled notes are lost
+                if (ctx.state !== 'running') {
+                    isPlaying = false;
+                    return;
+                }
+                melodyIndex = 0;
+                startDrones(preset);
+                startNoise(preset);
+                schedulePulse();
+                // masterGain is a binary gate: open it quickly (50 ms) so the
+                // first scheduled notes are not swallowed by a long ramp.
+                // preset.attack controls per-note envelopes, not the gate.
+                fadeMasterTo(1.0, 0.05);
+            }
 
-            var targetGain = preset.gain != null ? preset.gain : 0.08;
-            var fadeIn = preset.attack != null ? preset.attack : 0.5;
-            fadeMasterTo(targetGain, fadeIn);
+            if (ctx.state === 'suspended') {
+                isPlaying = true; // flag the intent so begin() can run later
+                ctx.resume().then(begin).catch(function() {
+                    // Resume failed (no autoplay permission).  Reset state so
+                    // the next keypress triggers a fresh start attempt.
+                    isPlaying = false;
+                });
+            } else {
+                isPlaying = true;
+                begin();
+            }
         }
 
         function pauseEngine() {
@@ -668,7 +729,7 @@
                     startDrones(newPreset);
                     startNoise(newPreset);
                     schedulePulse();
-                    var targetGain = newPreset.gain != null ? newPreset.gain : 0.08;
+                    var targetGain = 1.0;
                     fadeMasterTo(targetGain, 0.5);
                 }, 350);
             }
