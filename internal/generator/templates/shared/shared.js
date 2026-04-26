@@ -387,6 +387,8 @@
         var currentPreset = null;
         var melodyTimer = null;
         var melodyIndex = 0;
+        var drumTimer = null;
+        var drumIndex = 0;
 
         function wildifyPreset(base) {
             if (!base) return base;
@@ -645,9 +647,121 @@
             clearTimeout(pulseTimer);
             pulseTimer = null;
             stopMelody();
+            stopDrums();
             stopDrones();
             stopNoise();
         }
+
+        // ── drum synthesizer ──────────────────────────────────────────────
+
+        function stopDrums() {
+            if (drumTimer) { clearTimeout(drumTimer); drumTimer = null; }
+            drumIndex = 0;
+        }
+
+        function playDrum(type, preset) {
+            try {
+                var c = ctx;
+                if (!c) return;
+                var now = c.currentTime;
+                if (type === 'kick') {
+                    var gBase = preset.gain != null ? preset.gain : 0.08;
+                    var osc = c.createOscillator();
+                    var g = c.createGain();
+                    osc.connect(g);
+                    g.connect(masterGain);
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(40, now + 0.12);
+                    g.gain.setValueAtTime(Math.min(gBase * 5, 0.6), now);
+                    g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                    osc.start(now);
+                    osc.stop(now + 0.13);
+                } else if (type === 'snare') {
+                    var gBase = preset.gain != null ? preset.gain : 0.08;
+                    var osc = c.createOscillator();
+                    var g1 = c.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(250, now);
+                    osc.connect(g1);
+                    g1.connect(masterGain);
+                    g1.gain.setValueAtTime(Math.min(gBase * 3, 0.4), now);
+                    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.11);
+                    // snap noise burst
+                    var ns = c.createBufferSource();
+                    var bs = 2 * c.sampleRate;
+                    var buf = c.createBuffer(1, bs, c.sampleRate);
+                    var d = buf.getChannelData(0);
+                    for (var i = 0; i < bs; i++) { d[i] = Math.random() * 2 - 1; }
+                    ns.buffer = buf;
+                    var g2 = c.createGain();
+                    var bp = c.createBiquadFilter();
+                    bp.type = 'bandpass';
+                    bp.frequency.value = 2000;
+                    bp.Q.value = 1;
+                    ns.connect(bp);
+                    bp.connect(g2);
+                    g2.connect(masterGain);
+                    g2.gain.setValueAtTime(Math.min(gBase * 5, 0.6), now);
+                    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                    ns.start(now);
+                    ns.stop(now + 0.09);
+                } else if (type === 'hat') {
+                    var gBase = preset.gain != null ? preset.gain : 0.08;
+                    var ns = c.createBufferSource();
+                    var bs = 2 * c.sampleRate;
+                    var buf = c.createBuffer(1, bs, c.sampleRate);
+                    var d = buf.getChannelData(0);
+                    for (var i = 0; i < bs; i++) { d[i] = Math.random() * 2 - 1; }
+                    ns.buffer = buf;
+                    var g2 = c.createGain();
+                    var hp = c.createBiquadFilter();
+                    hp.type = 'highpass';
+                    hp.frequency.value = 7000;
+                    ns.connect(hp);
+                    hp.connect(g2);
+                    g2.connect(masterGain);
+                    g2.gain.setValueAtTime(Math.min(gBase * 2, 0.25), now);
+                    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+                    ns.start(now);
+                    ns.stop(now + 0.05);
+                } else if (type === 'clap') {
+                    var gBase = preset.gain != null ? preset.gain : 0.08;
+                    // Reverb-y broadband snap
+                    var ns = c.createBufferSource();
+                    var bs = c.sampleRate * 0.15;
+                    var buf = c.createBuffer(1, bs, c.sampleRate);
+                    var d = buf.getChannelData(0);
+                    for (var i = 0; i < bs; i++) { d[i] = Math.random() * 2 - 1; }
+                    ns.buffer = buf;
+                    var g2 = c.createGain();
+                    g2.gain.setValueAtTime(Math.min(gBase * 3, 0.35), now);
+                    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                    ns.connect(g2);
+                    g2.connect(masterGain);
+                    ns.start(now);
+                    ns.stop(now + 0.16);
+                }
+            } catch (_) {}
+        }
+
+        function scheduleDrums(preset, firstDelayMs) {
+            if (!isPlaying || !preset || !preset.drums || preset.drums.length === 0) return;
+            var delay = firstDelayMs != null ? firstDelayMs : 0;
+            drumTimer = setTimeout(function() {
+                if (!isPlaying) return;
+                var beat = preset.drums[drumIndex];
+                if (beat !== '_') {
+                    playDrum(beat, preset);
+                }
+                drumIndex = (drumIndex + 1) % preset.drums.length;
+                var beatDur = preset.bpm ? (60000.0 / preset.bpm / 4.0) : 250.0; // 1 beat = 1/16th note at BPM
+                scheduleDrums(preset, beatDur);
+            }, delay);
+        }
+
+        // ── drum synthesizer end ────────────────────────────────────────
 
         function startEngine() {
             var preset = getPreset();
@@ -669,6 +783,7 @@
                 startDrones(preset);
                 startNoise(preset);
                 schedulePulse();
+                scheduleDrums(preset, 0);
                 // masterGain is a binary gate: open it quickly (50 ms) so the
                 // first scheduled notes are not swallowed by a long ramp.
                 // preset.attack controls per-note envelopes, not the gate.

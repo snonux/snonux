@@ -30,6 +30,8 @@ type ambientPreset struct {
 	DetuneCents   float64      `json:"detuneCents,omitempty"`
 	Rhythm        []float64    `json:"rhythm,omitempty"`
 	Melody        []melodyNote `json:"melody,omitempty"`
+	// Each slot is one 16th-note at BPM. Patterns loop.
+	Drums []string `json:"drums,omitempty"`
 }
 
 // ambientSounds holds normal and wild-mode ambient presets for a theme.
@@ -84,13 +86,10 @@ func n(freq, dur float64) melodyNote {
 }
 
 // ns builds a note that rings for 'dur' but advances the sequencer by 'step'.
-// When dur > step, the note overlaps the next one — creating chords on a
-// monophonic step sequencer.
 func ns(freq, dur, step float64) melodyNote {
 	return melodyNote{Freq: freq, Dur: dur, Step: step}
 }
 
-// equal-temperament intervals
 var (
 	intMajor3rd = math.Pow(2, 4.0/12)
 	intMinor3rd = math.Pow(2, 3.0/12)
@@ -104,23 +103,19 @@ func minor(freq float64) [3]float64 {
 	return [3]float64{freq, freq * intMinor3rd, freq * intPerf5th}
 }
 
-// mNote returns one note in a measure.
-func mNote(freq, dur, step float64) melodyNote {
-	return ns(freq, dur, step)
-}
-
 // chordArp returns an up/down arpeggio of a triad; each note sustains for 'dur'
 // while the sequencer only advances by 'step', so multiple voices overlap.
 func chordArp(chord [3]float64, dur, step float64) []melodyNote {
 	return []melodyNote{
-		ns(chord[0], dur, step),
-		ns(chord[1], dur, step),
-		ns(chord[2], dur, step),
-		ns(chord[1], dur, step),
+		ns(chord[0], dur, step), ns(chord[1], dur, step),
+		ns(chord[2], dur, step), ns(chord[1], dur, step),
 	}
 }
 
-// concatNotes flattens many melody slices into one.
+func bass(freq, dur, step float64) melodyNote {
+	return ns(freq, dur, step)
+}
+
 func concatNotes(groups ...[]melodyNote) []melodyNote {
 	var out []melodyNote
 	for _, g := range groups {
@@ -129,50 +124,29 @@ func concatNotes(groups ...[]melodyNote) []melodyNote {
 	return out
 }
 
-// ── song builder ───────────────────────────────────────────────────
-
 // buildMeasure creates one measure: bass + chord pad + melody top-line.
-// bassFreq: audible bass root (130–260 Hz).
-// chord:    triad in middle register (260–520 Hz).
-// melody:   2–3 scalar notes in upper register (400–1000 Hz).
-// Returns notes that sum to ~4.0 s total when stepNorm=0.5s.
-func buildMeasure(bassFreq float64, chord [3]float64, melody []float64, step float64) []melodyNote {
-	// Bass sustains for 7.5×step, giving long drone during the measure.
+func buildMeasure(bassFreq float64, chord [3]float64, melody []melodyNote, step float64) []melodyNote {
 	bassDur := step * 7.5
 	chordDur := step * 3.0
-	melDur := step * 1.6
-
-	// If bass is too low, shift it up one octave.
 	if bassFreq < 120 {
 		bassFreq *= 2
 	}
-
-	// Ensure chord is in audible middle register (260–520 Hz).
 	if chord[0] < 200 {
 		chord = [3]float64{chord[0] * 4, chord[1] * 4, chord[2] * 4}
 	} else if chord[0] < 260 {
 		chord = [3]float64{chord[0] * 2, chord[1] * 2, chord[2] * 2}
 	}
-
 	var notes []melodyNote
-	notes = append(notes, ns(bassFreq, bassDur, step))
+	notes = append(notes, bass(bassFreq, bassDur, step))
 	notes = append(notes, chordArp(chord, chordDur, step)...)
-
-	for _, f := range melody {
-		ff := f
-		if ff < 300 {
-			ff *= 4
-		} else if ff < 400 {
-			ff *= 2
-		}
-		notes = append(notes, ns(ff, melDur, step))
+	for _, nn := range melody {
+		notes = append(notes, nn)
 	}
 	return notes
 }
 
-// buildSong creates a 4-measure loop (~16 s normal, ~8 s wild) from a chord
-// progression and matching melody lines.
-func buildSong(bassFreqs [4]float64, chords [4][3]float64, melodies [4][]float64, step float64) []melodyNote {
+// buildSong creates a 4-measure loop from a chord progression and melodies.
+func buildSong(bassFreqs [4]float64, chords [4][3]float64, melodies [4][]melodyNote, step float64) []melodyNote {
 	var out []melodyNote
 	for i := 0; i < 4; i++ {
 		out = append(out, buildMeasure(bassFreqs[i], chords[i], melodies[i], step)...)
@@ -180,7 +154,27 @@ func buildSong(bassFreqs [4]float64, chords [4][3]float64, melodies [4][]float64
 	return out
 }
 
-// ── theme registry ─────────────────────────────────────────────────
+// ── swing melody builder ────────────────────────────────────────────
+
+// buildSwingMelody converts a list of freqs into a swing-pattern melody:
+// even-index notes (on-beat) hold longer; odd-index notes (off-beat) are shorter.
+func buildSwingMelody(freqs []float64, baseStep float64) []melodyNote {
+	var out []melodyNote
+	for i, freq := range freqs {
+		if i%2 == 0 {
+			out = append(out, ns(freq, baseStep*1.8, baseStep*1.0))
+		} else {
+			out = append(out, ns(freq, baseStep*0.8, baseStep*0.5))
+		}
+	}
+	return out
+}
+
+// ── drum-pattern helpers ────────────────────────────────────────────
+
+func pat(names ...string) []string {
+	return names
+}
 
 var themeSoundPresets = map[string]themeSounds{
 	"neon":         soundsNeon(),
@@ -205,7 +199,7 @@ var themeSoundPresets = map[string]themeSounds{
 }
 
 // ════════════════════════════════════════════════════════════════════
-// NEON  –  bright synth-pop in C major (C → F → G → C)
+// NEON  –  bright synth-pop in C major
 // ════════════════════════════════════════════════════════════════════
 func soundsNeon() themeSounds {
 	var s themeSounds
@@ -216,42 +210,47 @@ func soundsNeon() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 880, 261.63, 0.16, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 180, 90, 0.12, 0.1
 
-	cm := major(65.41)
-	fm := major(87.31)
-	gm := major(98.00)
+	c, f, g1, c2 := major(65.41), major(87.31), major(98.00), major(130.81)
 
-	bass := [4]float64{130.81, 174.61, 196.00, 130.81} // C3 F3 G3 C3
-	chords := [4][3]float64{cm, fm, gm, cm}
-	normalMel := [4][]float64{
-		{523.25, 587.33, 659.25, 523.25},       // C D E C
-		{698.46, 783.99, 880.00, 698.46},       // F G A F
-		{783.99, 880.00, 1046.5, 783.99},      // G A C G
-		{523.25, 659.25, 783.99, 1046.5},      // C E G C
-	}
-	wildMel := [4][]float64{
-		{1046.5, 1174.66, 1318.5, 1046.5},
-		{1396.92, 1567.98, 1760.00, 1396.92},
-		{1567.98, 1760.00, 2093.0, 1567.98},
-		{1046.5, 1318.5, 1567.98, 2093.0},
-	}
+	normalMel := buildSong(
+		[4]float64{130.81, 174.61, 196.00, 130.81},
+		[4][3]float64{c, f, g1, c2},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{523.25, 587.33, 659.25, 523.25}, 0.5),
+			buildSwingMelody([]float64{698.46, 783.99, 880.00, 698.46}, 0.5),
+			buildSwingMelody([]float64{783.99, 880.00, 1046.5, 783.99}, 0.5),
+			buildSwingMelody([]float64{523.25, 659.25, 783.99, 1046.5}, 0.5),
+		}, 0.5)
+
+	wildMel := buildSong(
+		[4]float64{261.63, 349.23, 392.00, 261.63},
+		[4][3]float64{c, f, g1, c2},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{1046.5, 1174.66, 1318.5, 1046.5}, 0.25),
+			buildSwingMelody([]float64{1396.92, 1567.98, 1760.00, 1396.92}, 0.25),
+			buildSwingMelody([]float64{1567.98, 1760.00, 2093.0, 1567.98}, 0.25),
+			buildSwingMelody([]float64{1046.5, 1318.5, 1567.98, 2093.0}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.03, BPM: 60, Wave: "sine",
+		Gain: 0.028, BPM: 70, Wave: "sine",
 		DroneFreqs: []float64{130.81, 174.61, 196.00, 261.63},
-		Attack: 0.6, Release: 1.5, CutoffMin: 800, CutoffMax: 3000,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Attack: 0.3, Release: 0.8, CutoffMin: 800, CutoffMax: 3000,
+		Drums: pat("kick", "_", "hat", "_", "kick", "_", "hat", "_", "kick", "_", "hat", "_", "kick", "_", "hat", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
-		Gain: 0.06, BPM: 120, Wave: "triangle",
+		Gain: 0.055, BPM: 130, Wave: "triangle",
 		DroneFreqs: []float64{261.63, 349.23, 392.00, 523.25},
-		Attack: 0.2, Release: 0.6, CutoffMin: 1500, CutoffMax: 6000, DetuneCents: 8,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Attack: 0.1, Release: 0.4, CutoffMin: 1500, CutoffMax: 6000, DetuneCents: 8,
+		Drums: pat("kick", "hat", "hat", "_", "kick", "hat", "snare", "hat", "kick", "hat", "hat", "_", "kick", "hat", "snare", "hat"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// TERMINAL  –  dark industrial, E minor (Em → Bm → Am → Em)
+// TERMINAL  –  dark industrial, E minor
 // ════════════════════════════════════════════════════════════════════
 func soundsTerminal() themeSounds {
 	var s themeSounds
@@ -262,42 +261,44 @@ func soundsTerminal() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 900, 400, 0.14, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 200, 100, 0.1, 0.1
 
-	em := minor(82.41)
-	bm := minor(61.74)
-	am := minor(110.00)
+	e, b, a := minor(82.41), minor(61.74), minor(110.00)
 
-	bass := [4]float64{164.81, 123.47, 220.00, 164.81} // E3 B2 A3 E3
-	chords := [4][3]float64{em, bm, am, em}
-	normalMel := [4][]float64{
-		{329.63, 392.00, 440.00, 329.63},       // E3=164, so E4=329
-		{246.94, 293.66, 329.63, 246.94},       // B2=123, B3=246
-		{440.00, 523.25, 587.33, 440.00},       // A3=220
-		{329.63, 392.00, 493.88, 329.63},       // E4=E4
-	}
-	wildMel := [4][]float64{
-		{659.25, 783.99, 880.00, 659.25},
-		{493.88, 587.33, 659.25, 493.88},
-		{880.00, 1046.5, 1174.66, 880.00},
-		{659.25, 783.99, 987.77, 659.25},
-	}
+	normalMel := buildSong(
+		[4]float64{164.81, 123.47, 220.00, 164.81}, [4][3]float64{e, b, a, e},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{329.63, 392.00, 440.00, 329.63}, 0.5),
+			buildSwingMelody([]float64{246.94, 293.66, 329.63, 246.94}, 0.5),
+			buildSwingMelody([]float64{440.00, 523.25, 587.33, 440.00}, 0.5),
+			buildSwingMelody([]float64{329.63, 392.00, 493.88, 329.63}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{329.63, 246.94, 440.00, 329.63}, [4][3]float64{e, b, a, e},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{659.25, 783.99, 880.00, 659.25}, 0.25),
+			buildSwingMelody([]float64{493.88, 587.33, 659.25, 493.88}, 0.25),
+			buildSwingMelody([]float64{880.00, 1046.5, 1174.66, 880.00}, 0.25),
+			buildSwingMelody([]float64{659.25, 783.99, 987.77, 659.25}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.025, BPM: 60, Wave: "square",
+		Gain: 0.025, BPM: 65, Wave: "square",
 		DroneFreqs: []float64{82.41, 123.47, 164.81},
 		Attack: 0.1, Release: 0.3,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "kick", "hat", "kick", "snare", "kick", "hat", "kick", "kick", "kick", "hat", "clap", "snare", "kick", "hat", "kick"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 140, Wave: "square",
 		DroneFreqs: []float64{164.81, 246.94, 329.63},
 		Attack: 0.05, Release: 0.15,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "kick", "hat", "kick", "snare", "kick", "hat", "kick", "kick", "kick", "hat", "clap", "snare", "kick", "hat", "kick"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SYNTHWAVE  –  retro-future, A minor (Am → F → C → G)
+// SYNTHWAVE  –  retro-future, A minor
 // ════════════════════════════════════════════════════════════════════
 func soundsSynthwave() themeSounds {
 	var s themeSounds
@@ -308,43 +309,44 @@ func soundsSynthwave() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 440, 110, 0.17, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 150, 75, 0.14, 0.09
 
-	am := minor(55.00)
-	fm := major(87.31)
-	cm := major(65.41)
-	gm := major(98.00)
+	am, f, c, g := minor(55.00), major(87.31), major(65.41), major(98.00)
 
-	bass := [4]float64{110.00, 174.61, 130.81, 196.00} // A2 F3 C3 G3
-	chords := [4][3]float64{am, fm, cm, gm}
-	normalMel := [4][]float64{
-		{220.00, 261.63, 293.66, 220.00},
-		{349.23, 392.00, 440.00, 349.23},
-		{261.63, 329.63, 392.00, 261.63},
-		{392.00, 440.00, 493.88, 392.00},
-	}
-	wildMel := [4][]float64{
-		{440.00, 523.25, 587.33, 440.00},
-		{698.46, 783.99, 880.00, 698.46},
-		{523.25, 659.25, 783.99, 523.25},
-		{783.99, 880.00, 987.77, 783.99},
-	}
+	normalMel := buildSong(
+		[4]float64{110.00, 174.61, 130.81, 196.00}, [4][3]float64{am, f, c, g},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{220.00, 261.63, 293.66, 220.00}, 0.5),
+			buildSwingMelody([]float64{349.23, 392.00, 440.00, 349.23}, 0.5),
+			buildSwingMelody([]float64{261.63, 329.63, 392.00, 261.63}, 0.5),
+			buildSwingMelody([]float64{392.00, 440.00, 493.88, 392.00}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{220.00, 349.23, 261.63, 392.00}, [4][3]float64{am, f, c, g},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{440.00, 523.25, 587.33, 440.00}, 0.25),
+			buildSwingMelody([]float64{698.46, 783.99, 880.00, 698.46}, 0.25),
+			buildSwingMelody([]float64{523.25, 659.25, 783.99, 523.25}, 0.25),
+			buildSwingMelody([]float64{783.99, 880.00, 987.77, 783.99}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.03, BPM: 60, Wave: "sine",
+		Gain: 0.03, BPM: 70, Wave: "sine",
 		DroneFreqs: []float64{110.00, 130.81, 174.61, 196.00},
-		Attack: 0.8, Release: 1.5,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Attack: 0.3, Release: 0.8,
+		Drums: pat("kick", "_", "hat", "_", "kick", "_", "hat", "_", "kick", "_", "hat", "_", "snare", "_", "hat", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.065, BPM: 130, Wave: "triangle",
 		DroneFreqs: []float64{220.00, 261.63, 349.23, 392.00},
-		Attack: 0.3, Release: 0.7, DetuneCents: 12,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Attack: 0.1, Release: 0.4, DetuneCents: 12,
+		Drums: pat("kick", "_", "hat", "_", "kick", "_", "hat", "_", "kick", "_", "hat", "_", "snare", "_", "hat", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// PLASMA  –  energetic, D minor (Dm → Bb → F → C)
+// PLASMA  –  energetic, D minor
 // ════════════════════════════════════════════════════════════════════
 func soundsPlasma() themeSounds {
 	var s themeSounds
@@ -355,44 +357,45 @@ func soundsPlasma() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 523.25, 174.61, 0.17, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "triangle", 200, 100, 0.13, 0.09
 
-	dm := minor(73.42)
-	bb := major(58.27)
-	fm := major(87.31)
-	cm := major(65.41)
+	dm, bb, f, c := minor(73.42), major(58.27), major(87.31), major(65.41)
 
-	bass := [4]float64{146.83, 116.54, 174.61, 130.81}
-	chords := [4][3]float64{dm, bb, fm, cm}
-	normalMel := [4][]float64{
-		{293.66, 349.23, 392.00, 293.66},
-		{233.08, 293.66, 349.23, 233.08},
-		{349.23, 440.00, 523.25, 349.23},
-		{261.63, 329.63, 392.00, 261.63},
-	}
-	wildMel := [4][]float64{
-		{587.33, 698.46, 783.99, 587.33},
-		{466.16, 587.33, 698.46, 466.16},
-		{698.46, 880.00, 1046.5, 698.46},
-		{523.25, 659.25, 783.99, 523.25},
-	}
+	normalMel := buildSong(
+		[4]float64{146.83, 116.54, 174.61, 130.81}, [4][3]float64{dm, bb, f, c},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{293.66, 349.23, 392.00, 293.66}, 0.5),
+			buildSwingMelody([]float64{233.08, 293.66, 349.23, 233.08}, 0.5),
+			buildSwingMelody([]float64{349.23, 440.00, 523.25, 349.23}, 0.5),
+			buildSwingMelody([]float64{261.63, 329.63, 392.00, 261.63}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{293.66, 233.08, 349.23, 261.63}, [4][3]float64{dm, bb, f, c},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{587.33, 698.46, 783.99, 587.33}, 0.25),
+			buildSwingMelody([]float64{466.16, 587.33, 698.46, 466.16}, 0.25),
+			buildSwingMelody([]float64{698.46, 880.00, 1046.5, 698.46}, 0.25),
+			buildSwingMelody([]float64{523.25, 659.25, 783.99, 523.25}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.035, BPM: 60, Wave: "triangle",
+		Gain: 0.035, BPM: 70, Wave: "triangle",
 		DroneFreqs: []float64{146.83, 233.08, 349.23},
 		Attack: 0.4, Release: 0.9, DetuneCents: 15,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "hat", "kick", "hat", "snare", "hat", "kick", "hat", "kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.07, BPM: 150, Wave: "square",
 		DroneFreqs: []float64{293.66, 466.16, 698.46},
 		Attack: 0.1, Release: 0.4, DetuneCents: 25,
 		CutoffMin: 400, CutoffMax: 3000, NoiseGain: 0.02,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "hat", "kick", "hat", "snare", "hat", "kick", "hat", "kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// BRUTALIST  –  concrete minimalism, D major (D → A → D → A)
+// BRUTALIST  –  concrete minimalism, D major
 // ════════════════════════════════════════════════════════════════════
 func soundsBrutalist() themeSounds {
 	var s themeSounds
@@ -403,41 +406,44 @@ func soundsBrutalist() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 400, 100, 0.14, 0.1
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 120, 60, 0.1, 0.12
 
-	dm := major(73.42)
-	am := major(55.00)
+	d, a := major(73.42), major(55.00)
 
-	bass := [4]float64{146.83, 110.00, 146.83, 110.00}
-	chords := [4][3]float64{dm, am, dm, am}
-	normalMel := [4][]float64{
-		{293.66, 349.23, 392.00, 293.66},
-		{220.00, 261.63, 293.66, 220.00},
-		{293.66, 392.00, 440.00, 293.66},
-		{220.00, 293.66, 349.23, 220.00},
-	}
-	wildMel := [4][]float64{
-		{587.33, 698.46, 783.99, 587.33},
-		{440.00, 523.25, 587.33, 440.00},
-		{587.33, 783.99, 880.00, 587.33},
-		{440.00, 587.33, 698.46, 440.00},
-	}
+	normalMel := buildSong(
+		[4]float64{146.83, 110.00, 146.83, 110.00}, [4][3]float64{d, a, d, a},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{293.66, 349.23, 392.00, 293.66}, 0.5),
+			buildSwingMelody([]float64{220.00, 261.63, 293.66, 220.00}, 0.5),
+			buildSwingMelody([]float64{293.66, 392.00, 440.00, 293.66}, 0.5),
+			buildSwingMelody([]float64{220.00, 293.66, 349.23, 220.00}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{293.66, 220.00, 293.66, 220.00}, [4][3]float64{d, a, d, a},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{587.33, 698.46, 783.99, 587.33}, 0.25),
+			buildSwingMelody([]float64{440.00, 523.25, 587.33, 440.00}, 0.25),
+			buildSwingMelody([]float64{587.33, 783.99, 880.00, 587.33}, 0.25),
+			buildSwingMelody([]float64{440.00, 587.33, 698.46, 440.00}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.03, BPM: 60, Wave: "triangle",
 		DroneFreqs: []float64{73.42, 110.00, 146.83},
 		Attack: 0.5, Release: 1.0,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "kick", "hat", "kick", "snare", "kick", "hat", "kick", "kick", "kick", "hat", "clap", "snare", "kick", "hat", "kick"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.065, BPM: 120, Wave: "square",
 		DroneFreqs: []float64{146.83, 220.00, 293.66},
 		Attack: 0.05, Release: 0.3,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "kick", "hat", "kick", "snare", "kick", "hat", "kick", "kick", "kick", "hat", "clap", "snare", "kick", "hat", "kick"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// VOLCANO  –  molten, C major (C → D → F → G)
+// VOLCANO  –  molten, C major
 // ════════════════════════════════════════════════════════════════════
 func soundsVolcano() themeSounds {
 	var s themeSounds
@@ -448,43 +454,44 @@ func soundsVolcano() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 392, 98, 0.17, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 160, 80, 0.13, 0.1
 
-	cm := major(65.41)
-	dm := major(73.42)
-	fm := major(87.31)
-	gm := major(98.00)
+	c, d, f, g := major(65.41), major(73.42), major(87.31), major(98.00)
 
-	bass := [4]float64{130.81, 146.83, 174.61, 196.00}
-	chords := [4][3]float64{cm, dm, fm, gm}
-	normalMel := [4][]float64{
-		{261.63, 293.66, 329.63, 261.63},
-		{293.66, 349.23, 392.00, 293.66},
-		{349.23, 440.00, 523.25, 349.23},
-		{392.00, 440.00, 493.88, 392.00},
-	}
-	wildMel := [4][]float64{
-		{523.25, 587.33, 659.25, 523.25},
-		{587.33, 698.46, 783.99, 587.33},
-		{698.46, 880.00, 1046.5, 698.46},
-		{783.99, 880.00, 987.77, 783.99},
-	}
+	normalMel := buildSong(
+		[4]float64{130.81, 146.83, 174.61, 196.00}, [4][3]float64{c, d, f, g},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{261.63, 293.66, 329.63, 261.63}, 0.5),
+			buildSwingMelody([]float64{293.66, 349.23, 392.00, 293.66}, 0.5),
+			buildSwingMelody([]float64{349.23, 440.00, 523.25, 349.23}, 0.5),
+			buildSwingMelody([]float64{392.00, 440.00, 493.88, 392.00}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{261.63, 293.66, 349.23, 392.00}, [4][3]float64{c, d, f, g},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{523.25, 587.33, 659.25, 523.25}, 0.25),
+			buildSwingMelody([]float64{587.33, 698.46, 783.99, 587.33}, 0.25),
+			buildSwingMelody([]float64{698.46, 880.00, 1046.5, 698.46}, 0.25),
+			buildSwingMelody([]float64{783.99, 880.00, 987.77, 783.99}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.03, BPM: 60, Wave: "sine",
 		DroneFreqs: []float64{65.41, 130.81, 174.61},
 		Attack: 1.0, Release: 2.0,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "hat", "_", "_", "snare", "hat", "_", "_", "kick", "hat", "_", "_", "snare", "hat", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 110, Wave: "triangle",
 		DroneFreqs: []float64{130.81, 261.63, 349.23},
 		Attack: 0.2, Release: 0.6, NoiseGain: 0.015,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "_", "hat", "_", "_", "snare", "hat", "_", "_", "kick", "hat", "_", "_", "snare", "hat", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// AURORA  –  ethereal, E major (E → C#m → A → E)
+// AURORA  –  ethereal, E major
 // ════════════════════════════════════════════════════════════════════
 func soundsAurora() themeSounds {
 	var s themeSounds
@@ -495,42 +502,44 @@ func soundsAurora() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 704, 352, 0.18, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 220, 110, 0.15, 0.08
 
-	em := major(82.41)
-	csm := minor(69.30)
-	am := major(55.00)
+	e, bcm, a := major(82.41), minor(69.30), major(55.00)
 
-	bass := [4]float64{164.81, 138.59, 110.00, 164.81}
-	chords := [4][3]float64{em, csm, am, em}
-	normalMel := [4][]float64{
-		{329.63, 369.99, 440.00, 329.63},
-		{277.18, 329.63, 369.99, 277.18},
-		{220.00, 261.63, 293.66, 220.00},
-		{329.63, 369.99, 440.00, 329.63},
-	}
-	wildMel := [4][]float64{
-		{659.25, 739.99, 880.00, 659.25},
-		{554.37, 659.25, 739.99, 554.37},
-		{440.00, 523.25, 587.33, 440.00},
-		{659.25, 739.99, 880.00, 659.25},
-	}
+	normalMel := buildSong(
+		[4]float64{164.81, 138.59, 110.00, 164.81}, [4][3]float64{e, bcm, a, e},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{329.63, 369.99, 440.00, 329.63}, 0.5),
+			buildSwingMelody([]float64{277.18, 329.63, 369.99, 277.18}, 0.5),
+			buildSwingMelody([]float64{220.00, 261.63, 293.66, 220.00}, 0.5),
+			buildSwingMelody([]float64{329.63, 369.99, 440.00, 329.63}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{329.63, 277.18, 220.00, 329.63}, [4][3]float64{e, bcm, a, e},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{659.25, 739.99, 880.00, 659.25}, 0.25),
+			buildSwingMelody([]float64{554.37, 659.25, 739.99, 554.37}, 0.25),
+			buildSwingMelody([]float64{440.00, 523.25, 587.33, 440.00}, 0.25),
+			buildSwingMelody([]float64{659.25, 739.99, 880.00, 659.25}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.025, BPM: 60, Wave: "sine",
+		Gain: 0.028, BPM: 60, Wave: "sine",
 		DroneFreqs: []float64{82.41, 110.00, 138.59, 164.81},
 		Attack: 1.2, Release: 2.5,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "_", "hat", "_", "_", "hat", "_", "kick", "_", "_", "hat", "_", "snare", "hat", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 120, Wave: "sine",
 		DroneFreqs: []float64{164.81, 220.00, 277.18, 329.63},
 		Attack: 0.3, Release: 0.8, DetuneCents: 20,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "_", "_", "hat", "_", "_", "hat", "_", "kick", "_", "_", "hat", "_", "snare", "hat", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// MATRIX  –  cyberpunk, E minor (Em → D → C → B)
+// MATRIX  –  cyberpunk, E minor
 // ════════════════════════════════════════════════════════════════════
 func soundsMatrix() themeSounds {
 	var s themeSounds
@@ -541,43 +550,44 @@ func soundsMatrix() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 880, 330, 0.13, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 260, 130, 0.1, 0.09
 
-	em := minor(82.41)
-	dm := major(73.42)
-	cm := major(65.41)
-	bm := major(61.74)
+	e, dd, c, b := minor(82.41), major(73.42), major(65.41), major(61.74)
 
-	bass := [4]float64{164.81, 146.83, 130.81, 123.47}
-	chords := [4][3]float64{em, dm, cm, bm}
-	normalMel := [4][]float64{
-		{329.63, 392.00, 440.00, 329.63},
-		{293.66, 349.23, 392.00, 293.66},
-		{261.63, 329.63, 392.00, 261.63},
-		{246.94, 293.66, 349.23, 246.94},
-	}
-	wildMel := [4][]float64{
-		{659.25, 783.99, 880.00, 659.25},
-		{587.33, 698.46, 783.99, 587.33},
-		{523.25, 659.25, 783.99, 523.25},
-		{493.88, 587.33, 698.46, 493.88},
-	}
+	normalMel := buildSong(
+		[4]float64{164.81, 146.83, 130.81, 123.47}, [4][3]float64{e, dd, c, b},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{329.63, 392.00, 440.00, 329.63}, 0.5),
+			buildSwingMelody([]float64{293.66, 349.23, 392.00, 293.66}, 0.5),
+			buildSwingMelody([]float64{261.63, 329.63, 392.00, 261.63}, 0.5),
+			buildSwingMelody([]float64{246.94, 293.66, 349.23, 246.94}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{329.63, 293.66, 261.63, 246.94}, [4][3]float64{e, dd, c, b},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{659.25, 783.99, 880.00, 659.25}, 0.25),
+			buildSwingMelody([]float64{587.33, 698.46, 783.99, 587.33}, 0.25),
+			buildSwingMelody([]float64{523.25, 659.25, 783.99, 523.25}, 0.25),
+			buildSwingMelody([]float64{493.88, 587.33, 698.46, 493.88}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.03, BPM: 60, Wave: "square",
+		Gain: 0.03, BPM: 70, Wave: "square",
 		DroneFreqs: []float64{82.41, 130.81, 164.81},
 		Attack: 0.1, Release: 0.3,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "hat", "_", "kick", "snare", "hat", "_", "kick", "_", "hat", "_", "snare", "hat", "kick", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.07, BPM: 150, Wave: "square",
 		DroneFreqs: []float64{164.81, 261.63, 329.63},
 		Attack: 0.05, Release: 0.15,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "_", "hat", "_", "kick", "snare", "hat", "_", "kick", "_", "hat", "_", "snare", "hat", "kick", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// OCEAN  –  flowing, G major (G → D → Em → C)
+// OCEAN  –  flowing, G major
 // ════════════════════════════════════════════════════════════════════
 func soundsOcean() themeSounds {
 	var s themeSounds
@@ -588,43 +598,44 @@ func soundsOcean() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 415.3, 246.94, 0.18, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 140, 70, 0.15, 0.08
 
-	gm := major(98.00)
-	dm := major(73.42)
-	em := minor(82.41)
-	cm := major(65.41)
+	g, d, em, c := major(98.00), major(73.42), minor(82.41), major(65.41)
 
-	bass := [4]float64{196.00, 146.83, 164.81, 130.81}
-	chords := [4][3]float64{gm, dm, em, cm}
-	normalMel := [4][]float64{
-		{392.00, 440.00, 493.88, 392.00},
-		{293.66, 349.23, 392.00, 293.66},
-		{329.63, 392.00, 440.00, 329.63},
-		{261.63, 329.63, 392.00, 261.63},
-	}
-	wildMel := [4][]float64{
-		{783.99, 880.00, 987.77, 783.99},
-		{587.33, 698.46, 783.99, 587.33},
-		{659.25, 783.99, 880.00, 659.25},
-		{523.25, 659.25, 783.99, 523.25},
-	}
+	normalMel := buildSong(
+		[4]float64{196.00, 146.83, 164.81, 130.81}, [4][3]float64{g, d, em, c},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{392.00, 440.00, 493.88, 392.00}, 0.5),
+			buildSwingMelody([]float64{293.66, 349.23, 392.00, 293.66}, 0.5),
+			buildSwingMelody([]float64{329.63, 392.00, 440.00, 329.63}, 0.5),
+			buildSwingMelody([]float64{261.63, 329.63, 392.00, 261.63}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{392.00, 293.66, 329.63, 261.63}, [4][3]float64{g, d, em, c},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{783.99, 880.00, 987.77, 783.99}, 0.25),
+			buildSwingMelody([]float64{587.33, 698.46, 783.99, 587.33}, 0.25),
+			buildSwingMelody([]float64{659.25, 783.99, 880.00, 659.25}, 0.25),
+			buildSwingMelody([]float64{523.25, 659.25, 783.99, 523.25}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.025, BPM: 60, Wave: "sine",
+		Gain: 0.028, BPM: 60, Wave: "sine",
 		DroneFreqs: []float64{98.00, 130.81, 164.81, 196.00},
 		Attack: 1.5, Release: 3.0, NoiseGain: 0.02,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "hat", "_", "_", "snare", "hat", "_", "kick", "_", "hat", "_", "_", "snare", "hat", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 120, Wave: "triangle",
 		DroneFreqs: []float64{196.00, 261.63, 329.63, 392.00},
 		Attack: 0.3, Release: 0.7, NoiseGain: 0.04,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "_", "hat", "_", "_", "snare", "hat", "_", "kick", "_", "hat", "_", "_", "snare", "hat", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// DOS  –  8-bit chip-tune, C major (C → G → Am → F)
+// DOS  –  8-bit chip-tune, C major
 // ════════════════════════════════════════════════════════════════════
 func soundsDos() themeSounds {
 	var s themeSounds
@@ -635,43 +646,44 @@ func soundsDos() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 800, 200, 0.1, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 300, 150, 0.08, 0.1
 
-	cm := major(65.41)
-	gm := major(98.00)
-	am := minor(110.00)
-	fm := major(87.31)
+	c, gg, am, ff := major(65.41), major(98.00), minor(110.00), major(87.31)
 
-	bass := [4]float64{130.81, 196.00, 220.00, 174.61}
-	chords := [4][3]float64{cm, gm, am, fm}
-	normalMel := [4][]float64{
-		{523.25, 587.33, 659.25, 523.25},
-		{783.99, 880.00, 987.77, 783.99},
-		{880.00, 1046.5, 1174.66, 880.00},
-		{698.46, 783.99, 880.00, 698.46},
-	}
-	wildMel := [4][]float64{
-		{1046.5, 1174.66, 1318.5, 1046.5},
-		{1567.98, 1760.00, 1975.53, 1567.98},
-		{1760.00, 2093.0, 2349.32, 1760.00},
-		{1396.92, 1567.98, 1760.00, 1396.92},
-	}
+	normalMel := buildSong(
+		[4]float64{130.81, 196.00, 220.00, 174.61}, [4][3]float64{c, gg, am, ff},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{523.25, 587.33, 659.25, 523.25}, 0.5),
+			buildSwingMelody([]float64{783.99, 880.00, 987.77, 783.99}, 0.5),
+			buildSwingMelody([]float64{880.00, 1046.5, 1174.66, 880.00}, 0.5),
+			buildSwingMelody([]float64{698.46, 783.99, 880.00, 698.46}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{261.63, 392.00, 440.00, 349.23}, [4][3]float64{c, gg, am, ff},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{1046.5, 1174.66, 1318.5, 1046.5}, 0.25),
+			buildSwingMelody([]float64{1567.98, 1760.00, 1975.53, 1567.98}, 0.25),
+			buildSwingMelody([]float64{1760.00, 2093.0, 2349.32, 1760.00}, 0.25),
+			buildSwingMelody([]float64{1396.92, 1567.98, 1760.00, 1396.92}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.03, BPM: 70, Wave: "square",
+		Gain: 0.03, BPM: 75, Wave: "square",
 		DroneFreqs: []float64{65.41, 130.81, 196.00, 220.00},
 		Attack: 0.05, Release: 0.15,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.07, BPM: 180, Wave: "square",
 		DroneFreqs: []float64{130.81, 261.63, 392.00, 440.00},
 		Attack: 0.02, Release: 0.08,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// RETRO  –  warm nostalgia, C major (C → Am → F → G)
+// RETRO  –  warm nostalgia, C major
 // ════════════════════════════════════════════════════════════════════
 func soundsRetro() themeSounds {
 	var s themeSounds
@@ -682,44 +694,44 @@ func soundsRetro() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 1600, 400, 0.15, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 400, 200, 0.1, 0.1
 
-	cm := major(65.41)
-	am := minor(55.00)
-	fm := major(87.31)
-	gm := major(98.00)
+	c, am, f, ggg := major(65.41), minor(55.00), major(87.31), major(98.00)
 
-	bass := [4]float64{130.81, 110.00, 174.61, 196.00}
-	chords := [4][3]float64{cm, am, fm, gm}
-	normalMel := [4][]float64{
-		{261.63, 329.63, 392.00, 261.63},
-		{220.00, 261.63, 293.66, 220.00},
-		{349.23, 392.00, 440.00, 349.23},
-		{392.00, 440.00, 493.88, 392.00},
-	}
-	wildMel := [4][]float64{
-		{523.25, 659.25, 783.99, 523.25},
-		{440.00, 523.25, 587.33, 440.00},
-		{698.46, 783.99, 880.00, 698.46},
-		{783.99, 880.00, 987.77, 783.99},
-	}
+	normalMel := buildSong(
+		[4]float64{130.81, 110.00, 174.61, 196.00}, [4][3]float64{c, am, f, ggg},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{261.63, 329.63, 392.00, 261.63}, 0.5),
+			buildSwingMelody([]float64{220.00, 261.63, 293.66, 220.00}, 0.5),
+			buildSwingMelody([]float64{349.23, 392.00, 440.00, 349.23}, 0.5),
+			buildSwingMelody([]float64{392.00, 440.00, 493.88, 392.00}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{261.63, 220.00, 349.23, 392.00}, [4][3]float64{c, am, f, ggg},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{523.25, 659.25, 783.99, 523.25}, 0.25),
+			buildSwingMelody([]float64{440.00, 523.25, 587.33, 440.00}, 0.25),
+			buildSwingMelody([]float64{698.46, 783.99, 880.00, 698.46}, 0.25),
+			buildSwingMelody([]float64{783.99, 880.00, 987.77, 783.99}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.03, BPM: 60, Wave: "square",
+		Gain: 0.03, BPM: 70, Wave: "square",
 		DroneFreqs: []float64{65.41, 110.00, 130.81, 174.61},
 		Attack: 0.1, Release: 0.3,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "hat", "_", "kick", "_", "hat", "_", "kick", "_", "hat", "_", "snare", "_", "hat", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 140, Wave: "square",
 		DroneFreqs: []float64{130.81, 220.00, 261.63, 349.23},
-		Attack: 0.05, Release: 0.15,
-		DetuneCents: 30, NoiseGain: 0.02,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Attack: 0.05, Release: 0.15, DetuneCents: 30, NoiseGain: 0.02,
+		Drums: pat("kick", "_", "hat", "_", "kick", "_", "hat", "_", "kick", "_", "hat", "_", "snare", "_", "hat", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// COSMOS  –  vast space, A major (A → D → C → G)
+// COSMOS  –  vast space, A major
 // ════════════════════════════════════════════════════════════════════
 func soundsCosmos() themeSounds {
 	var s themeSounds
@@ -730,43 +742,44 @@ func soundsCosmos() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 587.33, 196, 0.2, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 170, 85, 0.16, 0.08
 
-	am := major(55.00)
-	dm := major(73.42)
-	cm := major(65.41)
-	gm := major(98.00)
+	a, ddd, ccc, g := major(55.00), major(73.42), major(65.41), major(98.00)
 
-	bass := [4]float64{110.00, 146.83, 130.81, 196.00}
-	chords := [4][3]float64{am, dm, cm, gm}
-	normalMel := [4][]float64{
-		{220.00, 261.63, 293.66, 220.00},
-		{293.66, 349.23, 392.00, 293.66},
-		{261.63, 329.63, 392.00, 261.63},
-		{392.00, 440.00, 493.88, 392.00},
-	}
-	wildMel := [4][]float64{
-		{440.00, 523.25, 587.33, 440.00},
-		{587.33, 698.46, 783.99, 587.33},
-		{523.25, 659.25, 783.99, 523.25},
-		{783.99, 880.00, 987.77, 783.99},
-	}
+	normalMel := buildSong(
+		[4]float64{110.00, 146.83, 130.81, 196.00}, [4][3]float64{a, ddd, ccc, g},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{220.00, 261.63, 293.66, 220.00}, 0.5),
+			buildSwingMelody([]float64{293.66, 349.23, 392.00, 293.66}, 0.5),
+			buildSwingMelody([]float64{261.63, 329.63, 392.00, 261.63}, 0.5),
+			buildSwingMelody([]float64{392.00, 440.00, 493.88, 392.00}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{220.00, 293.66, 261.63, 392.00}, [4][3]float64{a, ddd, ccc, g},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{440.00, 523.25, 587.33, 440.00}, 0.25),
+			buildSwingMelody([]float64{587.33, 698.46, 783.99, 587.33}, 0.25),
+			buildSwingMelody([]float64{523.25, 659.25, 783.99, 523.25}, 0.25),
+			buildSwingMelody([]float64{783.99, 880.00, 987.77, 783.99}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.025, BPM: 60, Wave: "sine",
 		DroneFreqs: []float64{55.00, 110.00, 146.83, 196.00},
 		Attack: 1.5, Release: 3.0,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "hat", "_", "_", "snare", "hat", "_", "kick", "_", "hat", "_", "_", "snare", "hat", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 120, Wave: "triangle",
 		DroneFreqs: []float64{110.00, 220.00, 293.66, 392.00},
 		Attack: 0.3, Release: 0.8,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "_", "hat", "_", "_", "snare", "hat", "_", "kick", "_", "hat", "_", "_", "snare", "hat", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// RETROFUTURE  –  retro sci-fi, E minor (Em → C → G → D)
+// RETROFUTURE  –  retro sci-fi, E minor
 // ════════════════════════════════════════════════════════════════════
 func soundsRetrofuture() themeSounds {
 	var s themeSounds
@@ -777,43 +790,44 @@ func soundsRetrofuture() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 415.3, 165, 0.17, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "triangle", 190, 95, 0.14, 0.09
 
-	em := minor(82.41)
-	cm := major(65.41)
-	gm := major(98.00)
-	dm := major(73.42)
+	em, ccc, gg, ddd := minor(82.41), major(65.41), major(98.00), major(73.42)
 
-	bass := [4]float64{164.81, 130.81, 196.00, 146.83}
-	chords := [4][3]float64{em, cm, gm, dm}
-	normalMel := [4][]float64{
-		{329.63, 392.00, 440.00, 329.63},
-		{261.63, 329.63, 392.00, 261.63},
-		{392.00, 440.00, 493.88, 392.00},
-		{293.66, 349.23, 392.00, 293.66},
-	}
-	wildMel := [4][]float64{
-		{659.25, 783.99, 880.00, 659.25},
-		{523.25, 659.25, 783.99, 523.25},
-		{783.99, 880.00, 987.77, 783.99},
-		{587.33, 698.46, 783.99, 587.33},
-	}
+	normalMel := buildSong(
+		[4]float64{164.81, 130.81, 196.00, 146.83}, [4][3]float64{em, ccc, gg, ddd},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{329.63, 392.00, 440.00, 329.63}, 0.5),
+			buildSwingMelody([]float64{261.63, 329.63, 392.00, 261.63}, 0.5),
+			buildSwingMelody([]float64{392.00, 440.00, 493.88, 392.00}, 0.5),
+			buildSwingMelody([]float64{293.66, 349.23, 392.00, 293.66}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{329.63, 261.63, 392.00, 293.66}, [4][3]float64{em, ccc, gg, ddd},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{659.25, 783.99, 880.00, 659.25}, 0.25),
+			buildSwingMelody([]float64{523.25, 659.25, 783.99, 523.25}, 0.25),
+			buildSwingMelody([]float64{783.99, 880.00, 987.77, 783.99}, 0.25),
+			buildSwingMelody([]float64{587.33, 698.46, 783.99, 587.33}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.03, BPM: 60, Wave: "triangle",
 		DroneFreqs: []float64{82.41, 130.81, 164.81, 196.00},
 		Attack: 0.8, Release: 1.8,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "hat", "_", "kick", "_", "hat", "_", "kick", "_", "hat", "_", "snare", "_", "hat", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 130, Wave: "square",
 		DroneFreqs: []float64{164.81, 261.63, 329.63, 392.00},
 		Attack: 0.05, Release: 0.15,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "_", "hat", "_", "kick", "_", "hat", "_", "kick", "_", "hat", "_", "snare", "_", "hat", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SPACEAGE  –  mid-century optimism, C major (C → Am → F → G)
+// SPACEAGE  –  mid-century optimism, C major
 // ════════════════════════════════════════════════════════════════════
 func soundsSpaceage() themeSounds {
 	var s themeSounds
@@ -824,43 +838,44 @@ func soundsSpaceage() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 659.25, 330, 0.17, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 240, 120, 0.13, 0.08
 
-	cm := major(65.41)
-	am := minor(55.00)
-	fm := major(87.31)
-	gm := major(98.00)
+	c, am, ff, ggg := major(65.41), minor(55.00), major(87.31), major(98.00)
 
-	bass := [4]float64{130.81, 110.00, 174.61, 196.00}
-	chords := [4][3]float64{cm, am, fm, gm}
-	normalMel := [4][]float64{
-		{261.63, 329.63, 392.00, 261.63},
-		{220.00, 261.63, 293.66, 220.00},
-		{349.23, 392.00, 440.00, 349.23},
-		{392.00, 440.00, 493.88, 392.00},
-	}
-	wildMel := [4][]float64{
-		{523.25, 659.25, 783.99, 523.25},
-		{440.00, 523.25, 587.33, 440.00},
-		{698.46, 783.99, 880.00, 698.46},
-		{783.99, 880.00, 987.77, 783.99},
-	}
+	normalMel := buildSong(
+		[4]float64{130.81, 110.00, 174.61, 196.00}, [4][3]float64{c, am, ff, ggg},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{261.63, 329.63, 392.00, 261.63}, 0.5),
+			buildSwingMelody([]float64{220.00, 261.63, 293.66, 220.00}, 0.5),
+			buildSwingMelody([]float64{349.23, 392.00, 440.00, 349.23}, 0.5),
+			buildSwingMelody([]float64{392.00, 440.00, 493.88, 392.00}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{261.63, 220.00, 349.23, 392.00}, [4][3]float64{c, am, ff, ggg},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{523.25, 659.25, 783.99, 523.25}, 0.25),
+			buildSwingMelody([]float64{440.00, 523.25, 587.33, 440.00}, 0.25),
+			buildSwingMelody([]float64{698.46, 783.99, 880.00, 698.46}, 0.25),
+			buildSwingMelody([]float64{783.99, 880.00, 987.77, 783.99}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.025, BPM: 60, Wave: "sine",
+		Gain: 0.028, BPM: 60, Wave: "sine",
 		DroneFreqs: []float64{65.41, 110.00, 130.81, 174.61},
 		Attack: 0.8, Release: 1.5,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "hat", "_", "kick", "_", "hat", "_", "kick", "_", "hat", "_", "snare", "hat", "hat", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 130, Wave: "triangle",
 		DroneFreqs: []float64{130.81, 220.00, 261.63, 349.23},
-		Attack: 0.1, Release: 0.4, PulseInterval: 0.5,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Attack: 0.1, Release: 0.4,
+		Drums: pat("kick", "_", "hat", "_", "kick", "_", "hat", "_", "kick", "_", "hat", "_", "snare", "hat", "hat", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// TROPICALE  –  island vacation, C major (C → G → Am → F)
+// TROPICALE  –  island vacation, C major
 // ════════════════════════════════════════════════════════════════════
 func soundsTropical() themeSounds {
 	var s themeSounds
@@ -871,43 +886,44 @@ func soundsTropical() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 660, 330, 0.17, 0.075
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 200, 100, 0.12, 0.07
 
-	cm := major(65.41)
-	gm := major(98.00)
-	am := minor(110.00)
-	fm := major(87.31)
+	c, gg, am, ff := major(65.41), major(98.00), minor(110.00), major(87.31)
 
-	bass := [4]float64{130.81, 196.00, 220.00, 174.61}
-	chords := [4][3]float64{cm, gm, am, fm}
-	normalMel := [4][]float64{
-		{261.63, 293.66, 329.63, 261.63},
-		{392.00, 440.00, 493.88, 392.00},
-		{440.00, 523.25, 587.33, 440.00},
-		{349.23, 392.00, 440.00, 349.23},
-	}
-	wildMel := [4][]float64{
-		{523.25, 587.33, 659.25, 523.25},
-		{783.99, 880.00, 987.77, 783.99},
-		{880.00, 1046.5, 1174.66, 880.00},
-		{698.46, 783.99, 880.00, 698.46},
-	}
+	normalMel := buildSong(
+		[4]float64{130.81, 196.00, 220.00, 174.61}, [4][3]float64{c, gg, am, ff},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{261.63, 293.66, 329.63, 261.63}, 0.5),
+			buildSwingMelody([]float64{392.00, 440.00, 493.88, 392.00}, 0.5),
+			buildSwingMelody([]float64{440.00, 523.25, 587.33, 440.00}, 0.5),
+			buildSwingMelody([]float64{349.23, 392.00, 440.00, 349.23}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{261.63, 392.00, 440.00, 349.23}, [4][3]float64{c, gg, am, ff},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{523.25, 587.33, 659.25, 523.25}, 0.25),
+			buildSwingMelody([]float64{783.99, 880.00, 987.77, 783.99}, 0.25),
+			buildSwingMelody([]float64{880.00, 1046.5, 1174.66, 880.00}, 0.25),
+			buildSwingMelody([]float64{698.46, 783.99, 880.00, 698.46}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.025, BPM: 65, Wave: "sine",
+		Gain: 0.028, BPM: 70, Wave: "sine",
 		DroneFreqs: []float64{65.41, 130.81, 196.00, 220.00},
 		Attack: 0.6, Release: 1.5, NoiseGain: 0.015,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat", "kick", "hat", "snare", "clap", "kick", "hat", "snare", "hat"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 140, Wave: "triangle",
 		DroneFreqs: []float64{130.81, 261.63, 392.00, 440.00},
 		Attack: 0.1, Release: 0.3, NoiseGain: 0.03,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat", "kick", "hat", "snare", "clap", "kick", "hat", "snare", "hat"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// NOIR  –  smoky film noir, D minor (Dm → C → Bb → A)
+// NOIR  –  smoky film noir, D minor
 // ════════════════════════════════════════════════════════════════════
 func soundsNoir() themeSounds {
 	var s themeSounds
@@ -918,43 +934,44 @@ func soundsNoir() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "triangle", 330, 165, 0.2, 0.08
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "triangle", 130, 65, 0.14, 0.08
 
-	dm := minor(73.42)
-	cm := major(65.41)
-	bb := major(58.27)
-	am := major(55.00)
+	dm, ccc, bb, aa := minor(73.42), major(65.41), major(58.27), major(55.00)
 
-	bass := [4]float64{146.83, 130.81, 116.54, 110.00}
-	chords := [4][3]float64{dm, cm, bb, am}
-	normalMel := [4][]float64{
-		{293.66, 349.23, 392.00, 293.66},
-		{261.63, 293.66, 329.63, 261.63},
-		{233.08, 261.63, 293.66, 233.08},
-		{220.00, 246.94, 277.18, 220.00},
-	}
-	wildMel := [4][]float64{
-		{587.33, 698.46, 783.99, 587.33},
-		{523.25, 587.33, 659.25, 523.25},
-		{466.16, 523.25, 587.33, 466.16},
-		{440.00, 493.88, 554.37, 440.00},
-	}
+	normalMel := buildSong(
+		[4]float64{146.83, 130.81, 116.54, 110.00}, [4][3]float64{dm, ccc, bb, aa},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{293.66, 349.23, 392.00, 293.66}, 0.5),
+			buildSwingMelody([]float64{261.63, 293.66, 329.63, 261.63}, 0.5),
+			buildSwingMelody([]float64{233.08, 261.63, 293.66, 233.08}, 0.5),
+			buildSwingMelody([]float64{220.00, 246.94, 277.18, 220.00}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{293.66, 261.63, 233.08, 220.00}, [4][3]float64{dm, ccc, bb, aa},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{587.33, 698.46, 783.99, 587.33}, 0.25),
+			buildSwingMelody([]float64{523.25, 587.33, 659.25, 523.25}, 0.25),
+			buildSwingMelody([]float64{466.16, 523.25, 587.33, 466.16}, 0.25),
+			buildSwingMelody([]float64{440.00, 493.88, 554.37, 440.00}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.025, BPM: 60, Wave: "sine",
+		Gain: 0.028, BPM: 60, Wave: "sine",
 		DroneFreqs: []float64{73.42, 110.00, 130.81, 146.83},
 		Attack: 1.0, Release: 2.0, NoiseGain: 0.015,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "_", "hat", "_", "snare", "_", "hat", "kick", "_", "_", "hat", "_", "snare", "hat", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.055, BPM: 120, Wave: "triangle",
 		DroneFreqs: []float64{146.83, 220.00, 261.63, 293.66},
-		Attack: 0.3, Release: 0.7, PulseInterval: 1.2,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Attack: 0.3, Release: 0.7,
+		Drums: pat("kick", "_", "_", "hat", "_", "snare", "_", "hat", "kick", "_", "_", "hat", "_", "snare", "hat", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// CATHEDRAL  –  sacred organ, A minor (Am → C → G → D)
+// CATHEDRAL  –  sacred organ, A minor
 // ════════════════════════════════════════════════════════════════════
 func soundsCathedral() themeSounds {
 	var s themeSounds
@@ -965,43 +982,44 @@ func soundsCathedral() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 523.25, 196, 0.22, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sine", 180, 90, 0.18, 0.08
 
-	am := minor(55.00)
-	cm := major(65.41)
-	gm := major(98.00)
-	dm := major(73.42)
+	am, ccc, gg, ddd := minor(55.00), major(65.41), major(98.00), major(73.42)
 
-	bass := [4]float64{110.00, 130.81, 196.00, 146.83}
-	chords := [4][3]float64{am, cm, gm, dm}
-	normalMel := [4][]float64{
-		{220.00, 261.63, 293.66, 220.00},
-		{261.63, 329.63, 392.00, 261.63},
-		{392.00, 440.00, 493.88, 392.00},
-		{293.66, 349.23, 392.00, 293.66},
-	}
-	wildMel := [4][]float64{
-		{440.00, 523.25, 587.33, 440.00},
-		{523.25, 659.25, 783.99, 523.25},
-		{783.99, 880.00, 987.77, 783.99},
-		{587.33, 698.46, 783.99, 587.33},
-	}
+	normalMel := buildSong(
+		[4]float64{110.00, 130.81, 196.00, 146.83}, [4][3]float64{am, ccc, gg, ddd},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{220.00, 261.63, 293.66, 220.00}, 0.5),
+			buildSwingMelody([]float64{261.63, 329.63, 392.00, 261.63}, 0.5),
+			buildSwingMelody([]float64{392.00, 440.00, 493.88, 392.00}, 0.5),
+			buildSwingMelody([]float64{293.66, 349.23, 392.00, 293.66}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{220.00, 261.63, 392.00, 293.66}, [4][3]float64{am, ccc, gg, ddd},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{440.00, 523.25, 587.33, 440.00}, 0.25),
+			buildSwingMelody([]float64{523.25, 659.25, 783.99, 523.25}, 0.25),
+			buildSwingMelody([]float64{783.99, 880.00, 987.77, 783.99}, 0.25),
+			buildSwingMelody([]float64{587.33, 698.46, 783.99, 587.33}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.03, BPM: 60, Wave: "sine",
 		DroneFreqs: []float64{55.00, 110.00, 130.81, 196.00},
 		Attack: 1.5, Release: 3.0,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "_", "_", "_", "snare", "_", "_", "kick", "_", "_", "_", "_", "snare", "_", "_"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 120, Wave: "triangle",
 		DroneFreqs: []float64{110.00, 220.00, 261.63, 392.00},
 		Attack: 0.3, Release: 0.8,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "_", "_", "_", "_", "snare", "_", "_", "kick", "_", "_", "_", "_", "snare", "_", "_"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SURVEILLANCE  –  spy tension, E major (E → C → D → B)
+// SURVEILLANCE  –  spy tension, E major
 // ════════════════════════════════════════════════════════════════════
 func soundsSurveillance() themeSounds {
 	var s themeSounds
@@ -1012,43 +1030,44 @@ func soundsSurveillance() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 990, 330, 0.14, 0.085
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "square", 280, 140, 0.09, 0.09
 
-	em := major(82.41)
-	cm := major(65.41)
-	dm := major(73.42)
-	bm := major(61.74)
+	e, ccc, ddd, bbb := major(82.41), major(65.41), major(73.42), major(61.74)
 
-	bass := [4]float64{164.81, 130.81, 146.83, 123.47}
-	chords := [4][3]float64{em, cm, dm, bm}
-	normalMel := [4][]float64{
-		{329.63, 369.99, 440.00, 329.63},
-		{261.63, 293.66, 329.63, 261.63},
-		{293.66, 349.23, 392.00, 293.66},
-		{246.94, 277.18, 311.13, 246.94},
-	}
-	wildMel := [4][]float64{
-		{659.25, 739.99, 880.00, 659.25},
-		{523.25, 587.33, 659.25, 523.25},
-		{587.33, 698.46, 783.99, 587.33},
-		{493.88, 554.37, 622.25, 493.88},
-	}
+	normalMel := buildSong(
+		[4]float64{164.81, 130.81, 146.83, 123.47}, [4][3]float64{e, ccc, ddd, bbb},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{329.63, 369.99, 440.00, 329.63}, 0.5),
+			buildSwingMelody([]float64{261.63, 293.66, 329.63, 261.63}, 0.5),
+			buildSwingMelody([]float64{293.66, 349.23, 392.00, 293.66}, 0.5),
+			buildSwingMelody([]float64{246.94, 277.18, 311.13, 246.94}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{329.63, 261.63, 293.66, 246.94}, [4][3]float64{e, ccc, ddd, bbb},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{659.25, 739.99, 880.00, 659.25}, 0.25),
+			buildSwingMelody([]float64{523.25, 587.33, 659.25, 523.25}, 0.25),
+			buildSwingMelody([]float64{587.33, 698.46, 783.99, 587.33}, 0.25),
+			buildSwingMelody([]float64{493.88, 554.37, 622.25, 493.88}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
-		Gain: 0.03, BPM: 60, Wave: "square",
+		Gain: 0.03, BPM: 70, Wave: "square",
 		DroneFreqs: []float64{82.41, 130.81, 146.83, 164.81},
 		Attack: 0.2, Release: 0.5,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "_", "hat", "kick", "snare", "_", "hat", "kick", "kick", "_", "hat", "clap", "snare", "_", "hat", "kick"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.065, BPM: 140, Wave: "square",
 		DroneFreqs: []float64{164.81, 261.63, 293.66, 329.63},
-		Attack: 0.05, Release: 0.15, PulseInterval: 0.3,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Attack: 0.05, Release: 0.15,
+		Drums: pat("kick", "_", "hat", "kick", "snare", "_", "hat", "kick", "kick", "_", "hat", "clap", "snare", "_", "hat", "kick"),
+		Melody: wildMel,
 	}
 	return s
 }
 
 // ════════════════════════════════════════════════════════════════════
-// BIOMECH  –  organic meets machine, C# major (C# → A → E → B)
+// BIOMECH  –  organic meets machine, C# major
 // ════════════════════════════════════════════════════════════════════
 func soundsBiomech() themeSounds {
 	var s themeSounds
@@ -1059,37 +1078,38 @@ func soundsBiomech() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "sine", 392, 130.81, 0.2, 0.09
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "triangle", 160, 80, 0.14, 0.09
 
-	cs := major(69.30)
-	am := major(55.00)
-	emin := major(82.41)
-	bm := major(61.74)
+	cs, am, em, bm := major(69.30), major(55.00), major(82.41), major(61.74)
 
-	bass := [4]float64{138.59, 110.00, 164.81, 123.47}
-	chords := [4][3]float64{cs, am, emin, bm}
-	normalMel := [4][]float64{
-		{277.18, 329.63, 369.99, 277.18},
-		{220.00, 261.63, 293.66, 220.00},
-		{329.63, 392.00, 440.00, 329.63},
-		{246.94, 293.66, 329.63, 246.94},
-	}
-	wildMel := [4][]float64{
-		{554.37, 659.25, 739.99, 554.37},
-		{440.00, 523.25, 587.33, 440.00},
-		{659.25, 783.99, 880.00, 659.25},
-		{493.88, 587.33, 659.25, 493.88},
-	}
+	normalMel := buildSong(
+		[4]float64{138.59, 110.00, 164.81, 123.47}, [4][3]float64{cs, am, em, bm},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{277.18, 329.63, 369.99, 277.18}, 0.5),
+			buildSwingMelody([]float64{220.00, 261.63, 293.66, 220.00}, 0.5),
+			buildSwingMelody([]float64{329.63, 392.00, 440.00, 329.63}, 0.5),
+			buildSwingMelody([]float64{246.94, 293.66, 329.63, 246.94}, 0.5),
+		}, 0.5)
+	wildMel := buildSong(
+		[4]float64{277.18, 220.00, 329.63, 246.94}, [4][3]float64{cs, am, em, bm},
+		[4][]melodyNote{
+			buildSwingMelody([]float64{554.37, 659.25, 739.99, 554.37}, 0.25),
+			buildSwingMelody([]float64{440.00, 523.25, 587.33, 440.00}, 0.25),
+			buildSwingMelody([]float64{659.25, 783.99, 880.00, 659.25}, 0.25),
+			buildSwingMelody([]float64{493.88, 587.33, 659.25, 493.88}, 0.25),
+		}, 0.25)
 
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.03, BPM: 60, Wave: "triangle",
 		DroneFreqs: []float64{69.30, 110.00, 138.59, 164.81},
 		Attack: 0.7, Release: 1.5, DetuneCents: 8,
-		Melody: buildSong(bass, chords, normalMel, 0.5),
+		Drums: pat("kick", "hat", "kick", "snare", "kick", "hat", "snare", "hat", "kick", "hat", "kick", "snare", "kick", "hat", "snare", "clap"),
+		Melody: normalMel,
 	}
 	s.Ambient.Wild = ambientPreset{
 		Gain: 0.06, BPM: 140, Wave: "square",
 		DroneFreqs: []float64{138.59, 220.00, 277.18, 329.63},
 		Attack: 0.1, Release: 0.3, DetuneCents: 18,
-		Melody: buildSong(bass, chords, wildMel, 0.25),
+		Drums: pat("kick", "hat", "kick", "snare", "kick", "hat", "snare", "hat", "kick", "hat", "kick", "snare", "kick", "hat", "snare", "clap"),
+		Melody: wildMel,
 	}
 	return s
 }
