@@ -1,7 +1,7 @@
         :root { --amber:#ffb000; --dim:#7a5200; --bg:#0a0800; --bg2:#050300; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Courier New',Courier,monospace; background:var(--bg); color:var(--amber);
-               overflow:hidden; height:100vh; }
+               overflow:hidden; height:100vh; height:100dvh; }
         /* Phosphor scanlines overlay — sits above WebGL */
         body::before { content:''; position:fixed; inset:0; z-index:999; pointer-events:none;
             background:repeating-linear-gradient(0deg,transparent,transparent 2px,
@@ -11,7 +11,7 @@
         body { animation:amber-flicker 11s infinite; }
         /* WebGL background canvas */
         #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
-        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        .overlay { position:relative; z-index:10; height:100vh; height:100dvh; display:flex; flex-direction:column; }
         header { padding:12px 24px; background:var(--bg2); border-bottom:2px solid var(--amber);
                  display:flex; align-items:center; justify-content:space-between; }
         .logo { display:flex; align-items:center; gap:14px; }
@@ -61,7 +61,7 @@
                        box-shadow:0 0 40px rgba(255,176,0,0.2); }
         .modal-close { float:right; background:none; border:none; color:var(--dim);
                        font-family:monospace; font-size:0.9rem; cursor:pointer; letter-spacing:2px; }
-        @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:10px 16px;} }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:10px 16px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         [data-sno-theme="retro"] .splash-overlay { background: var(--bg); font-family:'Courier New',monospace; }
         [data-sno-theme="retro"]::after {
             content:''; position:absolute; inset:0; pointer-events:none; opacity:0.35;

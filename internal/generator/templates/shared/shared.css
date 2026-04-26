@@ -13,6 +13,7 @@
 .post-modal { background:rgba(0,0,0,0.55) !important; backdrop-filter:blur(6px) !important; }
 #post-modal.active { display:flex !important; align-items:center; justify-content:center; }
 #post-modal .modal-inner { width:fit-content; max-width:min(100%, 90vw); max-height:calc(100vh - 80px); overflow:auto; margin:0 auto !important; will-change:transform; }
+.modal-close { padding:10px 14px; min-width:44px; min-height:44px; text-align:center; }
 /* Content area max-width across all themes */
 .overlay { max-width:1200px; margin-left:auto; margin-right:auto; }
 /* Pagination: newer + older in a footer bar (below scrollable posts, like the header) */
@@ -164,6 +165,7 @@ body.sno-wild-active #sno-wild-root { opacity:1; }
   transform:translateX(-50%);
   width:max-content;
   max-width:min(92vw, 920px);
+  overflow:hidden;
   height:auto;
   padding:10px 18px;
   border:1px solid var(--sno-wild-accent, rgba(255,255,255,0.8));
@@ -923,3 +925,10 @@ body.sno-vaporwave-on #sno-vaporwave-sunset { opacity:1; }
 body[data-sno-theme="matrix"] .post-text img,
 body[data-sno-theme="terminal"] .post-text img,
 body[data-sno-theme="dos"] .post-text img { animation:sno-matrix-decode 0.8s ease-out both; }
+
+/* Mobile touch-target and padding overrides */
+@media(max-width:640px) {
+  .modal-inner { padding:20px 14px !important; }
+  .transmit-btn { padding-top:11px !important; padding-bottom:11px !important; min-height:44px !important; }
+  .page-nav a { padding-top:10px !important; padding-bottom:10px !important; min-height:44px !important; }
+}

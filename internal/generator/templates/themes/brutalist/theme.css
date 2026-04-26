@@ -1,9 +1,9 @@
         :root { --red:#ff2200; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:Impact,'Arial Narrow',Arial,sans-serif;
-               background:#000; color:#fff; overflow:hidden; height:100vh; }
+               background:#000; color:#fff; overflow:hidden; height:100vh; height:100dvh; }
         #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
-        .overlay { height:100vh; display:flex; flex-direction:column; position:relative; z-index:10; }
+        .overlay { height:100vh; height:100dvh; display:flex; flex-direction:column; position:relative; z-index:10; }
         header { padding:14px 24px; background:#000; border-bottom:4px solid #fff;
                  display:flex; align-items:center; justify-content:space-between; }
         .logo { display:flex; align-items:center; gap:16px; }
@@ -52,7 +52,7 @@
                        box-shadow:8px 8px 0 var(--red); }
         .modal-close { float:right; background:none; border:none; color:var(--red);
                        font-family:Impact; font-size:1.3rem; cursor:pointer; letter-spacing:2px; }
-        @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .logo-mark{font-size:2rem;} }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .logo-mark{font-size:2rem;} .content{padding:12px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         [data-sno-theme="brutalist"] .splash-overlay { background:#000; }
         [data-sno-theme="brutalist"] .splash-frame {
             border:6px solid #fff; padding:clamp(1.5rem,5vw,2.5rem) clamp(1.25rem,4vw,2rem);

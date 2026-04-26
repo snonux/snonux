@@ -1,7 +1,7 @@
         :root { --g:#00ff41; --g2:#008f11; --g3:#003b00; --bg:#000; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Courier New',Courier,monospace; background:var(--bg); color:var(--g);
-               overflow:hidden; height:100vh; }
+               overflow:hidden; height:100vh; height:100dvh; }
         /* scanline overlay sits above WebGL */
         body::before { content:''; position:fixed; inset:0; z-index:999; pointer-events:none;
             background:repeating-linear-gradient(0deg,transparent,transparent 3px,
@@ -9,7 +9,7 @@
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
         /* WebGL background canvas */
         #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
-        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        .overlay { position:relative; z-index:10; height:100vh; height:100dvh; display:flex; flex-direction:column; }
         header { padding:12px 24px; background:#000; border-bottom:1px solid var(--g2);
                  display:flex; align-items:center; justify-content:space-between; }
         .logo { display:flex; align-items:center; gap:14px; }
@@ -58,7 +58,7 @@
                        box-shadow:0 0 40px rgba(0,255,65,0.25); }
         .modal-close { float:right; background:none; border:none; color:var(--g2);
                        font-family:monospace; font-size:0.9rem; cursor:pointer; letter-spacing:2px; }
-        @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:10px 16px;} }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:10px 16px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         [data-sno-theme="matrix"] .splash-overlay { background: #000; font-family:'Courier New',monospace; }
         [data-sno-theme="matrix"] .splash-rain {
             position:absolute; inset:0; overflow:hidden; pointer-events:none; opacity:0.35; z-index:1;

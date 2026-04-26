@@ -1,9 +1,9 @@
         :root { --phosphor:#bcffd4; --green:#63f3a8; --grey:#88a197; --alert:#ff4d5c; --bg:#09100d; --panel:#101916; }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:'Share Tech Mono','Courier New',monospace; background:var(--bg); color:var(--phosphor); overflow:hidden; height:100vh; }
+        body { font-family:'Share Tech Mono','Courier New',monospace; background:var(--bg); color:var(--phosphor); overflow:hidden; height:100vh; height:100dvh; }
         body::before { content:''; position:fixed; inset:0; z-index:999; pointer-events:none; background:repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(188,255,212,0.035) 2px, rgba(188,255,212,0.035) 3px); opacity:0.72; }
         #three-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:1; }
-        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        .overlay { position:relative; z-index:10; height:100vh; height:100dvh; display:flex; flex-direction:column; }
         header { padding:14px 24px; background:rgba(9,16,13,0.84); backdrop-filter:blur(8px); border-bottom:1px solid rgba(99,243,168,0.18); display:flex; align-items:center; justify-content:space-between; }
         .logo { display:flex; align-items:center; gap:14px; }
         .logo-mark { font-size:1.55rem; color:var(--green); }
@@ -37,7 +37,7 @@
         .post-modal.active { display:block; }
         .modal-inner { max-width:760px; margin:0 auto; background:rgba(8,14,11,0.98); border:1px solid rgba(99,243,168,0.2); padding:34px; box-shadow:0 20px 72px rgba(0,0,0,0.72); }
         .modal-close { float:right; background:none; border:none; color:var(--green); font-family:'Share Tech Mono',monospace; font-size:0.76rem; cursor:pointer; letter-spacing:0.2em; }
-        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 16px;} .content{padding:14px 16px;} .modal-inner{padding:24px 16px;} }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 16px;} .content{padding:14px 16px;} .modal-inner{padding:24px 16px;} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         [data-sno-theme="surveillance"] .splash-overlay {
             background:
                 radial-gradient(circle at 50% 22%, rgba(99,243,168,0.12) 0%, transparent 34%),

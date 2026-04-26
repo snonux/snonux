@@ -1,9 +1,9 @@
         :root { --lava:#ff4400; --ember:#ff8c00; --hot:#ffcc00; --bg:#0d0802; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg);
-               color:#ffe8cc; overflow:hidden; height:100vh; }
+               color:#ffe8cc; overflow:hidden; height:100vh; height:100dvh; }
         #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
-        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        .overlay { position:relative; z-index:10; height:100vh; height:100dvh; display:flex; flex-direction:column; }
         header { padding:16px 28px; background:rgba(13,8,2,0.82); backdrop-filter:blur(12px);
                  border-bottom:1px solid rgba(255,68,0,0.3); display:flex; align-items:center; justify-content:space-between; }
         .logo { display:flex; align-items:center; gap:14px; }
@@ -51,7 +51,7 @@
                        box-shadow:0 0 60px rgba(255,68,0,0.3); padding:40px; }
         .modal-close { float:right; background:none; border:none; color:var(--ember);
                        font-size:0.9rem; cursor:pointer; letter-spacing:1px; }
-        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 18px;} .content{padding:14px 18px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         [data-sno-theme="volcano"] .splash-overlay {
             background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(255,68,0,0.35) 0%, transparent 50%), var(--bg);
         }

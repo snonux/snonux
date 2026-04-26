@@ -1,13 +1,13 @@
         :root { --teal:#00e8e8; --dim:#1a4455; --red:#ff3320; --silver:#c8d8e0; --bg:#030a0f; --bg2:#020608; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Space Mono','Courier New',monospace; background:var(--bg); color:var(--silver);
-               overflow:hidden; height:100vh; }
+               overflow:hidden; height:100vh; height:100dvh; }
         /* Subtle horizontal scanlines — lighter than retro, cleaner space feel */
         body::before { content:''; position:fixed; inset:0; z-index:999; pointer-events:none;
             background:repeating-linear-gradient(0deg,transparent,transparent 3px,
                 rgba(0,0,0,0.08) 3px,rgba(0,0,0,0.08) 4px); }
         #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
-        .overlay { position:relative; z-index:10; height:100vh; display:flex; flex-direction:column; }
+        .overlay { position:relative; z-index:10; height:100vh; height:100dvh; display:flex; flex-direction:column; }
         header { padding:12px 24px; background:rgba(2,6,8,0.88); backdrop-filter:blur(8px);
                  border-bottom:2px solid var(--teal);
                  display:flex; align-items:center; justify-content:space-between; }
@@ -51,7 +51,7 @@
                        box-shadow:0 0 18px rgba(0,232,232,0.28),inset 3px 0 0 var(--teal) !important; }
         .post-header { display:flex; justify-content:space-between; margin-bottom:10px; font-size:0.82rem; }
         .post-time { color:var(--dim); font-size:0.75rem; letter-spacing:1px; }
-        .post-text { line-height:1.65; font-size:0.86rem; color:var(--silver); }
+        .post-text { line-height:1.65; font-size:0.9rem; color:var(--silver); }
         .post-text a { color:var(--teal); text-decoration:underline; }
         .post-image { max-width:100%; margin-top:10px; border:1px solid var(--dim);
                       filter:saturate(0.85) brightness(0.92); }
@@ -64,7 +64,7 @@
                        box-shadow:0 0 50px rgba(0,232,232,0.18); }
         .modal-close { float:right; background:none; border:none; color:var(--dim);
                        font-family:'Space Mono',monospace; font-size:0.85rem; cursor:pointer; letter-spacing:3px; }
-        @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:10px 16px;} }
+        @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:10px 16px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         /* Splash screen: space age orbital */
         [data-sno-theme="spaceage"] .splash-overlay { background:var(--bg); }
         [data-sno-theme="spaceage"] .splash-inner { position:relative; z-index:1; }
