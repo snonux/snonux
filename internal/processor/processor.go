@@ -77,8 +77,12 @@ func Run(cfg *config.Config) (int, error) {
 // claimedByMarkdown scans all .md entries in inputDir and returns a set of
 // image filenames that are referenced within those markdown files.
 // Those images should be embedded in the markdown post, not processed alone.
+// If two different markdown files claim the same image, an error is returned.
 func claimedByMarkdown(entries []os.DirEntry, inputDir string) (map[string]bool, error) {
 	claimed := make(map[string]bool)
+	// owners tracks which markdown file first claimed each image so we can
+	// detect conflicts before processing begins.
+	owners := make(map[string]string)
 
 	for _, entry := range entries {
 		if entry.IsDir() || strings.ToLower(filepath.Ext(entry.Name())) != ".md" {
@@ -92,6 +96,10 @@ func claimedByMarkdown(entries []os.DirEntry, inputDir string) (map[string]bool,
 		}
 
 		for _, imgName := range findLocalImages(string(data), inputDir) {
+			if owner, exists := owners[imgName]; exists && owner != entry.Name() {
+				return nil, fmt.Errorf("image %q claimed by both %q and %q", imgName, owner, entry.Name())
+			}
+			owners[imgName] = entry.Name()
 			claimed[imgName] = true
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -234,5 +235,83 @@ text`
 	}
 	if _, err := os.Stat(filepath.Join(pdir, "embed.png")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRun_twoMarkdownsClaimingSameImageFails(t *testing.T) {
+	t.Parallel()
+
+	in := t.TempDir()
+	out := t.TempDir()
+
+	// Shared image in the inbox.
+	pngPath := filepath.Join(in, "pic.png")
+	f, err := os.Create(pngPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	f.Close()
+
+	// Two markdown files both reference the same image.
+	if err := os.WriteFile(filepath.Join(in, "a.md"), []byte("![a](pic.png)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(in, "b.md"), []byte("![b](pic.png)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = Run(&config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
+	if err == nil {
+		t.Fatal("expected error when two markdowns claim the same image")
+	}
+	if !strings.Contains(err.Error(), "pic.png") {
+		t.Fatalf("error should mention the conflicting image, got: %v", err)
+	}
+
+	// Verify that no post directories were created and no source files deleted.
+	entries, _ := os.ReadDir(filepath.Join(out, "posts"))
+	if len(entries) != 0 {
+		t.Fatalf("expected no posts created, got %d", len(entries))
+	}
+	for _, name := range []string{"pic.png", "a.md", "b.md"} {
+		if _, err := os.Stat(filepath.Join(in, name)); err != nil {
+			t.Fatalf("source %s should still exist: %v", name, err)
+		}
+	}
+}
+
+func TestRun_duplicateImageClaimsInSameMarkdownAllowed(t *testing.T) {
+	t.Parallel()
+
+	in := t.TempDir()
+	out := t.TempDir()
+
+	pngPath := filepath.Join(in, "pic.png")
+	f, err := os.Create(pngPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	f.Close()
+
+	// Same markdown references the same image twice — should not be treated as a conflict.
+	md := "![first](pic.png)\n![second](pic.png)\n"
+	if err := os.WriteFile(filepath.Join(in, "post.md"), []byte(md), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := Run(&config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("n=%d; want 1", n)
 	}
 }
