@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -316,5 +317,59 @@ func TestRun_duplicateImageClaimsInSameMarkdownAllowed(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("n=%d; want 1", n)
+	}
+}
+
+func TestRun_markdownWithLocalImage_removeFails(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod does not reliably deny removal on Windows")
+	}
+
+	in := t.TempDir()
+	out := t.TempDir()
+
+	pngPath := filepath.Join(in, "embed.png")
+	f, err := os.Create(pngPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	f.Close()
+
+	md := `![x](embed.png)
+text`
+	if err := os.WriteFile(filepath.Join(in, "post.md"), []byte(md), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove write permission from the inbox so os.Remove on the extra fails.
+	if err := os.Chmod(in, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(in, 0o755) // restore for cleanup
+
+	_, err = Run(ctx, &config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
+	if err == nil {
+		t.Fatal("expected error when inbox extra removal fails")
+	}
+	if !strings.Contains(err.Error(), "embed.png") {
+		t.Fatalf("error should mention embed.png, got: %v", err)
+	}
+
+	// Ensure nothing was persisted: post directory should have been rolled back.
+	entries, _ := os.ReadDir(filepath.Join(out, "posts"))
+	if len(entries) != 0 {
+		t.Fatalf("expected no posts after rollback, got %d", len(entries))
+	}
+
+	// Source files should still be in the inbox.
+	for _, name := range []string{"post.md", "embed.png"} {
+		if _, err := os.Stat(filepath.Join(in, name)); err != nil {
+			t.Fatalf("source %s should still exist: %v", name, err)
+		}
 	}
 }

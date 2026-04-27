@@ -169,8 +169,17 @@ func commitPlan(plan postPlan, postsDir string, now time.Time) error {
 		return err
 	}
 
+	// Deduplicate extras in case the same file is referenced multiple times.
+	seen := make(map[string]bool, len(inboxExtras))
 	for _, path := range inboxExtras {
-		_ = os.Remove(path)
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		if err := os.Remove(path); err != nil {
+			_ = os.RemoveAll(postDir)
+			return fmt.Errorf("remove inbox extra %s: %w", path, err)
+		}
 	}
 
 	return os.Remove(plan.srcPath)
