@@ -408,6 +408,10 @@ func TestIndexHTMLBakesSounds(t *testing.T) {
 // TestThemeSelection verifies that every registered theme renders a valid
 // index.html containing core structural elements (post text, nav script).
 func TestThemeSelection(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running theme selection integration test in short mode")
+	}
+
 	themes := generator.ListThemes()
 	if len(themes) == 0 {
 		t.Fatal("no themes returned by ListThemes()")
