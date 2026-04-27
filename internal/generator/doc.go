@@ -8,7 +8,7 @@
 //     shared.css/shared.js and per-theme assets, then call atom.Generate.
 //   - themes.go — ListThemes / validThemeName helpers backed by the embedded FS.
 //   - shared.go — navDefs: shared {{define}} blocks (splashGate, navhints,
-//     navmodal) merged at parse time with shell.tmpl so a single html/template
+//     navSharedCSS) merged at parse time with shell.tmpl so a single html/template
 //     parse sees every name.
 //   - theme_sounds.go — Per-theme Web Audio parameters; one file is written per
 //     theme to dist/themes/<name>/sounds.json and the default theme's preset is

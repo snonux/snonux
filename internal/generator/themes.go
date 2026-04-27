@@ -2,6 +2,7 @@ package generator
 
 import (
 	"log"
+	"sync"
 
 	"codeberg.org/snonux/snonux/internal/generator/templates"
 )
@@ -12,30 +13,37 @@ const fallbackThemeName = "neon"
 
 // themeSet caches the list of theme names available in the embedded template FS
 // so ListThemes does not re-read the directory on every call.
-var themeSet = loadThemeSet()
+var (
+	themeSetCache map[string]struct{}
+	themeSetOnce  sync.Once
+)
 
-func loadThemeSet() map[string]struct{} {
-	names, err := templates.ThemeNames()
-	if err != nil {
-		// At build time the embed //go:embed directive guarantees the FS is
-		// populated, so this should never happen; log and continue with an
-		// empty set so callers can fall back cleanly.
-		log.Printf("warning: could not enumerate themes from embedded FS: %v", err)
-		return map[string]struct{}{}
-	}
+func getThemeSet() map[string]struct{} {
+	themeSetOnce.Do(func() {
+		names, err := templates.ThemeNames()
+		if err != nil {
+			// At build time the embed //go:embed directive guarantees the FS is
+			// populated, so this should never happen; log and continue with an
+			// empty set so callers can fall back cleanly.
+			log.Printf("warning: could not enumerate themes from embedded FS: %v", err)
+			themeSetCache = map[string]struct{}{}
+			return
+		}
 
-	out := make(map[string]struct{}, len(names))
-	for _, n := range names {
-		out[n] = struct{}{}
-	}
-	return out
+		out := make(map[string]struct{}, len(names))
+		for _, n := range names {
+			out[n] = struct{}{}
+		}
+		themeSetCache = out
+	})
+	return themeSetCache
 }
 
 // validThemeName returns name if it is a known theme, otherwise the fallback.
 // Callers use this to coerce CLI input ("--theme random" already resolves
 // upstream) so downstream lookups never miss.
 func validThemeName(name string) string {
-	if _, ok := themeSet[name]; ok {
+	if _, ok := getThemeSet()[name]; ok {
 		return name
 	}
 	return fallbackThemeName

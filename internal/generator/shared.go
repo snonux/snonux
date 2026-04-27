@@ -2,6 +2,7 @@ package generator
 
 import (
 	"log"
+	"sync"
 
 	"codeberg.org/snonux/snonux/internal/generator/templates"
 )
@@ -18,13 +19,19 @@ import (
 // Each theme ends its <style> with {{template "navSharedCSSInner"}} then calls
 // {{template "splashGate"}}, {{template "navhints" .}}, {{template "navmodal" .}},
 // and {{template "navscript" .}} at the appropriate points in its HTML.
-var navDefs = loadNavDefs()
+var (
+	navDefsCache string
+	navDefsOnce  sync.Once
+)
 
-func loadNavDefs() string {
-	s, err := templates.Shared("nav")
-	if err != nil {
-		log.Printf("warning: could not load shared nav template: %v", err)
-		return ""
-	}
-	return s
+func getNavDefs() string {
+	navDefsOnce.Do(func() {
+		s, err := templates.Shared("nav")
+		if err != nil {
+			log.Printf("warning: could not load shared nav template: %v", err)
+			return
+		}
+		navDefsCache = s
+	})
+	return navDefsCache
 }

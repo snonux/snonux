@@ -93,7 +93,7 @@ func TestJSONStringOrNull(t *testing.T) {
 
 func TestThemeSoundPresetsMatchRegistry(t *testing.T) {
 	t.Parallel()
-	for name := range themeSet {
+	for name := range getThemeSet() {
 		if _, ok := themeSoundPresets[name]; !ok {
 			t.Errorf("theme %q has no sound preset in themeSoundPresets", name)
 		}
@@ -112,7 +112,7 @@ func TestThemeSoundsJSON_ambientSchema(t *testing.T) {
 	t.Parallel()
 
 	// Verify the ambient schema is present and valid for every registered theme.
-	for name := range themeSet {
+	for name := range getThemeSet() {
 		j := themeSoundsJSON(name)
 		if len(j) < 50 {
 			t.Fatalf("themeSoundsJSON(%q) too short: %q", name, j)
@@ -148,7 +148,7 @@ func TestThemeSoundsJSON_ambientSchema(t *testing.T) {
 func TestThemeSoundPresetsAmbientPopulated(t *testing.T) {
 	t.Parallel()
 
-	for name := range themeSet {
+	for name := range getThemeSet() {
 		preset, ok := themeSoundPresets[name]
 		if !ok {
 			t.Errorf("theme %q missing from themeSoundPresets", name)
@@ -170,7 +170,7 @@ func TestThemeSoundPresetsAmbientPopulated(t *testing.T) {
 func TestThemeSoundPresetsAmbientValuesBounded(t *testing.T) {
 	t.Parallel()
 
-	for name := range themeSet {
+	for name := range getThemeSet() {
 		preset, ok := themeSoundPresets[name]
 		if !ok {
 			continue
@@ -384,8 +384,8 @@ func TestLoadThemeMeta_neonHasFields(t *testing.T) {
 func TestListThemes_sortedAndComplete(t *testing.T) {
 	t.Parallel()
 	names := ListThemes()
-	if len(names) != len(themeSet) {
-		t.Fatalf("len=%d, want %d", len(names), len(themeSet))
+	if len(names) != len(getThemeSet()) {
+		t.Fatalf("len=%d, want %d", len(names), len(getThemeSet()))
 	}
 	for i := 1; i < len(names); i++ {
 		if names[i] <= names[i-1] {

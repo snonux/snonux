@@ -99,7 +99,7 @@ func Run(cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("load shell template: %w", err)
 	}
-	combined := shellSrc + "\n" + navDefs
+	combined := shellSrc + "\n" + getNavDefs()
 	tmpl, err := template.New("page").Parse(combined)
 	if err != nil {
 		return fmt.Errorf("parse page template: %w", err)

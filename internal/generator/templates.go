@@ -5,6 +5,6 @@ package generator
 // binary via embed.FS; see internal/generator/templates/embed.go.
 //
 // themes.go exposes ListThemes()/validThemeName().
-// shared.go loads templates/shared/nav.tmpl into navDefs (splashGate, navhints,
+// shared.go loads templates/shared/nav.tmpl into getNavDefs() (splashGate, navhints,
 // navmodal partials called from shell.tmpl).
 // favicon.go generates the favicon.ico binary written into each output dir.
