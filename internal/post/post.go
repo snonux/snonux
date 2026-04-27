@@ -40,21 +40,6 @@ type Post struct {
 	Assets []string `json:"assets,omitempty"`
 }
 
-// Save writes the post as post.json into dir.
-func (p *Post) Save(dir string) error {
-	data, err := json.MarshalIndent(p, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal post %s: %w", p.ID, err)
-	}
-
-	path := filepath.Join(dir, "post.json")
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("write post.json for %s: %w", p.ID, err)
-	}
-
-	return nil
-}
-
 // Load reads and parses post.json from dir.
 func Load(dir string) (*Post, error) {
 	path := filepath.Join(dir, "post.json")
@@ -81,4 +66,19 @@ func NewID(t time.Time, suffix int) string {
 	}
 
 	return fmt.Sprintf("%s-%d", base, suffix)
+}
+
+// Save writes the post as post.json into dir.
+func (p *Post) Save(dir string) error {
+	data, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal post %s: %w", p.ID, err)
+	}
+
+	path := filepath.Join(dir, "post.json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write post.json for %s: %w", p.ID, err)
+	}
+
+	return nil
 }
