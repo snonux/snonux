@@ -161,13 +161,95 @@
         return 'neon';
     }
 
-    // snonuxSwitchTheme persists the user's choice and reloads.
-    // The shell's boot script picks it up on the next load.
+    // snonuxSwitchTheme swaps every per-theme asset in place — stylesheet,
+    // meta markup, sounds.json, splash WebGL — without a page reload. We used
+    // to call location.reload() here, but that destroys the AudioContext and
+    // browsers can't auto-resume Web Audio without a fresh user gesture, so
+    // toggling themes with 't' silently killed the music until the next page.
     function snonuxSwitchTheme(theme) {
         var all = (typeof window !== 'undefined' && window.SNONUX_ALL_THEMES) || [];
         if (all.indexOf(theme) < 0) return;
+        if (theme === window.SNONUX_CURRENT_THEME) return;
         try { localStorage.setItem('snonuxTheme', theme); } catch (_) {}
-        location.reload();
+
+        // Tear down the previous theme's splash WebGL animation so we don't
+        // leak its requestAnimationFrame loop and renderer when theme.js
+        // re-runs against a fresh canvas.
+        if (typeof window._snonuxSplashWebGLCleanup === 'function') {
+            try { window._snonuxSplashWebGLCleanup(); } catch (_) {}
+        }
+
+        var prev = window.SNONUX_CURRENT_THEME;
+        window.SNONUX_CURRENT_THEME = theme;
+        document.documentElement.setAttribute('data-sno-theme', theme);
+
+        var splashOverlay = document.getElementById('splash-overlay');
+        if (splashOverlay) {
+            if (prev) splashOverlay.classList.remove('splash-' + prev);
+            splashOverlay.classList.add('splash-' + theme);
+        }
+
+        // Swap the theme stylesheet by injecting the new <link> next to the
+        // old one and removing the old once the new one has loaded — that
+        // avoids a flash-of-default-theme between unstyled and restyled.
+        var bust = (window.SNONUX_BUILD || '') + '-' + Date.now();
+        var oldLink = document.getElementById('sno-theme-css') ||
+            document.querySelector('link[rel="stylesheet"][href*="/theme.css"]');
+        var newLink = document.createElement('link');
+        newLink.rel = 'stylesheet';
+        newLink.id = 'sno-theme-css';
+        newLink.href = 'themes/' + theme + '/theme.css?b=' + encodeURIComponent(bust);
+        if (oldLink && oldLink.parentNode) {
+            oldLink.parentNode.insertBefore(newLink, oldLink.nextSibling);
+            var dropOld = function() { if (oldLink && oldLink !== newLink) oldLink.remove(); };
+            newLink.addEventListener('load', dropOld);
+            newLink.addEventListener('error', dropOld);
+        } else {
+            document.head.appendChild(newLink);
+        }
+
+        // Fetch meta + sounds with cache-bust so the browser cannot serve a
+        // stale per-theme JSON across an in-page swap.
+        fetch('themes/' + theme + '/meta.json?b=' + encodeURIComponent(bust))
+            .then(function (r) { return r.json(); })
+            .then(function (m) {
+                if (m.title) document.title = m.title;
+                var headerEl = document.querySelector('header');
+                if (headerEl && m.header_html) headerEl.innerHTML = m.header_html;
+                if (splashOverlay && m.splash_inner_html) splashOverlay.innerHTML = m.splash_inner_html;
+                var prevA = document.getElementById('sno-prev-page');
+                if (prevA && m.prev_page_text) prevA.innerHTML = m.prev_page_text;
+                var nextA = document.getElementById('sno-next-page');
+                if (nextA && m.next_page_text) nextA.innerHTML = m.next_page_text;
+                if (typeof window._snonuxRebindHeader === 'function') window._snonuxRebindHeader();
+            })
+            .catch(function () {});
+
+        fetch('themes/' + theme + '/sounds.json?b=' + encodeURIComponent(bust))
+            .then(function (r) { return r.json(); })
+            .then(function (s) {
+                window.SNONUX_SOUNDS = s;
+                SNONUX_SOUNDS = s;
+                if (window.snonuxAmbientSyncPreset) window.snonuxAmbientSyncPreset();
+            })
+            .catch(function () {});
+
+        // Refresh wild mode preset so banner/ticker/colour-wash come from the
+        // new theme if wild is currently active.
+        if (window._snoWildActive && typeof snonuxApplyWildPreset === 'function') {
+            snonuxApplyWildPreset(theme);
+        }
+
+        // Replace theme.js so the splash WebGL is rebuilt against the new
+        // theme's settings. Removing the old <script> tag is cosmetic — its
+        // side effects already ran — but it keeps the DOM tidy across many
+        // 't' presses in a session.
+        var oldScript = document.getElementById('sno-theme-js');
+        if (oldScript) oldScript.remove();
+        var newScript = document.createElement('script');
+        newScript.id = 'sno-theme-js';
+        newScript.src = 'themes/' + theme + '/theme.js?b=' + encodeURIComponent(bust);
+        document.head.appendChild(newScript);
     }
 
     function snonuxRandomTheme() {
@@ -841,9 +923,11 @@
                     if (!isPlaying) return;
                     stopAll();
                     currentPreset = newPreset;
+                    melodyIndex = 0;
                     startDrones(newPreset);
                     startNoise(newPreset);
                     schedulePulse();
+                    scheduleDrums(newPreset, 0);
                     var targetGain = 1.0;
                     fadeMasterTo(targetGain, 0.5);
                 }, 350);
@@ -857,13 +941,20 @@
                 snonuxAmbientPause();
                 return;
             }
+            // stopAll resets every voice (including drums) — we then have to
+            // re-schedule each one or the new theme plays only the melody and
+            // we keep hearing whatever was cached as silence on top of it.
             stopAll();
             currentPreset = preset;
+            melodyIndex = 0;
             startDrones(preset);
             startNoise(preset);
             schedulePulse();
-            var targetGain = preset.gain != null ? preset.gain : 0.08;
-            fadeMasterTo(targetGain, 0.5);
+            scheduleDrums(preset, 0);
+            // masterGain is the binary on/off gate (per-note volumes carry
+            // preset.gain). Targeting preset.gain here would scale the gate
+            // by ~0.03 and silence the new theme until the user toggles 'p'.
+            fadeMasterTo(1.0, 0.3);
         };
 
         window.snonuxAmbientIsPlaying = function() {
@@ -1477,6 +1568,8 @@
         if (crtButton) crtButton.setAttribute('aria-pressed', document.body.classList.contains('sno-crt-on') ? 'true' : 'false');
         var ghostButton = getFxButton('ghost');
         if (ghostButton) ghostButton.setAttribute('aria-pressed', document.body.classList.contains('sno-ghost-mode') ? 'true' : 'false');
+        var blankButton = getFxButton('blank');
+        if (blankButton) blankButton.setAttribute('aria-pressed', document.body.classList.contains('sno-blank-mode') ? 'true' : 'false');
         var ambientButton = getFxButton('ambient');
         if (ambientButton) ambientButton.setAttribute('aria-pressed', (window.snonuxAmbientIsPlaying && window.snonuxAmbientIsPlaying()) ? 'true' : 'false');
     }
@@ -1531,6 +1624,20 @@
         syncFxButtonStates();
     }
 
+    function snonuxLightningFlash() {
+        var d = document.createElement('div');
+        d.className = 'sno-lightning';
+        document.body.appendChild(d);
+        setTimeout(function() { d.remove(); }, 520);
+    }
+
+    function toggleBlankMode() {
+        snonuxLightningFlash();
+        document.body.classList.toggle('sno-blank-mode');
+        pulseFxButton('blank');
+        syncFxButtonStates();
+    }
+
     function snonuxAmbientSavePreference(enabled) {
         try { localStorage.setItem('snonuxAmbientEnabled', enabled ? '1' : '0'); } catch (_) {}
     }
@@ -1560,6 +1667,7 @@
             wild: function() { toggleWildMode(); },
             crt: toggleCrtMode,
             ghost: toggleGhostMode,
+            blank: toggleBlankMode,
             ambient: toggleAmbientMode,
             flash: triggerFlashEffect,
             scatter: triggerScatterEffect
@@ -1671,6 +1779,9 @@
             } else if (e.key === 'g' && !e.repeat) {
                 e.preventDefault();
                 toggleGhostMode();
+            } else if (e.key === 'b' && !e.repeat) {
+                e.preventDefault();
+                toggleBlankMode();
             } else if (e.key === 't' && !e.repeat) {
                 e.preventDefault();
                 var pick = snonuxRandomTheme();
@@ -1745,6 +1856,9 @@
                 e.preventDefault(); break;
             case 'g':
                 toggleGhostMode();
+                e.preventDefault(); break;
+            case 'b':
+                toggleBlankMode();
                 e.preventDefault(); break;
             case 'f':
                 triggerFlashEffect();
@@ -1866,6 +1980,7 @@
 
         function loadThemeJS() {
             var s = document.createElement('script');
+            s.id = 'sno-theme-js';
             s.src = 'themes/' + current + '/theme.js';
             document.head.appendChild(s);
         }
@@ -1880,12 +1995,16 @@
         // its splash WebGL attaches to the final canvas.
         var pending = 2;
         function done() { if (--pending === 0) loadThemeJS(); }
-        fetch('themes/' + current + '/meta.json')
+        // Cache-bust both fetches: per-page templated SNONUX_BUILD or fallback
+        // to a per-load timestamp. Otherwise theme-switch can serve a stale
+        // sounds.json and the user keeps hearing the previous theme's music.
+        var bust = (window.SNONUX_BUILD || '') + '-' + Date.now();
+        fetch('themes/' + current + '/meta.json?b=' + encodeURIComponent(bust))
             .then(function (r) { return r.json(); })
             .then(applyMeta)
             .catch(function () {})
             .finally(done);
-        fetch('themes/' + current + '/sounds.json')
+        fetch('themes/' + current + '/sounds.json?b=' + encodeURIComponent(bust))
             .then(function (r) { return r.json(); })
             .then(function (s) { window.SNONUX_SOUNDS = s; SNONUX_SOUNDS = s; if (window.snonuxAmbientSyncPreset) window.snonuxAmbientSyncPreset(); })
             .catch(function () {})

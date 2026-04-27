@@ -1174,35 +1174,31 @@ func soundsNukem() themeSounds {
 	s.Close.Wave, s.Close.Start, s.Close.End, s.Close.Dur, s.Close.Gain = "square", 659.25, 164.81, 0.16, 0.1
 	s.Bounce.Wave, s.Bounce.Start, s.Bounce.End, s.Bounce.Dur, s.Bounce.Gain = "sawtooth", 220, 110, 0.1, 0.1
 
-	// Duke's action-hero theme — aggressive E-minor power riffs with
-	// fanfare stabs for the heroic hook. Heavy palm-muted chugging bass,
-	// driving rock drums, distorted sawtooth edge.
+	// THE Grabbag riff (Lee Jackson) — E5 E5 G5 A5 | E5 E5 G5 A5 Bb5 A5 G5 E5
+	// Heavier sawtooth rendition at 140 BPM with palm-muted bass chugging.
 	beat := 0.429 // 140 BPM hard rock
 	const (
-		E2, B2     = 82.41, 123.47
-		E3, G3, A3 = 164.81, 196.00, 220.00
-		B3         = 246.94
+		E2, E3, B3 = 82.41, 164.81, 246.94
 		E4, G4, A4 = 329.63, 392.00, 440.00
-		B4, D5, E5 = 493.88, 587.33, 659.25
+		Bb4, B4    = 466.16, 493.88
 	)
+	riff := []float64{
+		E4, 0.5, E4, 0.5, G4, 0.5, A4, 0.5, // bar 1a
+		E4, 0.5, E4, 0.5, G4, 0.5, A4, 0.5, // bar 1b
+		B4, 0.5, A4, 0.5, G4, 0.5, E4, 0.5, // bar 2 — climbs then drops
+		Bb4, 0.5, A4, 0.5, G4, 0.5, E4, 0.5,
+	}
 	mel := concat(
-		palmMute(E2, beat), fanfareStab(minor(E4), 2, beat),
-		hook(beat, E4, 0.5, E4, 0.5, G4, 0.5, A4, 0.5,
-			B4, 0.5, A4, 0.5, G4, 0.5, E4, 0.5),
-		palmMute(B2, beat), fanfareStab(major(B3), 2, beat),
-		hook(beat, B4, 0.5, D5, 0.5, E5, 0.5, D5, 0.5,
-			B4, 0.5, A4, 0.5, G4, 0.5, A4, 0.5),
-		palmMute(E2, beat), padHold(minor(E3), 4, beat),
-		hook(beat, E5, 1.0, D5, 0.5, B4, 0.5,
-			A4, 0.5, G4, 0.5, E4, 1.0),
+		palmMute(E2, beat), padHold([3]float64{E3, B3, E4}, 4, beat),
+		hook(beat, riff...),
 	)
 	wbeat := 0.333 // 180 BPM thrash
 	wmel := concat(
 		palmMute(E3, wbeat),
 		hook(wbeat, E4*2, 0.25, E4*2, 0.25, G4*2, 0.25, A4*2, 0.25,
+			E4*2, 0.25, E4*2, 0.25, G4*2, 0.25, A4*2, 0.25,
 			B4*2, 0.25, A4*2, 0.25, G4*2, 0.25, E4*2, 0.25,
-			B4*2, 0.25, D5*2, 0.25, E5*2, 0.25, D5*2, 0.25,
-			B4*2, 0.25, A4*2, 0.25, G4*2, 0.25, E4*2, 0.25),
+			Bb4*2, 0.25, A4*2, 0.25, G4*2, 0.25, E4*2, 0.25),
 	)
 	s.Ambient.Normal = ambientPreset{
 		Gain: 0.035, BPM: 140, Wave: "sawtooth",

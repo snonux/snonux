@@ -850,6 +850,27 @@ body.sno-ghost-mode .post.post-active { opacity:1 !important; box-shadow:0 0 28p
 body.sno-ghost-mode header,
 body.sno-ghost-mode .page-nav-footer,
 body.sno-ghost-mode .nav-hints { opacity:0.25 !important; transition:opacity 0.4s ease; }
+/* Blank mode — hide everything except WebGL background */
+body.sno-blank-mode .overlay { opacity:0 !important; pointer-events:none !important; transition:opacity 0.3s ease; }
+body.sno-blank-mode #sno-crt-overlay { opacity:0 !important; }
+/* Hide nav hints, pagination footer, header, post modal and splash overlay in blank mode */
+body.sno-blank-mode .nav-hints { opacity:0 !important; pointer-events:none !important; transition:opacity 0.3s ease; }
+body.sno-blank-mode .page-nav-footer { opacity:0 !important; pointer-events:none !important; transition:opacity 0.3s ease; }
+body.sno-blank-mode header { opacity:0 !important; pointer-events:none !important; transition:opacity 0.3s ease; }
+/* Keep splash hidden too if it happens to still be around */
+body.sno-blank-mode .splash-overlay { opacity:0 !important; pointer-events:none !important; }
+@keyframes sno-lightning-flash {
+  0% { opacity:0; }
+  8% { opacity:0.9; }
+  12% { opacity:0.2; }
+  18% { opacity:0.85; }
+  24% { opacity:0.1; }
+  30% { opacity:0.7; }
+  100% { opacity:0; }
+}
+.sno-lightning { position:fixed; inset:0; z-index:9999; pointer-events:none;
+  background:radial-gradient(ellipse at 50% 30%, rgba(255,255,255,0.95), rgba(200,220,255,0.6) 40%, transparent 70%);
+  animation:sno-lightning-flash 0.5s ease-out both; }
 /* Post transition animations */
 @keyframes sno-enter-from-below { 0%{transform:translateY(22px) scale(0.97);opacity:0.55} 100%{transform:translateY(0) scale(1);opacity:1} }
 @keyframes sno-enter-from-above { 0%{transform:translateY(-22px) scale(0.97);opacity:0.55} 100%{transform:translateY(0) scale(1);opacity:1} }
