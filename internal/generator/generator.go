@@ -55,31 +55,6 @@ type themeMeta struct {
 	NextPageText    string `json:"next_page_text"`
 }
 
-func loadThemeMeta(name string) (themeMeta, error) {
-	var m themeMeta
-	b, err := templates.ThemeMeta(name)
-	if err != nil {
-		return m, fmt.Errorf("read theme meta %q: %w", name, err)
-	}
-	if err := json.Unmarshal(b, &m); err != nil {
-		return m, fmt.Errorf("parse theme meta %q: %w", name, err)
-	}
-	return m, nil
-}
-
-// allThemesJSON returns a JS array literal of all theme names.
-func allThemesJSON() (template.JS, error) {
-	names, err := templates.ThemeNames()
-	if err != nil {
-		return "", err
-	}
-	b, err := json.Marshal(names)
-	if err != nil {
-		return "", err
-	}
-	return template.JS(b), nil //nolint:gosec // marshalled from a fixed string slice
-}
-
 // Run loads all posts, generates all HTML pages, and writes atom.xml plus the
 // shared CSS/JS bundles and per-theme asset files.
 // The ctx parameter is accepted for cancellation propagation; it is passed
@@ -377,4 +352,29 @@ func writeThemeAsset(dir, name string) error {
 	}
 
 	return nil
+}
+
+func loadThemeMeta(name string) (themeMeta, error) {
+	var m themeMeta
+	b, err := templates.ThemeMeta(name)
+	if err != nil {
+		return m, fmt.Errorf("read theme meta %q: %w", name, err)
+	}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return m, fmt.Errorf("parse theme meta %q: %w", name, err)
+	}
+	return m, nil
+}
+
+// allThemesJSON returns a JS array literal of all theme names.
+func allThemesJSON() (template.JS, error) {
+	names, err := templates.ThemeNames()
+	if err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(names)
+	if err != nil {
+		return "", err
+	}
+	return template.JS(b), nil //nolint:gosec // marshalled from a fixed string slice
 }
