@@ -32,6 +32,31 @@ import (
 	"codeberg.org/snonux/snonux/internal/post"
 )
 
+// PostBuilder is the abstraction used to validate and commit a single post type.
+// Each concrete builder handles one file extension (e.g. .txt, .png, .mp3).
+// Registering a new builder is enough to add support for a new type — no changes
+// to the core planning or commit loops are required.
+type PostBuilder interface {
+	// Plan validates the source file and returns everything needed to commit it later.
+	 Plan(srcPath string, ext string) (postPlan, error)
+	// Commit performs the mutations for this post type and returns the populated Post,
+	// plus any extra inbox files that should be cleaned up after a successful save.
+	Commit(plan postPlan, postDir string, id string, now time.Time) (*post.Post, []string, error)
+}
+
+// builders maps a lower-case file extension to its PostBuilder.
+var builders = make(map[string]PostBuilder)
+
+// register adds a PostBuilder for the given extension. Panics on duplicates so
+// misconfiguration is caught at start-up.
+func register(ext string, b PostBuilder) {
+	ext = strings.ToLower(ext)
+	if _, exists := builders[ext]; exists {
+		panic(fmt.Sprintf("duplicate PostBuilder for extension %q", ext))
+	}
+	builders[ext] = b
+}
+
 // Run scans cfg.InputDir and processes every eligible file into a post directory
 // under cfg.OutputDir/posts/. It uses a two-phase commit pattern:
 //
@@ -97,46 +122,22 @@ type postPlan struct {
 	mdHTML         string
 	localImages    []string
 	validatedImage image.Image
+	builder        PostBuilder
 }
 
 // planPost validates a single source file and returns a plan containing
 // everything needed to commit it later. It performs no mutations.
 func planPost(srcPath string) (postPlan, error) {
 	ext := strings.ToLower(filepath.Ext(srcPath))
-	plan := postPlan{srcPath: srcPath, ext: ext}
-
-	switch ext {
-	case ".txt":
-		html, err := processTxt(srcPath)
-		if err != nil {
-			return postPlan{}, err
-		}
-		plan.textHTML = html
-
-	case ".md":
-		html, locals, err := processMd(srcPath)
-		if err != nil {
-			return postPlan{}, err
-		}
-		plan.mdHTML = html
-		plan.localImages = locals
-
-	case ".png", ".jpg", ".jpeg", ".gif":
-		img, err := validateImage(srcPath)
-		if err != nil {
-			return postPlan{}, err
-		}
-		plan.validatedImage = img
-
-	case ".mp3":
-		if err := validateAudio(srcPath); err != nil {
-			return postPlan{}, err
-		}
-
-	default:
+	b, ok := builders[ext]
+	if !ok {
 		return postPlan{}, fmt.Errorf("unsupported file type: %s", ext)
 	}
-
+	plan, err := b.Plan(srcPath, ext)
+	if err != nil {
+		return postPlan{}, err
+	}
+	plan.builder = b
 	return plan, nil
 }
 
@@ -153,79 +154,10 @@ func commitPlan(plan postPlan, postsDir string, now time.Time) error {
 		return fmt.Errorf("create post dir %s: %w", id, err)
 	}
 
-	var p *post.Post
-	var inboxExtras []string
-
-	switch plan.ext {
-	case ".txt":
-		p = &post.Post{
-			ID:        id,
-			Timestamp: now,
-			PostType:  post.TypeText,
-			Content:   plan.textHTML,
-		}
-
-	case ".md":
-		html := plan.mdHTML
-		for _, name := range plan.localImages {
-			html = strings.ReplaceAll(html,
-				fmt.Sprintf(`src="%s"`, name),
-				fmt.Sprintf(`src="posts/%s/%s"`, id, name))
-		}
-
-		sourceDir := filepath.Dir(plan.srcPath)
-		for _, name := range plan.localImages {
-			src := filepath.Join(sourceDir, name)
-			dst := filepath.Join(postDir, name)
-			if err := copyFile(src, dst); err != nil {
-				_ = os.RemoveAll(postDir)
-				return fmt.Errorf("copy markdown asset %s: %w", name, err)
-			}
-			inboxExtras = append(inboxExtras, src)
-		}
-
-		p = &post.Post{
-			ID:        id,
-			Timestamp: now,
-			PostType:  post.TypeMarkdown,
-			Content:   html,
-			Assets:    plan.localImages,
-		}
-
-	case ".png", ".jpg", ".jpeg", ".gif":
-		if err := writeImageAsset(plan.validatedImage, postDir); err != nil {
-			_ = os.RemoveAll(postDir)
-			return err
-		}
-		src := fmt.Sprintf("posts/%s/image.jpg", id)
-		html := fmt.Sprintf(`<img src="%s" alt="" class="post-image">`, src)
-		p = &post.Post{
-			ID:        id,
-			Timestamp: now,
-			PostType:  post.TypeImage,
-			Content:   html,
-			Assets:    []string{"image.jpg"},
-		}
-
-	case ".mp3":
-		outName := filepath.Base(plan.srcPath)
-		dst := filepath.Join(postDir, outName)
-		if err := copyFile(plan.srcPath, dst); err != nil {
-			_ = os.RemoveAll(postDir)
-			return err
-		}
-		src := fmt.Sprintf("posts/%s/%s", id, outName)
-		html := fmt.Sprintf(
-			`<audio controls class="post-audio"><source src="%s" type="audio/mpeg">Your browser does not support audio.</audio>`,
-			src,
-		)
-		p = &post.Post{
-			ID:        id,
-			Timestamp: now,
-			PostType:  post.TypeAudio,
-			Content:   html,
-			Assets:    []string{outName},
-		}
+	p, inboxExtras, err := plan.builder.Commit(plan, postDir, id, now)
+	if err != nil {
+		_ = os.RemoveAll(postDir)
+		return err
 	}
 
 	if err := p.Save(postDir); err != nil {

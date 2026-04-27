@@ -8,7 +8,9 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"time"
 
+	"codeberg.org/snonux/snonux/internal/post"
 	"golang.org/x/image/draw"
 )
 
@@ -16,6 +18,41 @@ const (
 	maxImageWidth = 1024
 	jpegQuality   = 80
 )
+
+type imageBuilder struct{}
+
+func (imageBuilder) Plan(srcPath string, ext string) (postPlan, error) {
+	plan := postPlan{srcPath: srcPath, ext: ext}
+	img, err := validateImage(srcPath)
+	if err != nil {
+		return postPlan{}, err
+	}
+	plan.validatedImage = img
+	return plan, nil
+}
+
+func (imageBuilder) Commit(plan postPlan, postDir string, id string, now time.Time) (*post.Post, []string, error) {
+	if err := writeImageAsset(plan.validatedImage, postDir); err != nil {
+		return nil, nil, err
+	}
+	src := fmt.Sprintf("posts/%s/image.jpg", id)
+	html := fmt.Sprintf(`<img src="%s" alt="" class="post-image">`, src)
+	p := &post.Post{
+		ID:        id,
+		Timestamp: now,
+		PostType:  post.TypeImage,
+		Content:   html,
+		Assets:    []string{"image.jpg"},
+	}
+	return p, nil, nil
+}
+
+func init() {
+	register(".png", imageBuilder{})
+	register(".jpg", imageBuilder{})
+	register(".jpeg", imageBuilder{})
+	register(".gif", imageBuilder{})
+}
 
 // validateImage reads and decodes the source image, resizing if necessary.
 // It performs only read validation; the caller is responsible for writing assets.

@@ -7,11 +7,59 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
+	"codeberg.org/snonux/snonux/internal/post"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
 )
+
+type mdBuilder struct{}
+
+func (mdBuilder) Plan(srcPath string, ext string) (postPlan, error) {
+	plan := postPlan{srcPath: srcPath, ext: ext}
+	html, locals, err := processMd(srcPath)
+	if err != nil {
+		return postPlan{}, err
+	}
+	plan.mdHTML = html
+	plan.localImages = locals
+	return plan, nil
+}
+
+func (mdBuilder) Commit(plan postPlan, postDir string, id string, now time.Time) (*post.Post, []string, error) {
+	html := plan.mdHTML
+	for _, name := range plan.localImages {
+		html = strings.ReplaceAll(html,
+			fmt.Sprintf(`src="%s"`, name),
+			fmt.Sprintf(`src="posts/%s/%s"`, id, name))
+	}
+
+	var inboxExtras []string
+	sourceDir := filepath.Dir(plan.srcPath)
+	for _, name := range plan.localImages {
+		src := filepath.Join(sourceDir, name)
+		dst := filepath.Join(postDir, name)
+		if err := copyFile(src, dst); err != nil {
+			return nil, nil, fmt.Errorf("copy markdown asset %s: %w", name, err)
+		}
+		inboxExtras = append(inboxExtras, src)
+	}
+
+	p := &post.Post{
+		ID:        id,
+		Timestamp: now,
+		PostType:  post.TypeMarkdown,
+		Content:   html,
+		Assets:    plan.localImages,
+	}
+	return p, inboxExtras, nil
+}
+
+func init() {
+	register(".md", mdBuilder{})
+}
 
 // isSimpleImageRef returns true for a filename-only reference (e.g.
 // "img.png") that is safe to treat as a flat local file in the same

@@ -4,7 +4,46 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"time"
+
+	"codeberg.org/snonux/snonux/internal/post"
 )
+
+type audioBuilder struct{}
+
+func (audioBuilder) Plan(srcPath string, ext string) (postPlan, error) {
+	plan := postPlan{srcPath: srcPath, ext: ext}
+	if err := validateAudio(srcPath); err != nil {
+		return postPlan{}, err
+	}
+	return plan, nil
+}
+
+func (audioBuilder) Commit(plan postPlan, postDir string, id string, now time.Time) (*post.Post, []string, error) {
+	outName := filepath.Base(plan.srcPath)
+	dst := filepath.Join(postDir, outName)
+	if err := copyFile(plan.srcPath, dst); err != nil {
+		return nil, nil, err
+	}
+	src := fmt.Sprintf("posts/%s/%s", id, outName)
+	html := fmt.Sprintf(
+		`<audio controls class="post-audio"><source src="%s" type="audio/mpeg">Your browser does not support audio.</audio>`,
+		src,
+	)
+	p := &post.Post{
+		ID:        id,
+		Timestamp: now,
+		PostType:  post.TypeAudio,
+		Content:   html,
+		Assets:    []string{outName},
+	}
+	return p, nil, nil
+}
+
+func init() {
+	register(".mp3", audioBuilder{})
+}
 
 // validateAudio confirms the audio source file exists and is readable.
 func validateAudio(srcPath string) error {

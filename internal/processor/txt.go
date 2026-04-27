@@ -6,11 +6,39 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
+
+	"codeberg.org/snonux/snonux/internal/post"
 )
 
 // urlPattern matches http/https URLs in plain text.
 // Trailing sentence punctuation is stripped separately by stripURLTrailing.
 var urlPattern = regexp.MustCompile(`https?://\S+`)
+
+type txtBuilder struct{}
+
+func (txtBuilder) Plan(srcPath string, ext string) (postPlan, error) {
+	plan := postPlan{srcPath: srcPath, ext: ext}
+	html, err := processTxt(srcPath)
+	if err != nil {
+		return postPlan{}, err
+	}
+	plan.textHTML = html
+	return plan, nil
+}
+
+func (txtBuilder) Commit(plan postPlan, postDir string, id string, now time.Time) (*post.Post, []string, error) {
+	return &post.Post{
+		ID:        id,
+		Timestamp: now,
+		PostType:  post.TypeText,
+		Content:   plan.textHTML,
+	}, nil, nil
+}
+
+func init() {
+	register(".txt", txtBuilder{})
+}
 
 // processTxt reads a plain-text file and wraps each non-empty paragraph in <p> tags.
 // URLs are automatically converted to clickable <a> links.
