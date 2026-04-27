@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,7 +62,7 @@ func TestEnsureDir_createsAndRejectsFile(t *testing.T) {
 func TestParseFlags_version(t *testing.T) {
 	t.Parallel()
 
-	_, mode, err := parseFlags([]string{"-version"})
+	_, mode, err := parseFlags([]string{"-version"}, rand.New(rand.NewSource(1)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +74,7 @@ func TestParseFlags_version(t *testing.T) {
 func TestParseFlags_listThemes(t *testing.T) {
 	t.Parallel()
 
-	_, mode, err := parseFlags([]string{"-list-themes"})
+	_, mode, err := parseFlags([]string{"-list-themes"}, rand.New(rand.NewSource(1)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestParseFlags_run(t *testing.T) {
 		"-output", out,
 		"-theme", "neon",
 		"-base-url", "https://t.test",
-	})
+	}, rand.New(rand.NewSource(1)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestParseFlags_sync(t *testing.T) {
 		"-output", out,
 		"-theme", "neon",
 		"-sync",
-	})
+	}, rand.New(rand.NewSource(1)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +132,7 @@ func TestParseFlags_randomTheme(t *testing.T) {
 
 	in := t.TempDir()
 	out := t.TempDir()
-	cfg, _, err := parseFlags([]string{"-input", in, "-output", out, "-theme", "random"})
+	cfg, _, err := parseFlags([]string{"-input", in, "-output", out, "-theme", "random"}, rand.New(rand.NewSource(42)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,10 +145,39 @@ func TestParseFlags_randomTheme(t *testing.T) {
 	}
 }
 
+// TestParseFlags_randomTheme_deterministic verifies that when a seeded
+// *rand.Rand is passed in, the "random" theme resolve predictably.
+// This ensures the rng parameter is actually used.
+func TestParseFlags_randomTheme_deterministic(t *testing.T) {
+	t.Parallel()
+
+	in := t.TempDir()
+	out := t.TempDir()
+
+	// NewSource(1) results in a deterministic first draw across multiple calls.
+	src := rand.NewSource(1)
+	rng := rand.New(src)
+
+	cfg, _, err := parseFlags([]string{"-input", in, "-output", out, "-theme", "random"}, rng)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Reset the source and re-invoke parseFlags to confirm the same theme
+	// is selected again (determinism).
+	cfg2, _, err := parseFlags([]string{"-input", in, "-output", out, "-theme", "random"}, rand.New(rand.NewSource(1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme != cfg2.Theme {
+		t.Fatalf("expected deterministic theme %q, got %q", cfg.Theme, cfg2.Theme)
+	}
+}
+
 func TestParseFlags_unknownFlag(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := parseFlags([]string{"-not-a-real-flag"})
+	_, _, err := parseFlags([]string{"-not-a-real-flag"}, rand.New(rand.NewSource(1)))
 	if err == nil {
 		t.Fatal("expected error")
 	}

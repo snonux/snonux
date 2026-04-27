@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/generator"
@@ -34,7 +35,7 @@ const (
 )
 
 func main() {
-	cfg, mode, err := parseFlags(os.Args[1:])
+	cfg, mode, err := parseFlags(os.Args[1:], rand.New(rand.NewSource(time.Now().UnixNano())))
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
@@ -64,7 +65,8 @@ var errParseFlags = errors.New("flag parse error")
 
 // parseFlags reads CLI flags and returns a validated Config.
 // Special theme value "random" picks a theme at random from the registry.
-func parseFlags(args []string) (*config.Config, cliMode, error) {
+// The rng parameter must be non-nil; it is used for theme selection.
+func parseFlags(args []string, rng *rand.Rand) (*config.Config, cliMode, error) {
 	cfg := &config.Config{}
 	fs := flag.NewFlagSet("snonux", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -94,8 +96,11 @@ func parseFlags(args []string) (*config.Config, cliMode, error) {
 
 	// Resolve the special "random" value before any further validation.
 	if cfg.Theme == "random" {
+		if rng == nil {
+			return nil, modeRun, fmt.Errorf("theme %q requires a seeded rng", cfg.Theme)
+		}
 		themes := generator.ListThemes()
-		cfg.Theme = themes[rand.Intn(len(themes))]
+		cfg.Theme = themes[rng.Intn(len(themes))]
 		log.Printf("random theme selected: %s", cfg.Theme)
 	}
 
