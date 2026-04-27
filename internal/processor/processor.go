@@ -3,11 +3,14 @@
 // Supported formats: .txt, .md, .png, .jpg, .jpeg, .gif, .mp3.
 // Each processed source file is deleted from the input directory afterward.
 //
-// Processing is sequential in directory listing order. If one file fails after
-// earlier files succeeded, those earlier sources are already gone from the input
-// directory (and their posts exist under posts/). The error is returned together
-// with the count of posts created in that run; fix or remove the failing file and
-// re-run to continue.
+// Processing uses a two-phase commit pattern:
+//   1. Scan and validate every inbox item without mutating anything.
+//   2. Only after all items pass validation, execute mutations
+//      (create directories, write assets, persist posts, remove sources).
+// If validation fails for any item, the entire batch is aborted and the inbox
+// is left untouched. If a mutation fails mid-batch, earlier items have already
+// been committed; the failing item is rolled back and the error is returned
+// together with the count of successfully committed posts.
 //
 // Markdown trust boundary: .md files are expected only from a trusted personal
 // inbox (the operator’s own email or equivalent). Goldmark is configured with
@@ -19,6 +22,7 @@ package processor
 
 import (
 	"fmt"
+	"image"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,12 +33,14 @@ import (
 )
 
 // Run scans cfg.InputDir and processes every eligible file into a post directory
-// under cfg.OutputDir/posts/. Returns the number of posts successfully created
-// in this invocation. On error, that count includes only files processed before
-// the failure; those sources have already been removed from the input directory.
+// under cfg.OutputDir/posts/. It uses a two-phase commit pattern:
 //
-// Images referenced by a .md file in the same input directory are consumed by
-// that markdown post and are not processed as independent image posts.
+//   Phase 1 — scan and validate all inbox items without mutating anything.
+//   Phase 2 — only after all items pass validation, execute mutations
+//             (create directories, write assets, persist posts, remove sources).
+//
+// If Phase 1 fails for any item, no mutations occur and the inbox is left untouched.
+// Returns the number of posts successfully created in this invocation.
 func Run(cfg *config.Config) (int, error) {
 	entries, err := os.ReadDir(cfg.InputDir)
 	if err != nil {
@@ -46,32 +52,192 @@ func Run(cfg *config.Config) (int, error) {
 		return 0, fmt.Errorf("create posts dir: %w", err)
 	}
 
-	// Pre-scan markdown files to discover which image filenames they claim.
-	// Claimed images are excluded from independent processing.
 	claimed, err := claimedByMarkdown(entries, cfg.InputDir)
 	if err != nil {
 		return 0, err
 	}
 
-	count := 0
-
+	// Phase 1 — validate everything, collect work, mutate nothing.
+	var plans []postPlan
 	for _, entry := range entries {
 		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
 		if claimed[entry.Name()] {
-			continue // consumed by a .md post — skip independent processing
+			continue
 		}
 
 		srcPath := filepath.Join(cfg.InputDir, entry.Name())
-		if err := processFile(srcPath, postsDir); err != nil {
-			return count, fmt.Errorf("process %s: %w", entry.Name(), err)
+		plan, err := planPost(srcPath)
+		if err != nil {
+			return 0, fmt.Errorf("plan %s: %w", entry.Name(), err)
 		}
+		plans = append(plans, plan)
+	}
 
+	// Phase 2 — commit all mutations.
+	count := 0
+	now := time.Now().UTC()
+	for _, plan := range plans {
+		if err := commitPlan(plan, postsDir, now); err != nil {
+			return count, fmt.Errorf("commit %s: %w", filepath.Base(plan.srcPath), err)
+		}
 		count++
 	}
 
 	return count, nil
+}
+
+// postPlan captures everything validated in Phase 1 for a single source file.
+// No file-system mutations are recorded here; only validated content.
+type postPlan struct {
+	srcPath        string
+	ext            string
+	textHTML       string
+	mdHTML         string
+	localImages    []string
+	validatedImage image.Image
+}
+
+// planPost validates a single source file and returns a plan containing
+// everything needed to commit it later. It performs no mutations.
+func planPost(srcPath string) (postPlan, error) {
+	ext := strings.ToLower(filepath.Ext(srcPath))
+	plan := postPlan{srcPath: srcPath, ext: ext}
+
+	switch ext {
+	case ".txt":
+		html, err := processTxt(srcPath)
+		if err != nil {
+			return postPlan{}, err
+		}
+		plan.textHTML = html
+
+	case ".md":
+		html, locals, err := processMd(srcPath)
+		if err != nil {
+			return postPlan{}, err
+		}
+		plan.mdHTML = html
+		plan.localImages = locals
+
+	case ".png", ".jpg", ".jpeg", ".gif":
+		img, err := validateImage(srcPath)
+		if err != nil {
+			return postPlan{}, err
+		}
+		plan.validatedImage = img
+
+	case ".mp3":
+		if err := validateAudio(srcPath); err != nil {
+			return postPlan{}, err
+		}
+
+	default:
+		return postPlan{}, fmt.Errorf("unsupported file type: %s", ext)
+	}
+
+	return plan, nil
+}
+
+// commitPlan generates a unique ID, creates the post directory, writes assets,
+// persists the post metadata, and removes the source file.
+func commitPlan(plan postPlan, postsDir string, now time.Time) error {
+	id, err := uniqueID(postsDir, now)
+	if err != nil {
+		return fmt.Errorf("generate unique ID: %w", err)
+	}
+
+	postDir := filepath.Join(postsDir, id)
+	if err := os.MkdirAll(postDir, 0o755); err != nil {
+		return fmt.Errorf("create post dir %s: %w", id, err)
+	}
+
+	var p *post.Post
+	var inboxExtras []string
+
+	switch plan.ext {
+	case ".txt":
+		p = &post.Post{
+			ID:        id,
+			Timestamp: now,
+			PostType:  post.TypeText,
+			Content:   plan.textHTML,
+		}
+
+	case ".md":
+		html := plan.mdHTML
+		for _, name := range plan.localImages {
+			html = strings.ReplaceAll(html,
+				fmt.Sprintf(`src="%s"`, name),
+				fmt.Sprintf(`src="posts/%s/%s"`, id, name))
+		}
+
+		sourceDir := filepath.Dir(plan.srcPath)
+		for _, name := range plan.localImages {
+			src := filepath.Join(sourceDir, name)
+			dst := filepath.Join(postDir, name)
+			if err := copyFile(src, dst); err != nil {
+				_ = os.RemoveAll(postDir)
+				return fmt.Errorf("copy markdown asset %s: %w", name, err)
+			}
+			inboxExtras = append(inboxExtras, src)
+		}
+
+		p = &post.Post{
+			ID:        id,
+			Timestamp: now,
+			PostType:  post.TypeMarkdown,
+			Content:   html,
+			Assets:    plan.localImages,
+		}
+
+	case ".png", ".jpg", ".jpeg", ".gif":
+		if err := writeImageAsset(plan.validatedImage, postDir); err != nil {
+			_ = os.RemoveAll(postDir)
+			return err
+		}
+		src := fmt.Sprintf("posts/%s/image.jpg", id)
+		html := fmt.Sprintf(`<img src="%s" alt="" class="post-image">`, src)
+		p = &post.Post{
+			ID:        id,
+			Timestamp: now,
+			PostType:  post.TypeImage,
+			Content:   html,
+			Assets:    []string{"image.jpg"},
+		}
+
+	case ".mp3":
+		outName := filepath.Base(plan.srcPath)
+		dst := filepath.Join(postDir, outName)
+		if err := copyFile(plan.srcPath, dst); err != nil {
+			_ = os.RemoveAll(postDir)
+			return err
+		}
+		src := fmt.Sprintf("posts/%s/%s", id, outName)
+		html := fmt.Sprintf(
+			`<audio controls class="post-audio"><source src="%s" type="audio/mpeg">Your browser does not support audio.</audio>`,
+			src,
+		)
+		p = &post.Post{
+			ID:        id,
+			Timestamp: now,
+			PostType:  post.TypeAudio,
+			Content:   html,
+			Assets:    []string{outName},
+		}
+	}
+
+	if err := p.Save(postDir); err != nil {
+		_ = os.RemoveAll(postDir)
+		return err
+	}
+
+	for _, path := range inboxExtras {
+		_ = os.Remove(path)
+	}
+
+	return os.Remove(plan.srcPath)
 }
 
 // claimedByMarkdown scans all .md entries in inputDir and returns a set of
@@ -105,168 +271,6 @@ func claimedByMarkdown(entries []os.DirEntry, inputDir string) (map[string]bool,
 	}
 
 	return claimed, nil
-}
-
-// processFile processes a single input file into a new post directory.
-// The source file is removed from the input dir on success.
-func processFile(srcPath, postsDir string) error {
-	now := time.Now().UTC()
-	id, err := uniqueID(postsDir, now)
-	if err != nil {
-		return fmt.Errorf("generate unique ID: %w", err)
-	}
-
-	postDir := filepath.Join(postsDir, id)
-	if err := os.MkdirAll(postDir, 0o755); err != nil {
-		return fmt.Errorf("create post dir %s: %w", id, err)
-	}
-
-	p, inboxExtras, err := buildPost(srcPath, postDir, id)
-	if err != nil {
-		// Clean up the half-created directory to avoid partial state.
-		_ = os.RemoveAll(postDir)
-		return err
-	}
-
-	if err := p.Save(postDir); err != nil {
-		_ = os.RemoveAll(postDir)
-		return err
-	}
-
-	// Remove markdown-referenced inbox images only after the post is persisted
-	// (same ordering as the main source file below).
-	for _, path := range inboxExtras {
-		_ = os.Remove(path)
-	}
-
-	// Delete the source file only after the post has been successfully persisted.
-	return os.Remove(srcPath)
-}
-
-// buildPost dispatches to the appropriate sub-processor based on file extension
-// and returns a populated Post ready to be saved. inboxExtras lists absolute
-// paths under the input directory to remove after Save succeeds (markdown-local
-// images only); other post types return a nil slice.
-func buildPost(srcPath, postDir, id string) (*post.Post, []string, error) {
-	ext := strings.ToLower(filepath.Ext(srcPath))
-
-	switch ext {
-	case ".txt":
-		p, err := buildTextPost(srcPath, id)
-		return p, nil, err
-
-	case ".md":
-		return buildMarkdownPost(srcPath, postDir, id)
-
-	case ".png", ".jpg", ".jpeg", ".gif":
-		p, err := buildImagePost(srcPath, postDir, id)
-		return p, nil, err
-
-	case ".mp3":
-		p, err := buildAudioPost(srcPath, postDir, id)
-		return p, nil, err
-
-	default:
-		return nil, nil, fmt.Errorf("unsupported file type: %s", ext)
-	}
-}
-
-func buildTextPost(srcPath, id string) (*post.Post, error) {
-	html, err := processTxt(srcPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return &post.Post{
-		ID:        id,
-		Timestamp: time.Now().UTC(),
-		PostType:  post.TypeText,
-		Content:   html,
-	}, nil
-}
-
-func buildMarkdownPost(srcPath, postDir, id string) (*post.Post, []string, error) {
-	html, localImages, err := processMd(srcPath)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	sourceDir := filepath.Dir(srcPath)
-
-	assets, err := copyLocalImages(localImages, sourceDir, postDir)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Rewrite bare image filenames to site-root-relative paths so they
-	// resolve correctly in the generated HTML (e.g. "img.png" → "posts/ID/img.png").
-	for _, name := range localImages {
-		html = strings.ReplaceAll(html,
-			fmt.Sprintf(`src="%s"`, name),
-			fmt.Sprintf(`src="posts/%s/%s"`, id, name))
-	}
-
-	inboxExtras := make([]string, 0, len(localImages))
-	for _, name := range localImages {
-		inboxExtras = append(inboxExtras, filepath.Join(sourceDir, name))
-	}
-
-	return &post.Post{
-		ID:        id,
-		Timestamp: time.Now().UTC(),
-		PostType:  post.TypeMarkdown,
-		Content:   html,
-		Assets:    assets,
-	}, inboxExtras, nil
-}
-
-func buildImagePost(srcPath, postDir, id string) (*post.Post, error) {
-	filename, html, err := processImage(srcPath, postDir, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return &post.Post{
-		ID:        id,
-		Timestamp: time.Now().UTC(),
-		PostType:  post.TypeImage,
-		Content:   html,
-		Assets:    []string{filename},
-	}, nil
-}
-
-func buildAudioPost(srcPath, postDir, id string) (*post.Post, error) {
-	filename, html, err := processAudio(srcPath, postDir, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return &post.Post{
-		ID:        id,
-		Timestamp: time.Now().UTC(),
-		PostType:  post.TypeAudio,
-		Content:   html,
-		Assets:    []string{filename},
-	}, nil
-}
-
-// copyLocalImages copies referenced image files from sourceDir into postDir.
-// Returns the list of filenames that were successfully copied.
-func copyLocalImages(filenames []string, sourceDir, postDir string) ([]string, error) {
-	var copied []string
-
-	for _, name := range filenames {
-		src := filepath.Join(sourceDir, name)
-		dst := filepath.Join(postDir, name)
-
-		if err := copyFile(src, dst); err != nil {
-			return nil, fmt.Errorf("copy image asset %s: %w", name, err)
-		}
-
-		copied = append(copied, name)
-	}
-
-	return copied, nil
 }
 
 // uniqueID generates a post ID for the given time that does not already exist

@@ -4,27 +4,15 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 )
 
-// processAudio copies an .mp3 file into destDir and returns an HTML <audio> snippet.
-// The audio element has controls enabled so visitors can play it inline.
-func processAudio(srcPath, destDir, postID string) (filename, htmlContent string, err error) {
-	outName := filepath.Base(srcPath)
-	outPath := filepath.Join(destDir, outName)
-
-	if err := copyFile(srcPath, outPath); err != nil {
-		return "", "", err
+// validateAudio confirms the audio source file exists and is readable.
+func validateAudio(srcPath string) error {
+	f, err := os.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("open audio %s: %w", srcPath, err)
 	}
-
-	// The src attribute is relative to the site root.
-	src := fmt.Sprintf("posts/%s/%s", postID, outName)
-	html := fmt.Sprintf(
-		`<audio controls class="post-audio"><source src="%s" type="audio/mpeg">Your browser does not support audio.</audio>`,
-		src,
-	)
-
-	return outName, html, nil
+	return f.Close()
 }
 
 // copyFile copies the file at src to dst, creating dst if it does not exist.

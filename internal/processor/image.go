@@ -13,33 +13,24 @@ import (
 )
 
 const (
-	maxImageWidth  = 1024
-	jpegQuality    = 80
+	maxImageWidth = 1024
+	jpegQuality   = 80
 )
 
-// processImage reads the source image, resizes it if wider than maxImageWidth,
-// encodes it as JPEG at jpegQuality, and writes the result to destDir.
-// Returns the output filename (always a .jpg) and an HTML <img> snippet.
-func processImage(srcPath, destDir, postID string) (filename, htmlContent string, err error) {
+// validateImage reads and decodes the source image, resizing if necessary.
+// It performs only read validation; the caller is responsible for writing assets.
+func validateImage(srcPath string) (image.Image, error) {
 	img, err := decodeImage(srcPath)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
+	return resizeIfNeeded(img), nil
+}
 
-	img = resizeIfNeeded(img)
-
-	outName := "image.jpg"
-	outPath := filepath.Join(destDir, outName)
-
-	if err := writeJPEG(img, outPath); err != nil {
-		return "", "", err
-	}
-
-	// The <img> src is relative to the site root, pointing into the posts dir.
-	src := fmt.Sprintf("posts/%s/%s", postID, outName)
-	html := fmt.Sprintf(`<img src="%s" alt="" class="post-image">`, src)
-
-	return outName, html, nil
+// writeImageAsset writes the prepared image as JPEG into postDir.
+func writeImageAsset(img image.Image, postDir string) error {
+	outPath := filepath.Join(postDir, "image.jpg")
+	return writeJPEG(img, outPath)
 }
 
 // decodeImage decodes a JPEG, PNG, or GIF (first frame) from srcPath.
