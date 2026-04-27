@@ -24,6 +24,15 @@ type Config struct {
 	// Defaults to "neon". Run with --help to see all available themes.
 	Theme string
 
-	// Sync, when true, rsyncs OutputDir to fixed mirror hosts after a successful run.
+	// Sync, when true, rsyncs OutputDir to mirror hosts after a successful run.
 	Sync bool
+
+	// SyncTargets are the remote hostnames to rsync to when Sync is true.
+	// Defaults to ["pi0.lan.buetow.org", "pi1.lan.buetow.org"].
+	// Override with SNONUX_SYNC_TARGETS env var (comma-separated).
+	SyncTargets []string
+
+	// SyncRemoteDir is the destination directory on each target host.
+	// Defaults to "/var/www/html/snonux/". Override with SNONUX_SYNC_REMOTE_DIR env var.
+	SyncRemoteDir string
 }

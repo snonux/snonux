@@ -66,7 +66,7 @@ func main() {
 	}
 
 	if cfg.Sync {
-		if err := syncOutput(cfg.OutputDir); err != nil {
+		if err := syncOutput(cfg); err != nil {
 			log.Fatalf("error: %v", err)
 		}
 	}
@@ -91,10 +91,17 @@ func parseFlags(args []string) (*config.Config, cliMode, error) {
 	fs.StringVar(&cfg.OutputDir, "output", "./dist", "root directory for generated static site output")
 	fs.StringVar(&cfg.BaseURL, "base-url", "https://snonux.foo", "canonical base URL used in Atom feed links")
 	fs.StringVar(&cfg.Theme, "theme", "random", "visual theme name, or \"random\" to pick one at random")
-	fs.BoolVar(&cfg.Sync, "sync", false, "after a successful run, rsync -output to pi0/pi1 when both are pingable (SSH user: SNONUX_SYNC_USER or login name)")
+	fs.BoolVar(&cfg.Sync, "sync", false, "after a successful run, rsync -output to mirror hosts when all are pingable (SSH user: SNONUX_SYNC_USER or login name)")
+	var syncTargets string
+	fs.StringVar(&syncTargets, "sync-targets", "", "comma-separated list of rsync target hosts (overrides SNONUX_SYNC_TARGETS and defaults)")
+	fs.StringVar(&cfg.SyncRemoteDir, "sync-remote-dir", "", "remote destination directory on target hosts (overrides SNONUX_SYNC_REMOTE_DIR and default)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, modeRun, fmt.Errorf("%w: %w", errParseFlags, err)
+	}
+
+	if syncTargets != "" {
+		cfg.SyncTargets = splitAndTrim(syncTargets)
 	}
 
 	if showVersion {

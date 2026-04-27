@@ -121,6 +121,47 @@ func TestParseFlags_sync(t *testing.T) {
 	if !cfg.Sync {
 		t.Fatal("expected cfg.Sync")
 	}
+	// Defaults should be empty until resolved at sync time.
+	if len(cfg.SyncTargets) != 0 {
+		t.Fatalf("expected no sync targets from flags alone, got %v", cfg.SyncTargets)
+	}
+	if cfg.SyncRemoteDir != "" {
+		t.Fatalf("expected empty remote dir from flags alone, got %q", cfg.SyncRemoteDir)
+	}
+}
+
+func TestParseFlags_syncTargetsAndRemoteDir(t *testing.T) {
+	t.Parallel()
+
+	cfg, mode, err := parseFlags([]string{
+		"-input", "./in",
+		"-output", "./out",
+		"-theme", "neon",
+		"-sync",
+		"-sync-targets", "host1, host2,host3",
+		"-sync-remote-dir", "/var/www/custom/",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode != modeRun {
+		t.Fatalf("mode %v", mode)
+	}
+	if !cfg.Sync {
+		t.Fatal("expected cfg.Sync")
+	}
+	want := []string{"host1", "host2", "host3"}
+	if len(cfg.SyncTargets) != len(want) {
+		t.Fatalf("got targets %v, want %v", cfg.SyncTargets, want)
+	}
+	for i, v := range want {
+		if cfg.SyncTargets[i] != v {
+			t.Fatalf("target[%d] = %q, want %q", i, cfg.SyncTargets[i], v)
+		}
+	}
+	if cfg.SyncRemoteDir != "/var/www/custom/" {
+		t.Fatalf("got remote dir %q", cfg.SyncRemoteDir)
+	}
 }
 
 func TestResolvePaths(t *testing.T) {
