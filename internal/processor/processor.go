@@ -103,7 +103,10 @@ func claimedByMarkdown(entries []os.DirEntry, inputDir string) (map[string]bool,
 // The source file is removed from the input dir on success.
 func processFile(srcPath, postsDir string) error {
 	now := time.Now().UTC()
-	id := uniqueID(postsDir, now)
+	id, err := uniqueID(postsDir, now)
+	if err != nil {
+		return fmt.Errorf("generate unique ID: %w", err)
+	}
 
 	postDir := filepath.Join(postsDir, id)
 	if err := os.MkdirAll(postDir, 0o755); err != nil {
@@ -260,11 +263,15 @@ func copyLocalImages(filenames []string, sourceDir, postDir string) ([]string, e
 
 // uniqueID generates a post ID for the given time that does not already exist
 // as a directory under postsDir. Appends a numeric suffix if needed.
-func uniqueID(postsDir string, t time.Time) string {
+func uniqueID(postsDir string, t time.Time) (string, error) {
 	for i := 0; ; i++ {
 		id := post.NewID(t, i)
-		if _, err := os.Stat(filepath.Join(postsDir, id)); os.IsNotExist(err) {
-			return id
+		_, err := os.Stat(filepath.Join(postsDir, id))
+		if err != nil {
+			if os.IsNotExist(err) {
+				return id, nil
+			}
+			return "", fmt.Errorf("stat post dir %s: %w", id, err)
 		}
 	}
 }

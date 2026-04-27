@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/post"
@@ -138,6 +139,57 @@ func TestRun_markdown(t *testing.T) {
 	}
 	if p.PostType != post.TypeMarkdown {
 		t.Fatalf("got %v", p.PostType)
+	}
+}
+
+func TestUniqueID_new(t *testing.T) {
+	t.Parallel()
+
+	postsDir := t.TempDir()
+	id, err := uniqueID(postsDir, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("uniqueID: %v", err)
+	}
+	if id == "" {
+		t.Fatal("expected non-empty id")
+	}
+}
+
+func TestUniqueID_collision(t *testing.T) {
+	t.Parallel()
+
+	postsDir := t.TempDir()
+	now := time.Now().UTC()
+
+	// Pre-create the first expected directory so uniqueID must pick the next suffix.
+	firstID := post.NewID(now, 0)
+	if err := os.MkdirAll(filepath.Join(postsDir, firstID), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	id, err := uniqueID(postsDir, now)
+	if err != nil {
+		t.Fatalf("uniqueID: %v", err)
+	}
+	if id == firstID {
+		t.Fatalf("expected different id, got %q", id)
+	}
+}
+
+func TestUniqueID_statError(t *testing.T) {
+	t.Parallel()
+
+	// Create a postsDir and remove read permission so Stat fails with
+	// a permission error rather than IsNotExist.
+	postsDir := t.TempDir()
+	if err := os.Chmod(postsDir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(postsDir, 0o755) // restore for cleanup
+
+	_, err := uniqueID(postsDir, time.Now().UTC())
+	if err == nil {
+		t.Fatal("expected error when stat fails")
 	}
 }
 
