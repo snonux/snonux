@@ -9,6 +9,33 @@ import (
 	"codeberg.org/snonux/snonux/internal/config"
 )
 
+func TestIsSimpleImageRef(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		ref  string
+		want bool
+	}{
+		{"img.png", true},
+		{"a.png", true},
+		{"sub/img.png", false},
+		{"a/b/c.png", false},
+		{"../img.png", false},
+		{"img/../other.png", false},
+		{"/etc/passwd", false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.ref, func(t *testing.T) {
+			t.Parallel()
+			got := isSimpleImageRef(c.ref)
+			if got != c.want {
+				t.Fatalf("isSimpleImageRef(%q) = %v; want %v", c.ref, got, c.want)
+			}
+		})
+	}
+}
+
 func TestFindLocalImages(t *testing.T) {
 	t.Parallel()
 
@@ -42,6 +69,38 @@ func TestFindLocalImages(t *testing.T) {
 		}
 	})
 
+	t.Run("subdir ref ignored even if file exists", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "sub", "photo.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		got := findLocalImages(`![](sub/photo.png)`, dir)
+		if len(got) != 0 {
+			t.Fatalf("expected no locals for subdir ref, got %v", got)
+		}
+	})
+
+	t.Run("parent traversal ref ignored even if file exists", func(t *testing.T) {
+		t.Parallel()
+		// Create a layout where ../photo.png from dir would resolve to a real file.
+		base := t.TempDir()
+		dir := filepath.Join(base, "inbox")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(base, "photo.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		got := findLocalImages(`![](../photo.png)`, dir)
+		if len(got) != 0 {
+			t.Fatalf("expected no locals for traversal ref, got %v", got)
+		}
+	})
+
 	tests := []struct {
 		name    string
 		md      string
@@ -62,6 +121,7 @@ func TestFindLocalImages(t *testing.T) {
 			want:    []string{"z.gif"},
 			wantLen: 1,
 		},
+
 	}
 
 	for _, tt := range tests {

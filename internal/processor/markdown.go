@@ -13,6 +13,18 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
+// isSimpleImageRef returns true for a filename-only reference (e.g.
+// "img.png") that is safe to treat as a flat local file in the same
+// directory as the markdown source. It rejects subdirectories, absolute
+// paths, dot-slash prefixes, and parent-directory traversal so stat and
+// copy targets stay within the source directory.
+func isSimpleImageRef(ref string) bool {
+	if strings.Contains(ref, "..") {
+		return false
+	}
+	return filepath.Base(ref) == ref
+}
+
 // imageRefPattern matches Markdown image syntax: ![alt](filename)
 // We use it to discover local asset references that must be copied.
 var imageRefPattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)]+)\)`)
@@ -62,9 +74,18 @@ func findLocalImages(mdContent, sourceDir string) []string {
 			continue
 		}
 
+		// Reject references that traverse directories or contain path
+		// separators; only flat filenames next to the markdown are
+		// supported. This prevents scans from succeeding on a file
+		// deep in a subdirectory and then failing copy because the
+		// basename is looked up in the wrong directory.
+		if !isSimpleImageRef(ref) {
+			continue
+		}
+
 		candidate := filepath.Join(sourceDir, ref)
 		if _, err := os.Stat(candidate); err == nil {
-			locals = append(locals, filepath.Base(ref))
+			locals = append(locals, ref)
 		}
 	}
 
