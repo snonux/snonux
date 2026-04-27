@@ -35,7 +35,7 @@ const (
 )
 
 func main() {
-	cfg, mode, err := parseFlags(os.Args[1:], rand.New(rand.NewSource(time.Now().UnixNano())))
+	cfg, mode, err := parseFlags(os.Args[1:])
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
@@ -47,6 +47,18 @@ func main() {
 	case modeListThemes:
 		fmt.Println(strings.Join(generator.ListThemes(), "\n"))
 		return
+	}
+
+	if err := resolveTheme(cfg, rand.New(rand.NewSource(time.Now().UnixNano()))); err != nil {
+		log.Fatalf("error: %v", err)
+	}
+
+	if err := resolvePaths(cfg); err != nil {
+		log.Fatalf("error: %v", err)
+	}
+
+	if err := validateDirs(cfg); err != nil {
+		log.Fatalf("error: %v", err)
 	}
 
 	if err := run(cfg); err != nil {
@@ -63,10 +75,9 @@ func main() {
 // errParseFlags is returned when flag parsing fails (e.g. unknown flag).
 var errParseFlags = errors.New("flag parse error")
 
-// parseFlags reads CLI flags and returns a validated Config.
-// Special theme value "random" picks a theme at random from the registry.
-// The rng parameter must be non-nil; it is used for theme selection.
-func parseFlags(args []string, rng *rand.Rand) (*config.Config, cliMode, error) {
+// parseFlags reads CLI flags and returns a Config without touching the filesystem or generators.
+// Callers should invoke resolveTheme, resolvePaths, and validateDirs separately.
+func parseFlags(args []string) (*config.Config, cliMode, error) {
 	cfg := &config.Config{}
 	fs := flag.NewFlagSet("snonux", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -92,36 +103,6 @@ func parseFlags(args []string, rng *rand.Rand) (*config.Config, cliMode, error) 
 
 	if *listThemes {
 		return nil, modeListThemes, nil
-	}
-
-	// Resolve the special "random" value before any further validation.
-	if cfg.Theme == "random" {
-		if rng == nil {
-			return nil, modeRun, fmt.Errorf("theme %q requires a seeded rng", cfg.Theme)
-		}
-		themes := generator.ListThemes()
-		cfg.Theme = themes[rng.Intn(len(themes))]
-		log.Printf("random theme selected: %s", cfg.Theme)
-	}
-
-	var err error
-
-	cfg.InputDir, err = expandHome(cfg.InputDir)
-	if err != nil {
-		return nil, modeRun, fmt.Errorf("input dir: %w", err)
-	}
-
-	cfg.OutputDir, err = expandHome(cfg.OutputDir)
-	if err != nil {
-		return nil, modeRun, fmt.Errorf("output dir: %w", err)
-	}
-
-	if err := ensureDir(cfg.InputDir); err != nil {
-		return nil, modeRun, fmt.Errorf("input dir: %w", err)
-	}
-
-	if err := ensureDir(cfg.OutputDir); err != nil {
-		return nil, modeRun, fmt.Errorf("output dir: %w", err)
 	}
 
 	return cfg, modeRun, nil

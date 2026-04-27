@@ -62,7 +62,7 @@ func TestEnsureDir_createsAndRejectsFile(t *testing.T) {
 func TestParseFlags_version(t *testing.T) {
 	t.Parallel()
 
-	_, mode, err := parseFlags([]string{"-version"}, rand.New(rand.NewSource(1)))
+	_, mode, err := parseFlags([]string{"-version"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestParseFlags_version(t *testing.T) {
 func TestParseFlags_listThemes(t *testing.T) {
 	t.Parallel()
 
-	_, mode, err := parseFlags([]string{"-list-themes"}, rand.New(rand.NewSource(1)))
+	_, mode, err := parseFlags([]string{"-list-themes"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,14 +86,12 @@ func TestParseFlags_listThemes(t *testing.T) {
 func TestParseFlags_run(t *testing.T) {
 	t.Parallel()
 
-	in := t.TempDir()
-	out := t.TempDir()
 	cfg, mode, err := parseFlags([]string{
-		"-input", in,
-		"-output", out,
+		"-input", "/tmp/in",
+		"-output", "/tmp/out",
 		"-theme", "neon",
 		"-base-url", "https://t.test",
-	}, rand.New(rand.NewSource(1)))
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,14 +106,12 @@ func TestParseFlags_run(t *testing.T) {
 func TestParseFlags_sync(t *testing.T) {
 	t.Parallel()
 
-	in := t.TempDir()
-	out := t.TempDir()
 	cfg, mode, err := parseFlags([]string{
-		"-input", in,
-		"-output", out,
+		"-input", "./in",
+		"-output", "./out",
 		"-theme", "neon",
 		"-sync",
-	}, rand.New(rand.NewSource(1)))
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,13 +123,47 @@ func TestParseFlags_sync(t *testing.T) {
 	}
 }
 
-func TestParseFlags_randomTheme(t *testing.T) {
+func TestResolvePaths(t *testing.T) {
 	t.Parallel()
 
-	in := t.TempDir()
-	out := t.TempDir()
-	cfg, _, err := parseFlags([]string{"-input", in, "-output", out, "-theme", "random"}, rand.New(rand.NewSource(42)))
+	cfg := &config.Config{
+		InputDir:  filepath.Join("~", "snonux-test-in"),
+		OutputDir: filepath.Join("~", "snonux-test-out"),
+	}
+
+	if err := resolvePaths(cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	home, err := os.UserHomeDir()
 	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.InputDir != filepath.Join(home, "snonux-test-in") {
+		t.Fatalf("input dir: got %q", cfg.InputDir)
+	}
+	if cfg.OutputDir != filepath.Join(home, "snonux-test-out") {
+		t.Fatalf("output dir: got %q", cfg.OutputDir)
+	}
+}
+
+func TestResolveTheme_fixed(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{Theme: "neon"}
+	if err := resolveTheme(cfg, rand.New(rand.NewSource(1))); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme != "neon" {
+		t.Fatalf("expected fixed theme, got %q", cfg.Theme)
+	}
+}
+
+func TestResolveTheme_random(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{Theme: "random"}
+	if err := resolveTheme(cfg, rand.New(rand.NewSource(42))); err != nil {
 		t.Fatal(err)
 	}
 	names := map[string]bool{}
@@ -145,39 +175,58 @@ func TestParseFlags_randomTheme(t *testing.T) {
 	}
 }
 
-// TestParseFlags_randomTheme_deterministic verifies that when a seeded
+// TestResolveTheme_random_deterministic verifies that when a seeded
 // *rand.Rand is passed in, the "random" theme resolve predictably.
-// This ensures the rng parameter is actually used.
-func TestParseFlags_randomTheme_deterministic(t *testing.T) {
+func TestResolveTheme_random_deterministic(t *testing.T) {
+	t.Parallel()
+
+	cfg1 := &config.Config{Theme: "random"}
+	if err := resolveTheme(cfg1, rand.New(rand.NewSource(1))); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg2 := &config.Config{Theme: "random"}
+	if err := resolveTheme(cfg2, rand.New(rand.NewSource(1))); err != nil {
+		t.Fatal(err)
+	}
+	if cfg1.Theme != cfg2.Theme {
+		t.Fatalf("expected deterministic theme %q, got %q", cfg1.Theme, cfg2.Theme)
+	}
+}
+
+func TestResolveTheme_nilRng(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{Theme: "random"}
+	if err := resolveTheme(cfg, nil); err == nil {
+		t.Fatal("expected error for nil rng")
+	}
+}
+
+func TestValidateDirs(t *testing.T) {
 	t.Parallel()
 
 	in := t.TempDir()
 	out := t.TempDir()
-
-	// NewSource(1) results in a deterministic first draw across multiple calls.
-	src := rand.NewSource(1)
-	rng := rand.New(src)
-
-	cfg, _, err := parseFlags([]string{"-input", in, "-output", out, "-theme", "random"}, rng)
-	if err != nil {
+	cfg := &config.Config{InputDir: in, OutputDir: out}
+	if err := validateDirs(cfg); err != nil {
 		t.Fatal(err)
 	}
 
-	// Reset the source and re-invoke parseFlags to confirm the same theme
-	// is selected again (determinism).
-	cfg2, _, err := parseFlags([]string{"-input", in, "-output", out, "-theme", "random"}, rand.New(rand.NewSource(1)))
-	if err != nil {
+	badFile := filepath.Join(t.TempDir(), "notadir")
+	if err := os.WriteFile(badFile, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Theme != cfg2.Theme {
-		t.Fatalf("expected deterministic theme %q, got %q", cfg.Theme, cfg2.Theme)
+	cfg = &config.Config{InputDir: badFile, OutputDir: out}
+	if err := validateDirs(cfg); err == nil {
+		t.Fatal("expected error when input is file")
 	}
 }
 
 func TestParseFlags_unknownFlag(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := parseFlags([]string{"-not-a-real-flag"}, rand.New(rand.NewSource(1)))
+	_, _, err := parseFlags([]string{"-not-a-real-flag"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
