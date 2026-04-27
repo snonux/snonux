@@ -1,6 +1,7 @@
 // Package templates exposes the embedded HTML shell, shared CSS/JS bundles,
 // and per-theme assets used by the generator. Themes live as directories
-// under templates/themes/<name>/ containing theme.css, theme.js, and meta.json.
+// under templates/themes/<name>/ containing theme.css, theme.js, meta.json,
+// and sounds.json.
 // All assets are compiled into the binary via //go:embed so snonux still ships
 // as a single self-contained executable.
 package templates
@@ -13,7 +14,7 @@ import (
 	"sort"
 )
 
-//go:embed shell.tmpl shared/*.tmpl shared/shared.css shared/shared.js themes/*/theme.css themes/*/theme.js themes/*/meta.json
+//go:embed shell.tmpl shared/*.tmpl shared/shared.css shared/shared.js themes/*/theme.css themes/*/theme.js themes/*/meta.json themes/*/sounds.json
 var FS embed.FS
 
 // Shell returns the body of shell.tmpl — the single page template used for
@@ -62,6 +63,11 @@ func ThemeJS(name string) ([]byte, error) {
 // ThemeMeta returns the per-theme meta.json bytes for the named theme.
 func ThemeMeta(name string) ([]byte, error) {
 	return FS.ReadFile(path.Join("themes", name, "meta.json"))
+}
+
+// ThemeSounds returns the per-theme sounds.json bytes for the named theme.
+func ThemeSounds(name string) ([]byte, error) {
+	return FS.ReadFile(path.Join("themes", name, "sounds.json"))
 }
 
 // ThemeNames returns a sorted list of available theme names derived from the

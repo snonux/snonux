@@ -94,15 +94,6 @@ func TestJSONStringOrNull(t *testing.T) {
 	}
 }
 
-func TestThemeSoundPresetsMatchRegistry(t *testing.T) {
-	t.Parallel()
-	for name := range getThemeSet() {
-		if _, ok := themeSoundPresets[name]; !ok {
-			t.Errorf("theme %q has no sound preset in themeSoundPresets", name)
-		}
-	}
-}
-
 func TestThemeSoundsJSONNonEmpty(t *testing.T) {
 	t.Parallel()
 	j := themeSoundsJSON("neon")
@@ -152,9 +143,9 @@ func TestThemeSoundPresetsAmbientPopulated(t *testing.T) {
 	t.Parallel()
 
 	for name := range getThemeSet() {
-		preset, ok := themeSoundPresets[name]
-		if !ok {
-			t.Errorf("theme %q missing from themeSoundPresets", name)
+		preset, err := loadThemeSounds(name)
+		if err != nil {
+			t.Errorf("theme %q loadThemeSounds: %v", name, err)
 			continue
 		}
 
@@ -174,8 +165,8 @@ func TestThemeSoundPresetsAmbientValuesBounded(t *testing.T) {
 	t.Parallel()
 
 	for name := range getThemeSet() {
-		preset, ok := themeSoundPresets[name]
-		if !ok {
+		preset, err := loadThemeSounds(name)
+		if err != nil {
 			continue
 		}
 
