@@ -124,7 +124,7 @@ func loadAllPosts(outputDir string) ([]*post.Post, error) {
 		return nil, fmt.Errorf("read posts dir: %w", err)
 	}
 
-	var posts []*post.Post
+	posts := make([]*post.Post, 0, len(entries))
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -144,7 +144,8 @@ func loadAllPosts(outputDir string) ([]*post.Post, error) {
 
 // paginate splits posts into chunks of size pageSize.
 func paginate(posts []*post.Post, pageSize int) [][]*post.Post {
-	var pages [][]*post.Post
+	pageCount := (len(posts) + pageSize - 1) / pageSize
+	pages := make([][]*post.Post, 0, pageCount)
 
 	for i := 0; i < len(posts); i += pageSize {
 		end := i + pageSize
