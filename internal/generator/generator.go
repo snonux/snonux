@@ -199,16 +199,33 @@ func writePage(tmpl *template.Template, posts []*post.Post, pageIndex, totalPage
 	filename := pageFilename(pageIndex)
 	path := filepath.Join(cfg.OutputDir, filename)
 
-	f, err := os.Create(path)
+	tmpFile, err := os.CreateTemp(cfg.OutputDir, filename+".*.tmp")
 	if err != nil {
-		return fmt.Errorf("create %s: %w", filename, err)
+		return fmt.Errorf("create temp for %s: %w", filename, err)
 	}
-	defer f.Close()
+	tmpPath := tmpFile.Name()
 
-	if err := tmpl.Execute(f, data); err != nil {
+	ok := false
+	defer func() {
+		_ = tmpFile.Close()
+		if !ok {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	if err := tmpl.Execute(tmpFile, data); err != nil {
 		return fmt.Errorf("render %s: %w", filename, err)
 	}
 
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("close temp %s: %w", filename, err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("rename %s: %w", filename, err)
+	}
+
+	ok = true
 	return nil
 }
 

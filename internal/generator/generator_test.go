@@ -448,3 +448,132 @@ func TestRun_writesPagesAndAtom(t *testing.T) {
 		t.Fatalf("index.html missing favicon link: %s", string(indexHTML))
 	}
 }
+
+func TestWritePage(t *testing.T) {
+	t.Parallel()
+
+	meta, err := loadThemeMeta("neon")
+	if err != nil {
+		t.Fatalf("loadThemeMeta: %v", err)
+	}
+	all, err := allThemesJSON()
+	if err != nil {
+		t.Fatalf("allThemesJSON: %v", err)
+	}
+
+	tests := []struct {
+		name            string
+		posts           []*post.Post
+		pageIndex       int
+		totalPages      int
+		baseURL         string
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name:       "happy path one page",
+			posts:      []*post.Post{{ID: "a", Content: "<p>hi</p>"}},
+			pageIndex:  0,
+			totalPages: 1,
+			baseURL:    "https://example.test",
+			wantErr:    false,
+		},
+		{
+			name:       "happy path second page",
+			posts:      []*post.Post{{ID: "b", Content: "<p>bye</p>"}},
+			pageIndex:  1,
+			totalPages: 2,
+			baseURL:    "https://example.test",
+			wantErr:    false,
+		},
+		{
+			name:            "invalid template action triggers error",
+			posts:           []*post.Post{{ID: "x", Content: "<p>y</p>"}},
+			pageIndex:       0,
+			totalPages:      1,
+			baseURL:         "https://example.test",
+			wantErr:         true,
+			wantErrContains: "render index.html",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			out := t.TempDir()
+			cfg := &config.Config{
+				OutputDir: out,
+				BaseURL:   tt.baseURL,
+				Theme:     "neon",
+			}
+
+			var tmpl *template.Template
+			if tt.wantErr {
+				tmpl = template.Must(template.New("page").Parse("{{.NonExistent.X}}"))
+			} else {
+				tmpl = template.Must(template.New("page").Parse("<html>{{.DefaultTheme}}</html>"))
+			}
+
+			err := writePage(tmpl, tt.posts, tt.pageIndex, tt.totalPages, cfg, "neon", meta, all)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if tt.wantErrContains != "" && !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("error %q does not contain %q", err.Error(), tt.wantErrContains)
+				}
+				path := filepath.Join(out, pageFilename(tt.pageIndex))
+				if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+					t.Fatalf("expected %s to be absent after failed write, got statErr=%v", path, statErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			path := filepath.Join(out, pageFilename(tt.pageIndex))
+			b, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read %s: %v", path, err)
+			}
+			got := string(b)
+			if !strings.HasPrefix(got, "<html>") {
+				t.Fatalf("expected HTML output, got %q", got)
+			}
+		})
+	}
+}
+
+func TestWritePage_tempFileCleanedOnError(t *testing.T) {
+	t.Parallel()
+	out := t.TempDir()
+
+	path := filepath.Join(out, "index.html")
+	golden := "golden"
+	if err := os.WriteFile(path, []byte(golden), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		OutputDir: out,
+		BaseURL:   "https://example.test",
+		Theme:     "neon",
+	}
+	meta, _ := loadThemeMeta("neon")
+	all, _ := allThemesJSON()
+	tmpl := template.Must(template.New("page").Parse("{{.NonExistent.X}}"))
+
+	err := writePage(tmpl, []*post.Post{{ID: "a", Content: "<p>x</p>"}}, 0, 1, cfg, "neon", meta, all)
+	if err == nil {
+		t.Fatal("expected error from broken template")
+	}
+
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read existing file: %v", err)
+	}
+	if string(b) != golden {
+		t.Fatalf("existing file was corrupted: got %q, want %q", string(b), golden)
+	}
+}
