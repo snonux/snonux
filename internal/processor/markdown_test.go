@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -121,7 +122,6 @@ func TestFindLocalImages(t *testing.T) {
 			want:    []string{"z.gif"},
 			wantLen: 1,
 		},
-
 	}
 
 	for _, tt := range tests {
@@ -178,7 +178,7 @@ func TestRun_UnreadableMarkdownPreScanFails(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(mdPath, 0o644) })
 
 	cfg := &config.Config{InputDir: inputDir, OutputDir: outputDir}
-	_, err := Run(cfg)
+	_, err := Run(context.Background(), cfg)
 	if err == nil {
 		t.Fatal("Run: expected error when markdown pre-scan cannot read a .md file")
 	}

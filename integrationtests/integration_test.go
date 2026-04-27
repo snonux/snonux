@@ -4,6 +4,7 @@
 package integrationtests
 
 import (
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -23,6 +24,8 @@ import (
 	"codeberg.org/snonux/snonux/internal/processor"
 )
 
+var ctx = context.Background() //nolint:gochecknoglobals // test-only top-level helper used by every test in the file
+
 // runPipeline executes both pipeline stages and returns the config used.
 func runPipeline(t *testing.T, inputDir, outputDir string) *config.Config {
 	t.Helper()
@@ -34,12 +37,12 @@ func runPipeline(t *testing.T, inputDir, outputDir string) *config.Config {
 		Theme:     "neon",
 	}
 
-	_, err := processor.Run(cfg)
+	_, err := processor.Run(ctx, cfg)
 	if err != nil {
 		t.Fatalf("processor.Run: %v", err)
 	}
 
-	if err := generator.Run(cfg); err != nil {
+	if err := generator.Run(ctx, cfg); err != nil {
 		t.Fatalf("generator.Run: %v", err)
 	}
 
@@ -427,10 +430,10 @@ func TestThemeSelection(t *testing.T) {
 				Theme:     theme,
 			}
 
-			if _, err := processor.Run(cfg); err != nil {
+			if _, err := processor.Run(ctx, cfg); err != nil {
 				t.Fatalf("processor.Run: %v", err)
 			}
-			if err := generator.Run(cfg); err != nil {
+			if err := generator.Run(ctx, cfg); err != nil {
 				t.Fatalf("generator.Run for theme %q: %v", theme, err)
 			}
 

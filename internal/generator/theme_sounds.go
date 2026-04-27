@@ -112,7 +112,8 @@ func minor(freq float64) [3]float64 {
 // into the preceding note's step so the next real note triggers later. We
 // can't emit a zero-frequency rest entry because the JS engine substitutes
 // 440 Hz for falsy freq values, which would turn rests into audible tones.
-//   beat = seconds-per-quarter-note. dur multiplier of 1.0 = quarter note.
+//
+//	beat = seconds-per-quarter-note. dur multiplier of 1.0 = quarter note.
 func hook(beat float64, pairs ...float64) []melodyNote {
 	out := make([]melodyNote, 0, len(pairs)/2)
 	leadIn := 0.0

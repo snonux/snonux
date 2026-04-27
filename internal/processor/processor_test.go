@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"context"
 	"image"
 	"image/png"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"codeberg.org/snonux/snonux/internal/post"
 )
 
+var ctx = context.Background() //nolint:gochecknoglobals // test-only top-level helper used by every test in the file
+
 func TestRun_processesTxt(t *testing.T) {
 	t.Parallel()
 
@@ -23,7 +26,7 @@ func TestRun_processesTxt(t *testing.T) {
 	}
 
 	cfg := &config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x.test"}
-	n, err := Run(cfg)
+	n, err := Run(ctx, cfg)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -57,7 +60,7 @@ func TestRun_unsupportedExt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := Run(&config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
+	_, err := Run(ctx, &config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -66,7 +69,7 @@ func TestRun_unsupportedExt(t *testing.T) {
 func TestRun_readInputDirFails(t *testing.T) {
 	t.Parallel()
 
-	_, err := Run(&config.Config{InputDir: "/nonexistent/inbox/xyz", OutputDir: t.TempDir(), BaseURL: "https://x"})
+	_, err := Run(ctx, &config.Config{InputDir: "/nonexistent/inbox/xyz", OutputDir: t.TempDir(), BaseURL: "https://x"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -89,7 +92,7 @@ func TestRun_png(t *testing.T) {
 	}
 	f.Close()
 
-	n, err := Run(&config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
+	n, err := Run(ctx, &config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -107,7 +110,7 @@ func TestRun_mp3(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	n, err := Run(&config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
+	n, err := Run(ctx, &config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -125,7 +128,7 @@ func TestRun_markdown(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	n, err := Run(&config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
+	n, err := Run(ctx, &config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -216,7 +219,7 @@ text`
 		t.Fatal(err)
 	}
 
-	n, err := Run(&config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
+	n, err := Run(ctx, &config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -264,7 +267,7 @@ func TestRun_twoMarkdownsClaimingSameImageFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = Run(&config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
+	_, err = Run(ctx, &config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
 	if err == nil {
 		t.Fatal("expected error when two markdowns claim the same image")
 	}
@@ -307,7 +310,7 @@ func TestRun_duplicateImageClaimsInSameMarkdownAllowed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	n, err := Run(&config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
+	n, err := Run(ctx, &config.Config{InputDir: in, OutputDir: out, BaseURL: "https://x"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

@@ -58,7 +58,9 @@ func splitAndTrim(s string) []string {
 
 // syncOutput rsyncs localOutput (trailing-slash source) to each sync target over SSH
 // port 22. It runs only if every target answers ICMP ping (Linux iputils: ping -c 1 -W …).
-func syncOutput(cfg *config.Config) error {
+// The ctx parameter is accepted for cancellation propagation; it is wired into
+// exec.CommandContext for the rsync subprocesses.
+func syncOutput(ctx context.Context, cfg *config.Config) error {
 	resolveSyncConfig(cfg)
 
 	for _, host := range cfg.SyncTargets {
@@ -87,7 +89,7 @@ func syncOutput(cfg *config.Config) error {
 	for _, host := range cfg.SyncTargets {
 		dest := fmt.Sprintf("%s@%s:%s", sshUser, host, cfg.SyncRemoteDir)
 		log.Printf("rsync %s -> %s", src, dest)
-		cmd := exec.Command("rsync", "-az", "-e", ssh, src, dest)
+		cmd := exec.CommandContext(ctx, "rsync", "-az", "-e", ssh, src, dest)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {

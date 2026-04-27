@@ -87,8 +87,8 @@ func TestResolveSyncConfig_flagsOverrideEnv(t *testing.T) {
 	os.Setenv("SNONUX_SYNC_REMOTE_DIR", "/env/dir/")
 
 	cfg := &config.Config{
-		SyncTargets:     []string{"from-flag"},
-		SyncRemoteDir:   "/flag/dir/",
+		SyncTargets:   []string{"from-flag"},
+		SyncRemoteDir: "/flag/dir/",
 	}
 	resolveSyncConfig(cfg)
 

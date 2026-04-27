@@ -5,6 +5,7 @@
 package atom
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"os"
@@ -48,7 +49,9 @@ type content struct {
 // Generate writes atom.xml to cfg.OutputDir containing the most recent
 // min(len(posts), config.PostsPerPage) entries. Posts must already be sorted
 // newest-first (as produced by generator.Run).
-func Generate(posts []*post.Post, cfg *config.Config) error {
+// The context is currently accepted for API consistency and future
+// cancellation propagation; no blocking I/O operations currently observe it.
+func Generate(ctx context.Context, posts []*post.Post, cfg *config.Config) error {
 	limit := config.PostsPerPage
 	if len(posts) < limit {
 		limit = len(posts)

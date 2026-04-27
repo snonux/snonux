@@ -4,9 +4,10 @@
 // Each processed source file is deleted from the input directory afterward.
 //
 // Processing uses a two-phase commit pattern:
-//   1. Scan and validate every inbox item without mutating anything.
-//   2. Only after all items pass validation, execute mutations
-//      (create directories, write assets, persist posts, remove sources).
+//  1. Scan and validate every inbox item without mutating anything.
+//  2. Only after all items pass validation, execute mutations
+//     (create directories, write assets, persist posts, remove sources).
+//
 // If validation fails for any item, the entire batch is aborted and the inbox
 // is left untouched. If a mutation fails mid-batch, earlier items have already
 // been committed; the failing item is rolled back and the error is returned
@@ -21,6 +22,7 @@
 package processor
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"os"
@@ -38,7 +40,7 @@ import (
 // to the core planning or commit loops are required.
 type PostBuilder interface {
 	// Plan validates the source file and returns everything needed to commit it later.
-	 Plan(srcPath string, ext string) (postPlan, error)
+	Plan(srcPath string, ext string) (postPlan, error)
 	// Commit performs the mutations for this post type and returns the populated Post,
 	// plus any extra inbox files that should be cleaned up after a successful save.
 	Commit(plan postPlan, postDir string, id string, now time.Time) (*post.Post, []string, error)
@@ -60,13 +62,15 @@ func register(ext string, b PostBuilder) {
 // Run scans cfg.InputDir and processes every eligible file into a post directory
 // under cfg.OutputDir/posts/. It uses a two-phase commit pattern:
 //
-//   Phase 1 — scan and validate all inbox items without mutating anything.
-//   Phase 2 — only after all items pass validation, execute mutations
-//             (create directories, write assets, persist posts, remove sources).
+//	Phase 1 — scan and validate all inbox items without mutating anything.
+//	Phase 2 — only after all items pass validation, execute mutations
+//	          (create directories, write assets, persist posts, remove sources).
 //
 // If Phase 1 fails for any item, no mutations occur and the inbox is left untouched.
 // Returns the number of posts successfully created in this invocation.
-func Run(cfg *config.Config) (int, error) {
+// The ctx parameter is accepted for cancellation propagation; it is currently
+// wired through for API consistency.
+func Run(ctx context.Context, cfg *config.Config) (int, error) {
 	entries, err := os.ReadDir(cfg.InputDir)
 	if err != nil {
 		return 0, fmt.Errorf("read input dir %s: %w", cfg.InputDir, err)

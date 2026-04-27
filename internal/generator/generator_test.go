@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"context"
 	"encoding/json"
 	"html/template"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/post"
 )
+
+var ctx = context.Background() //nolint:gochecknoglobals // test-only top-level helper used by every test in the file
 
 func TestPageFilename(t *testing.T) {
 	t.Parallel()
@@ -428,7 +431,7 @@ func TestRun_writesPagesAndAtom(t *testing.T) {
 		BaseURL:   "https://example.test",
 		Theme:     "neon",
 	}
-	if err := Run(cfg); err != nil {
+	if err := Run(ctx, cfg); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(out, "index.html")); err != nil {

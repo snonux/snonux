@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -81,7 +82,9 @@ func allThemesJSON() (template.JS, error) {
 
 // Run loads all posts, generates all HTML pages, and writes atom.xml plus the
 // shared CSS/JS bundles and per-theme asset files.
-func Run(cfg *config.Config) error {
+// The ctx parameter is accepted for cancellation propagation; it is passed
+// through to I/O-bound calls where possible.
+func Run(ctx context.Context, cfg *config.Config) error {
 	posts, err := loadAllPosts(cfg.OutputDir)
 	if err != nil {
 		return err
@@ -131,7 +134,7 @@ func Run(cfg *config.Config) error {
 		}
 	}
 
-	return atom.Generate(posts, cfg)
+	return atom.Generate(ctx, posts, cfg)
 }
 
 // loadAllPosts walks outdir/posts/ and deserialises every post.json found.

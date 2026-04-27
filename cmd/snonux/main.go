@@ -8,6 +8,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -61,12 +62,14 @@ func main() {
 		log.Fatalf("error: %v", err)
 	}
 
-	if err := run(cfg); err != nil {
+	ctx := context.Background()
+
+	if err := run(ctx, cfg); err != nil {
 		log.Fatalf("error: %v", err)
 	}
 
 	if cfg.Sync {
-		if err := syncOutput(cfg); err != nil {
+		if err := syncOutput(ctx, cfg); err != nil {
 			log.Fatalf("error: %v", err)
 		}
 	}
@@ -130,15 +133,15 @@ func expandHome(path string) (string, error) {
 }
 
 // run executes both pipeline phases: process inputs, then regenerate pages.
-func run(cfg *config.Config) error {
-	processed, err := processor.Run(cfg)
+func run(ctx context.Context, cfg *config.Config) error {
+	processed, err := processor.Run(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("processing input files: %w", err)
 	}
 
 	log.Printf("processed %d new post(s) from %s", processed, cfg.InputDir)
 
-	if err := generator.Run(cfg); err != nil {
+	if err := generator.Run(ctx, cfg); err != nil {
 		return fmt.Errorf("generating site: %w", err)
 	}
 

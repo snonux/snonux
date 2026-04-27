@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"math/rand"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/generator"
 )
+
+var ctx = context.Background() //nolint:gochecknoglobals // test-only top-level helper used by every test in the file
 
 func TestExpandHome(t *testing.T) {
 	t.Parallel()
@@ -291,7 +294,7 @@ func TestRun_pipeline(t *testing.T) {
 		BaseURL:   "https://pipe.test",
 		Theme:     "neon",
 	}
-	if err := run(cfg); err != nil {
+	if err := run(ctx, cfg); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(out, "index.html"))

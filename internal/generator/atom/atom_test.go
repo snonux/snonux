@@ -1,6 +1,7 @@
 package atom
 
 import (
+	"context"
 	"encoding/xml"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/post"
 )
+
+var ctx = context.Background() //nolint:gochecknoglobals // test-only top-level helper used by every test in the file
 
 func TestGenerate_writesAtomXML(t *testing.T) {
 	t.Parallel()
@@ -28,7 +31,7 @@ func TestGenerate_writesAtomXML(t *testing.T) {
 		},
 	}
 
-	if err := Generate(posts, cfg); err != nil {
+	if err := Generate(ctx, posts, cfg); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 
@@ -54,7 +57,7 @@ func TestGenerate_emptyPosts(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{OutputDir: dir, BaseURL: "https://x.test"}
 
-	if err := Generate(nil, cfg); err != nil {
+	if err := Generate(ctx, nil, cfg); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 
@@ -90,7 +93,7 @@ func TestGenerate_limitPostsPerPage(t *testing.T) {
 		})
 	}
 
-	if err := Generate(posts, cfg); err != nil {
+	if err := Generate(ctx, posts, cfg); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 
