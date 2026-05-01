@@ -1,0 +1,47 @@
+Cinzel and Spectral
+===================
+
+This directory bundles the web fonts:
+
+    cinzel-v26-latin_latin-ext-regular.woff2     (weight 400)
+    spectral-v15-latin_latin-ext-regular.woff2   (weight 400)
+    spectral-v15-latin_latin-ext-600.woff2       (weight 600)
+
+Subsets: latin, latin-ext.
+
+Source / version
+----------------
+- Cinzel family page  : https://fonts.google.com/specimen/Cinzel
+- Cinzel designer     : Natanael Gama
+- Cinzel webfont set  : cinzel-v26 (latin + latin-ext, woff2)
+- Cinzel project      : https://github.com/NDISCOVER/Cinzel
+
+- Spectral family page: https://fonts.google.com/specimen/Spectral
+- Spectral designer   : Production Type
+- Spectral webfont set: spectral-v15 (latin + latin-ext, woff2)
+- Spectral project    : https://github.com/productiontype/Spectral
+
+- Fetched via         : https://gwfh.mranftl.com/ (Webfonts Helper)
+- Cinzel download URL : https://gwfh.mranftl.com/api/fonts/cinzel?download=zip&subsets=latin,latin-ext&formats=woff2&variants=regular
+- Spectral download URL: https://gwfh.mranftl.com/api/fonts/spectral?download=zip&subsets=latin,latin-ext&formats=woff2&variants=regular,600
+- Fetched on          : 2026-05-01
+
+License
+-------
+SIL Open Font License, Version 1.1.
+
+  - Summary    : https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web
+  - Full text  : https://openfontlicense.org/open-font-license-official-text/
+
+The OFL allows free use, modification, and redistribution of the font,
+including embedding in commercial products. Any standalone modified
+version of the font itself must be released under the same license and
+must not use the Reserved Font Names "Cinzel" or "Spectral".
+
+Required attribution
+--------------------
+Font: "Cinzel" by Natanael Gama - https://github.com/NDISCOVER/Cinzel
+      Licensed under the SIL Open Font License 1.1.
+
+Font: "Spectral" by Production Type - https://github.com/productiontype/Spectral
+      Licensed under the SIL Open Font License 1.1.

@@ -136,6 +136,12 @@ Bundled web fonts:
   Natanael Gama, from [Google Fonts](https://fonts.google.com/specimen/Exo+2),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/cosmos/FONT_LICENSE.txt](internal/generator/templates/themes/cosmos/FONT_LICENSE.txt).
+- **cathedral** — *Cinzel* Regular and *Spectral* Regular + SemiBold
+  (.woff2, latin+latin-ext) by Natanael Gama and Production Type, from
+  Google Fonts ([Cinzel](https://fonts.google.com/specimen/Cinzel),
+  [Spectral](https://fonts.google.com/specimen/Spectral)),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/cathedral/FONT_LICENSE.txt](internal/generator/templates/themes/cathedral/FONT_LICENSE.txt).
 - **matrix** — *VT323* Regular (.woff2, latin+latin-ext) by Peter Hull,
   from [Google Fonts](https://fonts.google.com/specimen/VT323),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
