@@ -1,8 +1,19 @@
+        /* Bundled bitmap font: "WebPlus IBM VGA 8x16" by VileR
+           (https://int10h.org/oldschool-pc-fonts/), used unmodified under
+           CC BY-SA 4.0. See FONT_LICENSE.txt in this directory. */
+        @font-face {
+            font-family: 'WebPlus IBM VGA 8x16';
+            src: url('WebPlus_IBM_VGA_8x16.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
         :root { --dos-blue:#0000aa; --dos-lblue:#5555ff; --dos-white:#aaaaaa;
                 --dos-bwhite:#ffffff; --dos-yellow:#ffff55; --dos-cyan:#55ffff;
-                --dos-red:#ff5555; --dos-bg:#000088; --dos-black:#000000; }
+                --dos-red:#ff5555; --dos-bg:#000088; --dos-black:#000000;
+                --dos-font:'WebPlus IBM VGA 8x16','VT323','Courier New',monospace; }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:'VT323','Courier New',monospace; background:var(--dos-blue);
+        body { font-family:var(--dos-font); background:var(--dos-blue);
                color:var(--dos-bwhite); overflow:hidden; height:100vh; height:100dvh; font-size:18px; }
         #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
         .overlay { position:relative; z-index:10; height:100vh; height:100dvh; display:flex; flex-direction:column; }
@@ -58,12 +69,12 @@
                        border:2px solid var(--dos-yellow); padding:24px;
                        box-shadow:0 0 20px rgba(85,85,255,0.4); }
         .modal-close { float:right; background:var(--dos-white); border:2px outset var(--dos-bwhite);
-                       color:var(--dos-blue); font-family:'VT323','Courier New',monospace;
+                       color:var(--dos-blue); font-family:var(--dos-font);
                        font-size:1rem; cursor:pointer; padding:2px 8px; }
         .modal-close:hover { background:var(--dos-blue); color:var(--dos-bwhite);
                              border-style:inset; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:6px 12px;} .content{padding:8px 12px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
-        [data-sno-theme="dos"] .splash-overlay { background:var(--dos-blue); font-family:'VT323','Courier New',monospace; }
+        [data-sno-theme="dos"] .splash-overlay { background:var(--dos-blue); font-family:var(--dos-font); }
         [data-sno-theme="dos"] .splash-inner { position:relative; z-index:1; }
         [data-sno-theme="dos"] .splash-title {
             font-size:clamp(1.4rem,4.5vw,2rem); color:var(--dos-bwhite);

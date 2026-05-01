@@ -352,6 +352,18 @@ func writeThemeAsset(dir, name string) error {
 		return fmt.Errorf("write %s/sounds.json: %w", name, err)
 	}
 
+	// Copy any additional per-theme files verbatim (e.g. bundled web fonts
+	// like .woff and their accompanying FONT_LICENSE.txt notices).
+	extras, err := templates.ThemeExtraFiles(name)
+	if err != nil {
+		return fmt.Errorf("list %s extras: %w", name, err)
+	}
+	for _, f := range extras {
+		if err := os.WriteFile(filepath.Join(dir, f.Name), f.Data, 0o644); err != nil {
+			return fmt.Errorf("write %s/%s: %w", name, f.Name, err)
+		}
+	}
+
 	return nil
 }
 

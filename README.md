@@ -111,3 +111,35 @@ dist/
 ## License
 
 See [LICENSE](LICENSE).
+
+### Third-party assets
+
+snonux self-hosts every third-party asset it ships — there are no
+runtime requests to Google Fonts, gstatic, int10h, or any other CDN.
+Each font file lives next to its theme stylesheet under
+`internal/generator/templates/themes/<name>/`, is committed to git,
+and is shipped to `dist/themes/<name>/` together with a
+`FONT_LICENSE.txt` containing the source URL, version/date, and full
+attribution.
+
+Bundled web fonts:
+
+- **dos** — *WebPlus IBM VGA 8x16* (.woff) by VileR, from the
+  [Ultimate Oldschool PC Font Pack v2.2](https://int10h.org/oldschool-pc-fonts/),
+  [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+  See [internal/generator/templates/themes/dos/FONT_LICENSE.txt](internal/generator/templates/themes/dos/FONT_LICENSE.txt).
+
+When adding a new bundled font:
+
+1. Download the actual file (`.woff2` preferred, `.woff` accepted) into
+   `internal/generator/templates/themes/<name>/` and commit it.
+2. Add or update `internal/generator/templates/themes/<name>/FONT_LICENSE.txt`
+   with attribution, license, source URL, and version/date.
+3. Add an `@font-face` block in that theme's `theme.css` using a
+   relative `url(...)` to the bundled file.
+4. Add a bullet here pointing at the new `FONT_LICENSE.txt`.
+
+The embed pipeline ([internal/generator/templates/embed.go](internal/generator/templates/embed.go))
+automatically picks up `*.woff`, `*.woff2`, and `FONT_LICENSE.txt`
+inside any theme directory, and `writeThemeAsset` copies them out to
+`dist/themes/<name>/` — no Go code changes needed for new fonts.
