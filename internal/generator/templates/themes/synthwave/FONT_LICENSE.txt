@@ -1,0 +1,48 @@
+Synthwave theme fonts
+=====================
+
+This directory bundles the web fonts:
+
+    RussoOne-Regular.woff2       (weight 400)
+    ShareTechMono-Regular.woff2  (weight 400)
+
+Subsets:
+
+    Russo One       latin, latin-ext
+    Share Tech Mono latin, latin-ext
+
+Source / version
+----------------
+- Russo One family page       : https://fonts.google.com/specimen/Russo+One
+- Russo One designer          : Jovanny Lemonad
+- Russo One webfont set       : russo-one-v18 (latin + latin-ext, woff2)
+- Russo One fetched via       : https://gwfh.mranftl.com/fonts/russo-one (Webfonts Helper)
+- Russo One fetched on        : 2026-05-01
+- Share Tech Mono family page : https://fonts.google.com/specimen/Share+Tech+Mono
+- Share Tech Mono designer    : Carrois Apostrophe
+- Share Tech Mono webfont set : share-tech-mono-v16 (latin + latin-ext, TTF from Google Fonts CSS2, subset=latin-ext)
+- Share Tech Mono fetched via : https://fonts.google.com/specimen/Share+Tech+Mono
+- Share Tech Mono converted   : TTF to woff2 with fonttools pyftsubset --flavor=woff2
+- Share Tech Mono fetched on  : 2026-05-01
+
+License
+-------
+SIL Open Font License, Version 1.1.
+
+  - Summary    : https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web
+  - Full text  : https://openfontlicense.org/open-font-license-official-text/
+  - Russo One source       : https://github.com/google/fonts/tree/main/ofl/russoone
+  - Share Tech Mono source : https://github.com/google/fonts/tree/main/ofl/sharetechmono
+
+The OFL allows free use, modification, and redistribution of the font,
+including embedding in commercial products. Any standalone modified
+version of the font itself must be released under the same license and
+must not use the Reserved Font Names "Russo One" or "Share Tech Mono".
+
+Required attribution
+--------------------
+Font: "Russo One" by Jovanny Lemonad - https://github.com/google/fonts/tree/main/ofl/russoone
+      Licensed under the SIL Open Font License 1.1.
+
+Font: "Share Tech Mono" by Carrois Apostrophe - https://github.com/google/fonts/tree/main/ofl/sharetechmono
+      Licensed under the SIL Open Font License 1.1.
