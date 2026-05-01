@@ -199,6 +199,10 @@ Bundled web fonts:
   JetBrains, from [Google Fonts](https://fonts.google.com/specimen/JetBrains+Mono),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/terminal/FONT_LICENSE.txt](internal/generator/templates/themes/terminal/FONT_LICENSE.txt).
+- **tropicale** — *Quicksand* Regular + Medium (.woff2, latin+latin-ext) by
+  Andrew Paglinawan, from [Google Fonts](https://fonts.google.com/specimen/Quicksand),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/tropicale/FONT_LICENSE.txt](internal/generator/templates/themes/tropicale/FONT_LICENSE.txt).
 
 When adding a new bundled font:
 
