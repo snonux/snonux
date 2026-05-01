@@ -466,6 +466,11 @@ func TestThemeSelection(t *testing.T) {
 					"orbitron-v35-latin_latin-ext-regular.woff2",
 					"share-tech-mono-v16-latin_latin-ext-regular.woff2",
 				},
+				"tropicale": {
+					"FONT_LICENSE.txt",
+					"quicksand-v37-latin_latin-ext-500.woff2",
+					"quicksand-v37-latin_latin-ext-regular.woff2",
+				},
 			}
 			fontURLs := map[string][]string{
 				"matrix": {"url('VT323-Regular.woff2')"},
@@ -474,6 +479,10 @@ func TestThemeSelection(t *testing.T) {
 					"url('orbitron-v35-latin_latin-ext-700.woff2')",
 					"url('orbitron-v35-latin_latin-ext-regular.woff2')",
 					"url('share-tech-mono-v16-latin_latin-ext-regular.woff2')",
+				},
+				"tropicale": {
+					"url('quicksand-v37-latin_latin-ext-500.woff2')",
+					"url('quicksand-v37-latin_latin-ext-regular.woff2')",
 				},
 			}
 			if assets, ok := fontAssets[theme]; ok {
