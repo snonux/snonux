@@ -457,24 +457,24 @@ func TestThemeSelection(t *testing.T) {
 					t.Fatalf("theme asset %s is empty", path)
 				}
 			}
-			if theme == "matrix" {
-				matrixDir := filepath.Join(outputDir, "themes", "matrix")
+			if theme == "matrix" || theme == "retro" {
+				themeDir := filepath.Join(outputDir, "themes", theme)
 				for _, fname := range []string{"VT323-Regular.woff2", "FONT_LICENSE.txt"} {
-					path := filepath.Join(matrixDir, fname)
+					path := filepath.Join(themeDir, fname)
 					info, err := os.Stat(path)
 					if err != nil {
-						t.Fatalf("matrix extra asset missing %s: %v", path, err)
+						t.Fatalf("%s extra asset missing %s: %v", theme, path, err)
 					}
 					if info.Size() == 0 {
-						t.Fatalf("matrix extra asset %s is empty", path)
+						t.Fatalf("%s extra asset %s is empty", theme, path)
 					}
 				}
 
-				matrixCSS := readFile(t, filepath.Join(matrixDir, "theme.css"))
-				assertContains(t, matrixCSS, "url('VT323-Regular.woff2')", "matrix local font URL")
+				themeCSS := readFile(t, filepath.Join(themeDir, "theme.css"))
+				assertContains(t, themeCSS, "url('VT323-Regular.woff2')", theme+" local font URL")
 				for _, forbidden := range []string{"googleapis", "gstatic", "fonts.cdn", "@import url(http"} {
-					if strings.Contains(matrixCSS, forbidden) {
-						t.Fatalf("matrix theme.css contains runtime third-party font reference %q", forbidden)
+					if strings.Contains(themeCSS, forbidden) {
+						t.Fatalf("%s theme.css contains runtime third-party font reference %q", theme, forbidden)
 					}
 				}
 			}

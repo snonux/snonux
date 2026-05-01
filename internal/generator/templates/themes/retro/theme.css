@@ -1,6 +1,16 @@
+        /* Self-hosted web font: VT323 by Peter Hull (SIL OFL 1.1).
+           Source: https://fonts.google.com/specimen/VT323
+           See FONT_LICENSE.txt in this directory. */
+        @font-face {
+            font-family: 'VT323';
+            src: url('VT323-Regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
         :root { --amber:#ffb000; --dim:#7a5200; --bg:#0a0800; --bg2:#050300; }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:'Courier New',Courier,monospace; background:var(--bg); color:var(--amber);
+        body { font-family:'VT323','Courier New',Courier,monospace; background:var(--bg); color:var(--amber);
                overflow:hidden; height:100vh; height:100dvh; }
         /* Phosphor scanlines overlay — sits above WebGL */
         body::before { content:''; position:fixed; inset:0; z-index:999; pointer-events:none;
@@ -62,7 +72,7 @@
         .modal-close { float:right; background:none; border:none; color:var(--dim);
                        font-family:monospace; font-size:0.9rem; cursor:pointer; letter-spacing:2px; }
         @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .content{padding:10px 16px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
-        [data-sno-theme="retro"] .splash-overlay { background: var(--bg); font-family:'Courier New',monospace; }
+        [data-sno-theme="retro"] .splash-overlay { background: var(--bg); font-family:'VT323','Courier New',monospace; }
         [data-sno-theme="retro"]::after {
             content:''; position:absolute; inset:0; pointer-events:none; opacity:0.35;
             background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.2) 2px, rgba(0,0,0,0.2) 4px);

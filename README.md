@@ -136,6 +136,10 @@ Bundled web fonts:
   from [Google Fonts](https://fonts.google.com/specimen/VT323),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/matrix/FONT_LICENSE.txt](internal/generator/templates/themes/matrix/FONT_LICENSE.txt).
+- **retro** — *VT323* Regular (.woff2, latin+latin-ext) by Peter Hull,
+  from [Google Fonts](https://fonts.google.com/specimen/VT323),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/retro/FONT_LICENSE.txt](internal/generator/templates/themes/retro/FONT_LICENSE.txt).
 - **synthwave** — *Russo One* Regular (.woff2, latin+latin-ext) by
   Jovanny Lemonad and *Share Tech Mono* Regular (.woff2, latin+latin-ext) by
   Carrois Apostrophe, from Google Fonts
