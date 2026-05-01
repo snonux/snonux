@@ -1,3 +1,4 @@
+        /* Brutalist authenticity: use raw system fonts instead of bundled custom font assets. */
         :root { --red:#ff2200; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:Impact,'Arial Narrow',Arial,sans-serif;
