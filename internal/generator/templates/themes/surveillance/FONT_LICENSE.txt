@@ -1,0 +1,38 @@
+Share Tech Mono
+===============
+
+This directory bundles the web font:
+
+    share-tech-mono-v16-latin_latin-ext-regular.woff2 (weight 400)
+
+Subset:
+
+    latin, latin-ext
+
+Source / version
+----------------
+- Family page      : https://fonts.google.com/specimen/Share+Tech+Mono
+- Designer         : Carrois Apostrophe
+- Webfont set      : share-tech-mono-v16 (latin + latin-ext)
+- Fetched via      : Google Fonts CSS2 API for Share Tech Mono 400
+- Upstream source  : https://github.com/google/fonts/tree/main/ofl/sharetechmono
+- Converted        : TTF to woff2 with fonttools pyftsubset --flavor=woff2
+- Fetched on       : 2026-05-01
+
+License
+-------
+SIL Open Font License, Version 1.1.
+
+  - Summary   : https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web
+  - Full text : https://openfontlicense.org/open-font-license-official-text/
+  - Source    : https://github.com/google/fonts/tree/main/ofl/sharetechmono
+
+The OFL allows free use, modification, and redistribution of the font,
+including embedding in commercial products. Any standalone modified
+version of the font itself must be released under the same license and
+must not use the Reserved Font Name "Share Tech Mono".
+
+Required attribution
+--------------------
+Font: "Share Tech Mono" by Carrois Apostrophe - https://github.com/google/fonts/tree/main/ofl/sharetechmono
+      Licensed under the SIL Open Font License 1.1.

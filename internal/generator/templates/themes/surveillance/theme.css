@@ -1,3 +1,13 @@
+        /* Self-hosted web font: Share Tech Mono (SIL OFL 1.1).
+           Source: https://fonts.google.com/specimen/Share+Tech+Mono
+           See FONT_LICENSE.txt in this directory. */
+        @font-face {
+            font-family: 'Share Tech Mono';
+            src: url('share-tech-mono-v16-latin_latin-ext-regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
         :root { --phosphor:#bcffd4; --green:#63f3a8; --grey:#88a197; --alert:#ff4d5c; --bg:#09100d; --panel:#101916; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Share Tech Mono','Courier New',monospace; background:var(--bg); color:var(--phosphor); overflow:hidden; height:100vh; height:100dvh; }

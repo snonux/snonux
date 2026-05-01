@@ -171,6 +171,10 @@ Bundled web fonts:
   from [Google Fonts](https://fonts.google.com/specimen/VT323),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/retro/FONT_LICENSE.txt](internal/generator/templates/themes/retro/FONT_LICENSE.txt).
+- **surveillance** — *Share Tech Mono* Regular (.woff2, latin+latin-ext)
+  by Carrois Apostrophe, from [Google Fonts](https://fonts.google.com/specimen/Share+Tech+Mono),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/surveillance/FONT_LICENSE.txt](internal/generator/templates/themes/surveillance/FONT_LICENSE.txt).
 - **synthwave** — *Russo One* Regular (.woff2, latin+latin-ext) by
   Jovanny Lemonad and *Share Tech Mono* Regular (.woff2, latin+latin-ext) by
   Carrois Apostrophe, from Google Fonts
