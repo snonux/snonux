@@ -457,9 +457,28 @@ func TestThemeSelection(t *testing.T) {
 					t.Fatalf("theme asset %s is empty", path)
 				}
 			}
-			if theme == "matrix" || theme == "retro" {
+			fontAssets := map[string][]string{
+				"matrix": {"VT323-Regular.woff2", "FONT_LICENSE.txt"},
+				"retro":  {"VT323-Regular.woff2", "FONT_LICENSE.txt"},
+				"retrofuture": {
+					"FONT_LICENSE.txt",
+					"orbitron-v35-latin_latin-ext-700.woff2",
+					"orbitron-v35-latin_latin-ext-regular.woff2",
+					"share-tech-mono-v16-latin_latin-ext-regular.woff2",
+				},
+			}
+			fontURLs := map[string][]string{
+				"matrix": {"url('VT323-Regular.woff2')"},
+				"retro":  {"url('VT323-Regular.woff2')"},
+				"retrofuture": {
+					"url('orbitron-v35-latin_latin-ext-700.woff2')",
+					"url('orbitron-v35-latin_latin-ext-regular.woff2')",
+					"url('share-tech-mono-v16-latin_latin-ext-regular.woff2')",
+				},
+			}
+			if assets, ok := fontAssets[theme]; ok {
 				themeDir := filepath.Join(outputDir, "themes", theme)
-				for _, fname := range []string{"VT323-Regular.woff2", "FONT_LICENSE.txt"} {
+				for _, fname := range assets {
 					path := filepath.Join(themeDir, fname)
 					info, err := os.Stat(path)
 					if err != nil {
@@ -471,7 +490,9 @@ func TestThemeSelection(t *testing.T) {
 				}
 
 				themeCSS := readFile(t, filepath.Join(themeDir, "theme.css"))
-				assertContains(t, themeCSS, "url('VT323-Regular.woff2')", theme+" local font URL")
+				for _, fontURL := range fontURLs[theme] {
+					assertContains(t, themeCSS, fontURL, theme+" local font URL")
+				}
 				for _, forbidden := range []string{"googleapis", "gstatic", "fonts.cdn", "@import url(http"} {
 					if strings.Contains(themeCSS, forbidden) {
 						t.Fatalf("%s theme.css contains runtime third-party font reference %q", theme, forbidden)

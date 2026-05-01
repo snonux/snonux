@@ -161,6 +161,12 @@ Bundled web fonts:
   Indian Type Foundry, from [Google Fonts](https://fonts.google.com/specimen/Rajdhani),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/plasma/FONT_LICENSE.txt](internal/generator/templates/themes/plasma/FONT_LICENSE.txt).
+- **retrofuture** — *Orbitron* Regular + Bold and *Share Tech Mono* Regular
+  (.woff2, latin+latin-ext) by The Orbitron Project Authors and Carrois
+  Apostrophe, from Google Fonts ([Orbitron](https://fonts.google.com/specimen/Orbitron),
+  [Share Tech Mono](https://fonts.google.com/specimen/Share+Tech+Mono)),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/retrofuture/FONT_LICENSE.txt](internal/generator/templates/themes/retrofuture/FONT_LICENSE.txt).
 - **retro** — *VT323* Regular (.woff2, latin+latin-ext) by Peter Hull,
   from [Google Fonts](https://fonts.google.com/specimen/VT323),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).

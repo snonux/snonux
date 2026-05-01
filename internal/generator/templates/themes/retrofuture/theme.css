@@ -1,3 +1,28 @@
+        /* Self-hosted web fonts: Orbitron and Share Tech Mono (SIL OFL 1.1).
+           Sources: https://fonts.google.com/specimen/Orbitron and
+           https://fonts.google.com/specimen/Share+Tech+Mono
+           See FONT_LICENSE.txt in this directory. */
+        @font-face {
+            font-family: 'Orbitron';
+            src: url('orbitron-v35-latin_latin-ext-regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Orbitron';
+            src: url('orbitron-v35-latin_latin-ext-700.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Share Tech Mono';
+            src: url('share-tech-mono-v16-latin_latin-ext-regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
         :root { --pink:#ff6b9d; --purple:#00d9c0; --orange:#ff8c42; --bg:#0a0121; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Share Tech Mono',monospace; background:var(--bg);
