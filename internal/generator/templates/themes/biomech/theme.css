@@ -1,3 +1,20 @@
+        /* Self-hosted web font: Oxanium by Tyler Finck (SIL OFL 1.1).
+           Source: https://fonts.google.com/specimen/Oxanium
+           See FONT_LICENSE.txt in this directory. */
+        @font-face {
+            font-family: 'Oxanium';
+            src: url('Oxanium-Regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Oxanium';
+            src: url('Oxanium-Bold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
         :root { --bone:#d0c7bb; --flesh:#803f5d; --vein:#f55b7d; --acid:#93ffd8; --steel:#2d3642; --bg:#09070d; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Oxanium',system-ui,sans-serif; background:var(--bg); color:var(--bone); overflow:hidden; height:100vh; height:100dvh; }

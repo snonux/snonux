@@ -31,12 +31,10 @@ import (
 // and writeThemeAsset.
 //
 // NOTE on the embed glob below: //go:embed requires every pattern to
-// match at least one file, so each font extension is only added once
-// the first theme actually ships such a file. When you introduce the
-// first .woff2 file (or any new extension), append the matching glob
-// here, e.g.:  themes/*/*.woff2
+// match at least one file. When you introduce a new font extension
+// that no other theme uses yet, append the matching glob here.
 //
-//go:embed shell.tmpl shared/*.tmpl shared/shared.css shared/shared.js themes/*/theme.css themes/*/theme.js themes/*/meta.json themes/*/sounds.json themes/*/*.woff themes/*/FONT_LICENSE.txt
+//go:embed shell.tmpl shared/*.tmpl shared/shared.css shared/shared.js themes/*/theme.css themes/*/theme.js themes/*/meta.json themes/*/sounds.json themes/*/*.woff themes/*/*.woff2 themes/*/FONT_LICENSE.txt
 var FS embed.FS
 
 // themeStandardFiles lists the per-theme files that have dedicated
