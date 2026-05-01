@@ -1283,14 +1283,27 @@
     // === KEYBOARD NAVIGATION ===
     // j / ArrowDown  → next post       k / ArrowUp    → previous post
     // h / ArrowLeft  → previous page   l / ArrowRight → next page
-    // PageUp/PageDown → scroll the post list; re-highlight post at top of visible area
+    // PageUp/PageDown → scroll the post list; re-highlight post nearest visible center
     // Enter / click post → expand modal    Esc → close modal
     const posts = document.querySelectorAll('.post');
     let currentIndex = posts.length > 0 ? 0 : -1;
+    var scrollSelectionFrame = null;
+    var scrollSelectionSoundAt = 0;
+    var ignoreScrollSelectionUntil = 0;
+    var SCROLL_SELECTION_SOUND_GAP = 180;
+    var PROGRAMMATIC_SCROLL_SUPPRESS_MS = 650;
     var prevPageURL = (typeof window !== "undefined") ? (window.snonuxPrevPageURL || null) : null;
     var nextPageURL = (typeof window !== "undefined") ? (window.snonuxNextPageURL || null) : null;
 
     if (currentIndex >= 0) selectPost(0);
+
+    function postListScroller() {
+        return document.getElementById('post-content');
+    }
+
+    function markProgrammaticPostScroll() {
+        ignoreScrollSelectionUntil = Date.now() + PROGRAMMATIC_SCROLL_SUPPRESS_MS;
+    }
 
     function setActiveHighlight(index, playSound, scrollIntoView) {
         if (posts.length === 0) return;
@@ -1310,6 +1323,7 @@
             ghost.classList.add('sno-afterimage-active');
         }
         if (scrollIntoView) {
+            markProgrammaticPostScroll();
             posts[currentIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
         if (playSound) playNavSound();
@@ -1327,31 +1341,88 @@
         if (window.snonuxNavEffect) window.snonuxNavEffect();
     }
 
-    /** Pick the post that should be active for the current viewport (anchor near top of visible area). */
+    /** Pick the post that should be active for the current viewport (nearest the visible center). */
     function activeIndexForVisibleRegion(sc) {
         if (posts.length === 0) return -1;
-        var scrTop, scrBot, anchorY;
+        var scrTop, scrBot, centerY;
         if (sc) {
             var scr = sc.getBoundingClientRect();
             scrTop = scr.top;
             scrBot = scr.bottom;
-            anchorY = scr.top + Math.min(scr.height * 0.18, 100);
+            centerY = scr.top + (scr.height / 2);
         } else {
             scrTop = 0;
             scrBot = window.innerHeight;
-            anchorY = window.innerHeight * 0.15;
+            centerY = window.innerHeight / 2;
         }
-        var i, pr;
+        var i, pr, visTop, visBot, distance;
+        var bestIndex = -1;
+        var bestDistance = Infinity;
         for (i = 0; i < posts.length; i++) {
             pr = posts[i].getBoundingClientRect();
-            if (pr.top <= anchorY && anchorY < pr.bottom) return i;
+            if (pr.top <= centerY && centerY < pr.bottom) return i;
         }
         for (i = 0; i < posts.length; i++) {
             pr = posts[i].getBoundingClientRect();
-            if (pr.bottom > scrTop && pr.top < scrBot) return i;
+            if (pr.bottom <= scrTop || pr.top >= scrBot) continue;
+            visTop = Math.max(pr.top, scrTop);
+            visBot = Math.min(pr.bottom, scrBot);
+            distance = Math.abs(((visTop + visBot) / 2) - centerY);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = i;
+            }
         }
-        return posts.length - 1;
+        if (bestIndex >= 0) return bestIndex;
+        for (i = 0; i < posts.length; i++) {
+            pr = posts[i].getBoundingClientRect();
+            distance = Math.abs(((pr.top + pr.bottom) / 2) - centerY);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = i;
+            }
+        }
+        return bestIndex;
     }
+
+    function updateActiveFromUserScroll(sc) {
+        if (Date.now() < ignoreScrollSelectionUntil) return;
+        var nextIndex = activeIndexForVisibleRegion(sc);
+        if (nextIndex < 0 || nextIndex === currentIndex) return;
+
+        var prevIndex = currentIndex;
+        var now = Date.now();
+        var playSound = (now - scrollSelectionSoundAt) >= SCROLL_SELECTION_SOUND_GAP;
+        setActiveHighlight(nextIndex, playSound, false);
+        if (playSound) {
+            scrollSelectionSoundAt = now;
+            if (window.snonuxScrollEffect) {
+                var direction = nextIndex > prevIndex ? 'down' : 'up';
+                window.snonuxScrollEffect(direction);
+            }
+        }
+    }
+
+    function scheduleScrollDrivenSelection(sc) {
+        if (Date.now() < ignoreScrollSelectionUntil || scrollSelectionFrame !== null) return;
+        scrollSelectionFrame = requestAnimationFrame(function() {
+            scrollSelectionFrame = null;
+            updateActiveFromUserScroll(sc);
+        });
+    }
+
+    (function setupScrollDrivenSelection() {
+        var sc = postListScroller();
+        if (sc) {
+            sc.addEventListener('scroll', function() {
+                scheduleScrollDrivenSelection(sc);
+            }, { passive: true });
+        } else {
+            window.addEventListener('scroll', function() {
+                scheduleScrollDrivenSelection(null);
+            }, { passive: true });
+        }
+    })();
 
     function playNavSound() {
         try {
@@ -1812,9 +1883,10 @@
         switch (e.key) {
             case 'PageUp':
             case 'PageDown': {
-                var sc = document.getElementById('post-content');
+                var sc = postListScroller();
                 var step = (sc && sc.clientHeight) ? sc.clientHeight : window.innerHeight;
                 var dy = (e.key === 'PageUp') ? -step : step;
+                markProgrammaticPostScroll();
                 if (sc) {
                     sc.scrollTop += dy;
                 } else {
@@ -2030,4 +2102,3 @@
             snonuxSwitchTheme(sel.value);
         });
     })();
-

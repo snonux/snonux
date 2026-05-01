@@ -374,6 +374,9 @@ func TestKeyboardNavJS(t *testing.T) {
 	assertContains(t, sharedCSS, `.post-active`, "shared.css .post-active rule")
 	sharedJS := readFile(t, filepath.Join(outputDir, "shared.js"))
 	assertContains(t, sharedJS, `playNavSound`, "shared.js playNavSound function")
+	assertContains(t, sharedJS, `setupScrollDrivenSelection`, "shared.js scroll-driven selection")
+	assertContains(t, sharedJS, `activeIndexForVisibleRegion(sc)`, "shared.js visible center selection")
+	assertContains(t, sharedJS, `SCROLL_SELECTION_SOUND_GAP`, "shared.js throttles scroll selection sound")
 
 	// Final shortcut mapping: p = ambient playback start/pause, f = flash.
 	assertContains(t, sharedJS, "case 'p':", "shared.js p key handler")
