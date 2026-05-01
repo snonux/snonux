@@ -1,0 +1,36 @@
+Outfit
+======
+
+This directory bundles the web fonts:
+
+    outfit-v15-latin_latin-ext-regular.woff2  (weight 400)
+    outfit-v15-latin_latin-ext-500.woff2      (weight 500)
+
+Subsets: latin, latin-ext.
+
+Source / version
+----------------
+- Family page : https://fonts.google.com/specimen/Outfit
+- Designer    : Rodrigo Fuenzalida
+- Webfont set : outfit-v15 (latin + latin-ext, woff2)
+- Fetched via : https://gwfh.mranftl.com/fonts/outfit (Webfonts Helper)
+- Download URL: https://gwfh.mranftl.com/api/fonts/outfit?download=zip&subsets=latin,latin-ext&formats=woff2&variants=regular,500
+- Fetched on  : 2026-05-01
+- Project     : https://github.com/Outfitio/Outfit-Fonts
+
+License
+-------
+SIL Open Font License, Version 1.1.
+
+  - Summary    : https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web
+  - Full text  : https://openfontlicense.org/open-font-license-official-text/
+
+The OFL allows free use, modification, and redistribution of the font,
+including embedding in commercial products. Any standalone modified
+version of the font itself must be released under the same license and
+must not use the Reserved Font Name "Outfit".
+
+Required attribution
+--------------------
+Font: "Outfit" by Rodrigo Fuenzalida - https://github.com/Outfitio/Outfit-Fonts
+      Licensed under the SIL Open Font License 1.1.
