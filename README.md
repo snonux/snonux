@@ -136,6 +136,10 @@ Bundled web fonts:
   from [Google Fonts](https://fonts.google.com/specimen/VT323),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/matrix/FONT_LICENSE.txt](internal/generator/templates/themes/matrix/FONT_LICENSE.txt).
+- **plasma** — *Rajdhani* Regular + SemiBold (.woff2, latin+latin-ext) by
+  Indian Type Foundry, from [Google Fonts](https://fonts.google.com/specimen/Rajdhani),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/plasma/FONT_LICENSE.txt](internal/generator/templates/themes/plasma/FONT_LICENSE.txt).
 - **retro** — *VT323* Regular (.woff2, latin+latin-ext) by Peter Hull,
   from [Google Fonts](https://fonts.google.com/specimen/VT323),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
