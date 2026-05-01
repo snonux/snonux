@@ -457,6 +457,27 @@ func TestThemeSelection(t *testing.T) {
 					t.Fatalf("theme asset %s is empty", path)
 				}
 			}
+			if theme == "matrix" {
+				matrixDir := filepath.Join(outputDir, "themes", "matrix")
+				for _, fname := range []string{"VT323-Regular.woff2", "FONT_LICENSE.txt"} {
+					path := filepath.Join(matrixDir, fname)
+					info, err := os.Stat(path)
+					if err != nil {
+						t.Fatalf("matrix extra asset missing %s: %v", path, err)
+					}
+					if info.Size() == 0 {
+						t.Fatalf("matrix extra asset %s is empty", path)
+					}
+				}
+
+				matrixCSS := readFile(t, filepath.Join(matrixDir, "theme.css"))
+				assertContains(t, matrixCSS, "url('VT323-Regular.woff2')", "matrix local font URL")
+				for _, forbidden := range []string{"googleapis", "gstatic", "fonts.cdn", "@import url(http"} {
+					if strings.Contains(matrixCSS, forbidden) {
+						t.Fatalf("matrix theme.css contains runtime third-party font reference %q", forbidden)
+					}
+				}
+			}
 
 			// sounds.json must include ambient data.
 			soundsPath := filepath.Join(outputDir, "themes", theme, "sounds.json")

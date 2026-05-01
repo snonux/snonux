@@ -114,9 +114,9 @@ See [LICENSE](LICENSE).
 
 ### Third-party assets
 
-snonux self-hosts every third-party asset it ships — there are no
-runtime requests to Google Fonts, gstatic, int10h, or any other CDN.
-Each font file lives next to its theme stylesheet under
+The bundled web fonts listed below are self-hosted. Their theme
+stylesheets make no runtime requests to Google Fonts, gstatic, int10h,
+or any font CDN. Each bundled font file lives next to its theme stylesheet under
 `internal/generator/templates/themes/<name>/`, is committed to git,
 and is shipped to `dist/themes/<name>/` together with a
 `FONT_LICENSE.txt` containing the source URL, version/date, and full
@@ -132,6 +132,10 @@ Bundled web fonts:
   Tyler Finck, from [Google Fonts](https://fonts.google.com/specimen/Oxanium),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/biomech/FONT_LICENSE.txt](internal/generator/templates/themes/biomech/FONT_LICENSE.txt).
+- **matrix** — *VT323* Regular (.woff2, latin+latin-ext) by Peter Hull,
+  from [Google Fonts](https://fonts.google.com/specimen/VT323),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/matrix/FONT_LICENSE.txt](internal/generator/templates/themes/matrix/FONT_LICENSE.txt).
 
 When adding a new bundled font:
 
