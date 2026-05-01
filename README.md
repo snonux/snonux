@@ -146,6 +146,13 @@ Bundled web fonts:
   from [Google Fonts](https://fonts.google.com/specimen/VT323),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/matrix/FONT_LICENSE.txt](internal/generator/templates/themes/matrix/FONT_LICENSE.txt).
+- **noir** — *Playfair Display* Regular + Bold and *IBM Plex Mono* Regular
+  (.woff2, latin+latin-ext) by Claus Eggers Sørensen, Mike Abbink, Bold Monday,
+  and IBM, from Google Fonts
+  ([Playfair Display](https://fonts.google.com/specimen/Playfair+Display),
+  [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono)),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/noir/FONT_LICENSE.txt](internal/generator/templates/themes/noir/FONT_LICENSE.txt).
 - **ocean** — *Outfit* Regular + Medium (.woff2, latin+latin-ext) by
   Rodrigo Fuenzalida, from [Google Fonts](https://fonts.google.com/specimen/Outfit),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).

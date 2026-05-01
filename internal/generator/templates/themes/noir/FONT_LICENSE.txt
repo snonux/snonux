@@ -1,0 +1,51 @@
+Playfair Display and IBM Plex Mono
+==================================
+
+This directory bundles the web fonts:
+
+    playfair-display-v40-latin_latin-ext-regular.woff2  (weight 400)
+    playfair-display-v40-latin_latin-ext-700.woff2      (weight 700)
+    ibm-plex-mono-v20-latin_latin-ext-regular.woff2     (weight 400)
+
+Subsets: latin, latin-ext.
+
+Source / version
+----------------
+- Playfair Display family page : https://fonts.google.com/specimen/Playfair+Display
+- Playfair Display designer    : Claus Eggers Sørensen
+- Playfair Display webfont set : playfair-display-v40 (latin + latin-ext, woff2)
+- Playfair Display fetched via : https://gwfh.mranftl.com/fonts/playfair-display
+- Playfair Display download URL: https://gwfh.mranftl.com/api/fonts/playfair-display?download=zip&subsets=latin,latin-ext&formats=woff2&variants=regular,700
+- Playfair Display fetched on  : 2026-05-01
+- Playfair Display modified    : 2025-09-11
+
+- IBM Plex Mono family page    : https://fonts.google.com/specimen/IBM+Plex+Mono
+- IBM Plex Mono designer       : Mike Abbink, Bold Monday, IBM
+- IBM Plex Mono webfont set    : ibm-plex-mono-v20 (latin + latin-ext, woff2)
+- IBM Plex Mono fetched via    : https://gwfh.mranftl.com/fonts/ibm-plex-mono
+- IBM Plex Mono download URL   : https://gwfh.mranftl.com/api/fonts/ibm-plex-mono?download=zip&subsets=latin,latin-ext&formats=woff2&variants=regular
+- IBM Plex Mono fetched on     : 2026-05-01
+- IBM Plex Mono modified       : 2025-09-16
+
+License
+-------
+SIL Open Font License, Version 1.1.
+
+  - Summary   : https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web
+  - Full text : https://openfontlicense.org/open-font-license-official-text/
+
+The OFL allows free use, modification, and redistribution of the font,
+including embedding in commercial products. Any standalone modified
+version of the font itself must be released under the same license and
+must not use the Reserved Font Names "Playfair", "Playfair Display", or
+"IBM Plex".
+
+Required attribution
+--------------------
+Font: "Playfair Display" by Claus Eggers Sørensen
+      https://fonts.google.com/specimen/Playfair+Display
+      Licensed under the SIL Open Font License 1.1.
+
+Font: "IBM Plex Mono" by Mike Abbink, Bold Monday, IBM
+      https://fonts.google.com/specimen/IBM+Plex+Mono
+      Licensed under the SIL Open Font License 1.1.
