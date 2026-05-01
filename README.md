@@ -124,6 +124,10 @@ attribution.
 
 Bundled web fonts:
 
+- **aurora** — *Manrope* Regular + SemiBold (.woff2, latin+latin-ext) by
+  Mikhail Sharanda, from [Google Fonts](https://fonts.google.com/specimen/Manrope),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/aurora/FONT_LICENSE.txt](internal/generator/templates/themes/aurora/FONT_LICENSE.txt).
 - **dos** — *WebPlus IBM VGA 8x16* (.woff) by VileR, from the
   [Ultimate Oldschool PC Font Pack v2.2](https://int10h.org/oldschool-pc-fonts/),
   [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).

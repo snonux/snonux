@@ -1,0 +1,40 @@
+Manrope
+=======
+
+This directory bundles the web fonts:
+
+    manrope-v20-latin_latin-ext-regular.woff2  (weight 400)
+    manrope-v20-latin_latin-ext-600.woff2      (weight 600)
+
+Subsets: latin, latin-ext.
+
+Source / version
+----------------
+- Family page : https://fonts.google.com/specimen/Manrope
+- Designer    : Mikhail Sharanda
+- Webfont set : manrope-v20 (latin + latin-ext, woff2)
+- Fetched via : https://gwfh.mranftl.com/fonts/manrope (Webfonts Helper)
+- Download URL: https://gwfh.mranftl.com/api/fonts/manrope?download=zip&subsets=latin,latin-ext&formats=woff2&variants=regular,600
+- Fetched on  : 2026-05-01
+- Project     : https://github.com/aaronbell/manrope
+- Upstream metadata commit: 6f81ebecdf65e4463b798cc07b16a4f8d5216917
+
+License
+-------
+SIL Open Font License, Version 1.1.
+
+Copyright 2018 The Manrope Project Authors
+(https://github.com/sharanda/manrope).
+
+  - Summary    : https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web
+  - Full text  : https://openfontlicense.org/open-font-license-official-text/
+
+The OFL allows free use, modification, and redistribution of the font,
+including embedding in commercial products. Any standalone modified
+version of the font itself must be released under the same license and
+must not use the Reserved Font Name "Manrope".
+
+Required attribution
+--------------------
+Font: "Manrope" by Mikhail Sharanda - https://github.com/aaronbell/manrope
+      Licensed under the SIL Open Font License 1.1.
