@@ -446,6 +446,32 @@ func TestRun_writesPagesAndAtom(t *testing.T) {
 func TestRun_writesVolcanoFontAssets(t *testing.T) {
 	t.Parallel()
 
+	testRunWritesThemeFontAssets(t, "volcano", []string{
+		"bebas-neue-v16-latin_latin-ext-regular.woff2",
+		"inter-v20-latin_latin-ext-regular.woff2",
+		"inter-v20-latin_latin-ext-600.woff2",
+		"FONT_LICENSE.txt",
+	}, []string{
+		"url('bebas-neue-v16-latin_latin-ext-regular.woff2')",
+		"url('inter-v20-latin_latin-ext-regular.woff2')",
+		"url('inter-v20-latin_latin-ext-600.woff2')",
+	})
+}
+
+func TestRun_writesNukemFontAssets(t *testing.T) {
+	t.Parallel()
+
+	testRunWritesThemeFontAssets(t, "nukem", []string{
+		"Web437_IBM_VGA_8x16.woff",
+		"FONT_LICENSE.txt",
+	}, []string{
+		"url('Web437_IBM_VGA_8x16.woff')",
+	})
+}
+
+func testRunWritesThemeFontAssets(t *testing.T, theme string, assets, localURLs []string) {
+	t.Helper()
+
 	out := t.TempDir()
 	postDir := filepath.Join(out, "posts", "a1")
 	if err := os.MkdirAll(postDir, 0o755); err != nil {
@@ -464,19 +490,14 @@ func TestRun_writesVolcanoFontAssets(t *testing.T) {
 	cfg := &config.Config{
 		OutputDir: out,
 		BaseURL:   "https://example.test",
-		Theme:     "volcano",
+		Theme:     theme,
 	}
 	if err := Run(ctx, cfg); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
-	themeDir := filepath.Join(out, "themes", "volcano")
-	for _, name := range []string{
-		"bebas-neue-v16-latin_latin-ext-regular.woff2",
-		"inter-v20-latin_latin-ext-regular.woff2",
-		"inter-v20-latin_latin-ext-600.woff2",
-		"FONT_LICENSE.txt",
-	} {
+	themeDir := filepath.Join(out, "themes", theme)
+	for _, name := range assets {
 		info, err := os.Stat(filepath.Join(themeDir, name))
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
@@ -488,21 +509,17 @@ func TestRun_writesVolcanoFontAssets(t *testing.T) {
 
 	css, err := os.ReadFile(filepath.Join(themeDir, "theme.css"))
 	if err != nil {
-		t.Fatalf("read volcano theme.css: %v", err)
+		t.Fatalf("read %s theme.css: %v", theme, err)
 	}
 	got := string(css)
-	for _, localFont := range []string{
-		"url('bebas-neue-v16-latin_latin-ext-regular.woff2')",
-		"url('inter-v20-latin_latin-ext-regular.woff2')",
-		"url('inter-v20-latin_latin-ext-600.woff2')",
-	} {
+	for _, localFont := range localURLs {
 		if !strings.Contains(got, localFont) {
-			t.Fatalf("volcano theme.css missing local font reference %q", localFont)
+			t.Fatalf("%s theme.css missing local font reference %q", theme, localFont)
 		}
 	}
 	for _, forbidden := range []string{"googleapis", "gstatic", "fonts.cdn", "@import url(http"} {
 		if strings.Contains(got, forbidden) {
-			t.Fatalf("volcano theme.css contains forbidden external font reference %q", forbidden)
+			t.Fatalf("%s theme.css contains forbidden external font reference %q", theme, forbidden)
 		}
 	}
 }

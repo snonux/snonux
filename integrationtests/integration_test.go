@@ -460,6 +460,7 @@ func TestThemeSelection(t *testing.T) {
 			fontAssets := map[string][]string{
 				"matrix": {"VT323-Regular.woff2", "FONT_LICENSE.txt"},
 				"retro":  {"VT323-Regular.woff2", "FONT_LICENSE.txt"},
+				"nukem":  {"Web437_IBM_VGA_8x16.woff", "FONT_LICENSE.txt"},
 				"retrofuture": {
 					"FONT_LICENSE.txt",
 					"orbitron-v35-latin_latin-ext-700.woff2",
@@ -475,6 +476,7 @@ func TestThemeSelection(t *testing.T) {
 			fontURLs := map[string][]string{
 				"matrix": {"url('VT323-Regular.woff2')"},
 				"retro":  {"url('VT323-Regular.woff2')"},
+				"nukem":  {"url('Web437_IBM_VGA_8x16.woff')"},
 				"retrofuture": {
 					"url('orbitron-v35-latin_latin-ext-700.woff2')",
 					"url('orbitron-v35-latin_latin-ext-regular.woff2')",

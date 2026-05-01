@@ -1,8 +1,18 @@
+        /* Bundled bitmap font: "Web437 IBM VGA 8x16" by VileR
+           (https://int10h.org/oldschool-pc-fonts/), used unmodified under
+           CC BY-SA 4.0. See FONT_LICENSE.txt in this directory. */
+        @font-face {
+            font-family: 'Web437 IBM VGA 8x16';
+            src: url('Web437_IBM_VGA_8x16.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
         :root { --duke-red:#ff0000; --duke-gold:#ffd700; --duke-grey:#3a3a3a;
                 --duke-bg:#0a0a0a; --duke-dark:#111111; --duke-yellow:#ffcc00;
                 --duke-blood:#cc0000; --duke-light:#e0e0e0; }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:'Courier New',monospace; background:var(--duke-bg);
+        body { font-family:'Web437 IBM VGA 8x16','Courier New',monospace; background:var(--duke-bg);
                color:var(--duke-light); overflow:hidden; height:100vh; height:100dvh; font-size:18px; }
         #three-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
         .overlay { position:relative; z-index:10; height:100vh; height:100dvh; display:flex; flex-direction:column; }
@@ -64,7 +74,7 @@
                        border:3px solid var(--duke-red); padding:28px;
                        box-shadow:0 0 40px rgba(255,0,0,0.35); }
         .modal-close { float:right; background:var(--duke-red); border:none;
-                       color:var(--duke-gold); font-family:'Courier New',monospace;
+                       color:var(--duke-gold); font-family:'Web437 IBM VGA 8x16','Courier New',monospace;
                        font-size:1rem; font-weight:bold; cursor:pointer; padding:4px 10px;
                        text-transform:uppercase; letter-spacing:1px; }
         .modal-close:hover { background:var(--duke-gold); color:var(--duke-bg);

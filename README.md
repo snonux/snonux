@@ -132,6 +132,10 @@ Bundled web fonts:
   [Ultimate Oldschool PC Font Pack v2.2](https://int10h.org/oldschool-pc-fonts/),
   [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
   See [internal/generator/templates/themes/dos/FONT_LICENSE.txt](internal/generator/templates/themes/dos/FONT_LICENSE.txt).
+- **nukem** — *Web437 IBM VGA 8x16* (.woff) by VileR, from the
+  [Ultimate Oldschool PC Font Pack v2.2](https://int10h.org/oldschool-pc-fonts/),
+  [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+  See [internal/generator/templates/themes/nukem/FONT_LICENSE.txt](internal/generator/templates/themes/nukem/FONT_LICENSE.txt).
 - **biomech** — *Oxanium* Regular + Bold (.woff2, latin+latin-ext) by
   Tyler Finck, from [Google Fonts](https://fonts.google.com/specimen/Oxanium),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).

@@ -1,0 +1,41 @@
+Web437 IBM VGA 8x16
+===================
+
+This directory bundles the web font:
+
+    Web437_IBM_VGA_8x16.woff
+
+It is taken from "The Ultimate Oldschool PC Font Pack" v2.2 by VileR
+(https://int10h.org/oldschool-pc-fonts/) and is used here unmodified.
+
+Source archive:
+
+    https://int10h.org/oldschool-pc-fonts/download/oldschool_pc_font_pack_v2.2_web.zip
+
+Source file in archive:
+
+    woff - Web (webfonts)/Web437_IBM_VGA_8x16.woff
+
+Version/date:
+
+    Ultimate Oldschool PC Font Pack v2.2, archive file timestamp 2020-11-21.
+    Downloaded for this repository on 2026-05-01.
+
+The font pack - including this file - is licensed under the Creative
+Commons Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0).
+
+  - License summary: https://creativecommons.org/licenses/by-sa/4.0/
+  - Full license text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+  - Project page:    https://int10h.org/oldschool-pc-fonts/
+  - Readme & terms:  https://int10h.org/oldschool-pc-fonts/readme/
+
+Required attribution
+--------------------
+Font: "Web437 IBM VGA 8x16" from the Ultimate Oldschool PC Font Pack
+      by VileR - https://int10h.org/oldschool-pc-fonts/
+      Licensed under CC BY-SA 4.0.
+
+Because this work is distributed under CC BY-SA 4.0, any modified version
+of the font itself (not the surrounding snonux code) must be released
+under the same license. Embedding/serving the font as part of a web
+page is not considered a derivative work of the font.
