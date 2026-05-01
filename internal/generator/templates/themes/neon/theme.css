@@ -1,4 +1,26 @@
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&display=swap');
+        /* Self-hosted web font: Orbitron (SIL OFL 1.1).
+           Source: https://fonts.google.com/specimen/Orbitron */
+        @font-face {
+            font-family: 'Orbitron';
+            src: url('orbitron-v35-latin_latin-ext-regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Orbitron';
+            src: url('orbitron-v35-latin_latin-ext-500.woff2') format('woff2');
+            font-weight: 500;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Orbitron';
+            src: url('orbitron-v35-latin_latin-ext-700.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
         :root { --neon-cyan:#00f5ff; --neon-magenta:#ff00cc; --neon-yellow:#ffe700; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Orbitron',sans-serif; background:#0b001a; color:#e0f8ff; overflow:hidden; height:100vh; height:100dvh; }

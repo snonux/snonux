@@ -1,0 +1,42 @@
+Neon theme font
+===============
+
+This directory bundles the web fonts:
+
+    orbitron-v35-latin_latin-ext-regular.woff2  (weight 400)
+    orbitron-v35-latin_latin-ext-500.woff2      (weight 500)
+    orbitron-v35-latin_latin-ext-700.woff2      (weight 700)
+
+Subsets:
+
+    Orbitron latin, latin-ext
+
+Source / version
+----------------
+- Orbitron family page       : https://fonts.google.com/specimen/Orbitron
+- Orbitron copyright         : The Orbitron Project Authors
+- Orbitron original designer : Matt McInerney
+- Orbitron webfont set       : orbitron-v35 (latin + latin-ext)
+- Orbitron fetched via       : Google Fonts CSS2 API for Orbitron 400/500/700
+- Orbitron upstream source   : https://github.com/google/fonts/tree/main/ofl/orbitron
+- Orbitron project source    : https://github.com/theleagueof/orbitron
+- Orbitron converted         : TTF to woff2 with fonttools pyftsubset --flavor=woff2
+- Orbitron fetched on        : 2026-05-01
+
+License
+-------
+SIL Open Font License, Version 1.1.
+
+  - Summary   : https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web
+  - Full text : https://openfontlicense.org/open-font-license-official-text/
+  - Source    : https://github.com/google/fonts/tree/main/ofl/orbitron
+
+The OFL allows free use, modification, and redistribution of the font,
+including embedding in commercial products. Any standalone modified
+version of the font itself must be released under the same license and
+must not use the Reserved Font Name "Orbitron".
+
+Required attribution
+--------------------
+Font: "Orbitron" by The Orbitron Project Authors - https://github.com/theleagueof/orbitron
+      Licensed under the SIL Open Font License 1.1.

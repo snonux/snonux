@@ -153,6 +153,11 @@ Bundled web fonts:
   [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono)),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/noir/FONT_LICENSE.txt](internal/generator/templates/themes/noir/FONT_LICENSE.txt).
+- **neon** — *Orbitron* Regular + Medium + Bold (.woff2, latin+latin-ext)
+  by The Orbitron Project Authors, from
+  [Google Fonts](https://fonts.google.com/specimen/Orbitron),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/neon/FONT_LICENSE.txt](internal/generator/templates/themes/neon/FONT_LICENSE.txt).
 - **ocean** — *Outfit* Regular + Medium (.woff2, latin+latin-ext) by
   Rodrigo Fuenzalida, from [Google Fonts](https://fonts.google.com/specimen/Outfit),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
