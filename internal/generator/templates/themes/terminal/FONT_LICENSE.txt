@@ -1,0 +1,37 @@
+JetBrains Mono
+==============
+
+This directory bundles the web fonts:
+
+    jetbrains-mono-v24-latin_latin-ext-regular.woff2  (weight 400)
+    jetbrains-mono-v24-latin_latin-ext-700.woff2      (weight 700)
+
+Subsets: latin, latin-ext.
+
+Source / version
+----------------
+- Family page : https://fonts.google.com/specimen/JetBrains+Mono
+- Designer    : JetBrains
+- Webfont set : jetbrains-mono-v24 (latin + latin-ext, woff2)
+- Fetched via : https://gwfh.mranftl.com/fonts/jetbrains-mono (Webfonts Helper)
+- Download URL: https://gwfh.mranftl.com/api/fonts/jetbrains-mono?download=zip&subsets=latin,latin-ext&formats=woff2&variants=regular,700
+- Last modified upstream: 2025-09-11
+- Fetched on  : 2026-05-01
+
+License
+-------
+SIL Open Font License, Version 1.1.
+
+  - Summary    : https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web
+  - Full text  : https://openfontlicense.org/open-font-license-official-text/
+  - Project    : https://github.com/JetBrains/JetBrainsMono
+
+The OFL allows free use, modification, and redistribution of the font,
+including embedding in commercial products. Any standalone modified
+version of the font itself must be released under the same license and
+must not use the Reserved Font Name "JetBrains Mono".
+
+Required attribution
+--------------------
+Font: "JetBrains Mono" by JetBrains — https://github.com/JetBrains/JetBrainsMono
+      Licensed under the SIL Open Font License 1.1.
