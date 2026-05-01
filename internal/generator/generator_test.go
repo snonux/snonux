@@ -443,6 +443,70 @@ func TestRun_writesPagesAndAtom(t *testing.T) {
 	}
 }
 
+func TestRun_writesVolcanoFontAssets(t *testing.T) {
+	t.Parallel()
+
+	out := t.TempDir()
+	postDir := filepath.Join(out, "posts", "a1")
+	if err := os.MkdirAll(postDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := &post.Post{
+		ID:        "a1",
+		Timestamp: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
+		PostType:  post.TypeText,
+		Content:   "<p>volcano</p>",
+	}
+	if err := p.Save(postDir); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		OutputDir: out,
+		BaseURL:   "https://example.test",
+		Theme:     "volcano",
+	}
+	if err := Run(ctx, cfg); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	themeDir := filepath.Join(out, "themes", "volcano")
+	for _, name := range []string{
+		"bebas-neue-v16-latin_latin-ext-regular.woff2",
+		"inter-v20-latin_latin-ext-regular.woff2",
+		"inter-v20-latin_latin-ext-600.woff2",
+		"FONT_LICENSE.txt",
+	} {
+		info, err := os.Stat(filepath.Join(themeDir, name))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if info.Size() == 0 {
+			t.Fatalf("%s is empty", name)
+		}
+	}
+
+	css, err := os.ReadFile(filepath.Join(themeDir, "theme.css"))
+	if err != nil {
+		t.Fatalf("read volcano theme.css: %v", err)
+	}
+	got := string(css)
+	for _, localFont := range []string{
+		"url('bebas-neue-v16-latin_latin-ext-regular.woff2')",
+		"url('inter-v20-latin_latin-ext-regular.woff2')",
+		"url('inter-v20-latin_latin-ext-600.woff2')",
+	} {
+		if !strings.Contains(got, localFont) {
+			t.Fatalf("volcano theme.css missing local font reference %q", localFont)
+		}
+	}
+	for _, forbidden := range []string{"googleapis", "gstatic", "fonts.cdn", "@import url(http"} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("volcano theme.css contains forbidden external font reference %q", forbidden)
+		}
+	}
+}
+
 func TestWritePage(t *testing.T) {
 	t.Parallel()
 

@@ -1,0 +1,59 @@
+Volcano theme fonts
+===================
+
+This directory bundles the web fonts:
+
+    bebas-neue-v16-latin_latin-ext-regular.woff2  (weight 400)
+    inter-v20-latin_latin-ext-regular.woff2       (weight 400)
+    inter-v20-latin_latin-ext-600.woff2           (weight 600)
+
+Subsets: latin, latin-ext.
+
+Source / version
+----------------
+- Bebas Neue family page     : https://fonts.google.com/specimen/Bebas+Neue
+- Bebas Neue designer        : Ryoichi Tsunekawa
+- Bebas Neue webfont set     : bebas-neue-v16 (latin + latin-ext, woff2)
+- Bebas Neue upstream source : https://github.com/dharmatype/Bebas-Neue
+- Bebas Neue metadata commit : 686d14af640c17af3691c597778f121d840d9051
+- Bebas Neue last modified   : 2025-09-16
+- Bebas Neue fetched via     : https://gwfh.mranftl.com/fonts/bebas-neue
+- Bebas Neue download URL    : https://gwfh.mranftl.com/api/fonts/bebas-neue?download=zip&subsets=latin,latin-ext&formats=woff2&variants=regular
+- Inter family page          : https://fonts.google.com/specimen/Inter
+- Inter designer             : Rasmus Andersson
+- Inter webfont set          : inter-v20 (latin + latin-ext, woff2)
+- Inter upstream source      : https://www.github.com/rsms/inter
+- Inter metadata commit      : 66647c0bbbe41a850d79d9c76fb13add3378940f
+- Inter archive source       : https://github.com/rsms/inter/files/15438431/Inter-4.1-GoogleFonts.zip
+- Inter last modified        : 2025-09-10
+- Inter fetched via          : https://gwfh.mranftl.com/fonts/inter
+- Inter download URL         : https://gwfh.mranftl.com/api/fonts/inter?download=zip&subsets=latin,latin-ext&formats=woff2&variants=regular,600
+- Fetched on                 : 2026-05-01
+
+License
+-------
+SIL Open Font License, Version 1.1.
+
+Bebas Neue copyright:
+Copyright 2019 The Bebas Neue Project Authors
+(https://github.com/dharmatype/Bebas-Neue).
+
+Inter copyright:
+Copyright 2020 The Inter Project Authors
+(https://github.com/rsms/inter).
+
+  - Summary    : https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web
+  - Full text  : https://openfontlicense.org/open-font-license-official-text/
+
+The OFL allows free use, modification, and redistribution of the font,
+including embedding in commercial products. Any standalone modified
+version of the font itself must be released under the same license and
+must not use the Reserved Font Names "Bebas Neue" or "Inter".
+
+Required attribution
+--------------------
+Font: "Bebas Neue" by Ryoichi Tsunekawa - https://github.com/dharmatype/Bebas-Neue
+      Licensed under the SIL Open Font License 1.1.
+
+Font: "Inter" by Rasmus Andersson - https://github.com/rsms/inter
+      Licensed under the SIL Open Font License 1.1.

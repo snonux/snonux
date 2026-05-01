@@ -203,6 +203,12 @@ Bundled web fonts:
   Andrew Paglinawan, from [Google Fonts](https://fonts.google.com/specimen/Quicksand),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/tropicale/FONT_LICENSE.txt](internal/generator/templates/themes/tropicale/FONT_LICENSE.txt).
+- **volcano** — *Bebas Neue* Regular and *Inter* Regular + SemiBold
+  (.woff2, latin+latin-ext) by Ryoichi Tsunekawa and Rasmus Andersson,
+  from Google Fonts ([Bebas Neue](https://fonts.google.com/specimen/Bebas+Neue),
+  [Inter](https://fonts.google.com/specimen/Inter)),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/volcano/FONT_LICENSE.txt](internal/generator/templates/themes/volcano/FONT_LICENSE.txt).
 
 When adding a new bundled font:
 
