@@ -1,3 +1,20 @@
+        /* Self-hosted web font: Space Mono by Colophon Foundry (SIL OFL 1.1).
+           Source: https://fonts.google.com/specimen/Space+Mono
+           See FONT_LICENSE.txt in this directory. */
+        @font-face {
+            font-family: 'Space Mono';
+            src: url('space-mono-v17-latin_latin-ext-regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Space Mono';
+            src: url('space-mono-v17-latin_latin-ext-700.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
         :root { --teal:#00e8e8; --dim:#1a4455; --red:#ff3320; --silver:#c8d8e0; --bg:#030a0f; --bg2:#020608; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Space Mono','Courier New',monospace; background:var(--bg); color:var(--silver);
