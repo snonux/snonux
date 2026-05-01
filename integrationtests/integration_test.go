@@ -14,7 +14,9 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -90,6 +92,13 @@ func assertContains(t *testing.T, content, substr, label string) {
 
 func min(a, b int) int {
 	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
 		return a
 	}
 	return b
@@ -374,9 +383,6 @@ func TestKeyboardNavJS(t *testing.T) {
 	assertContains(t, sharedCSS, `.post-active`, "shared.css .post-active rule")
 	sharedJS := readFile(t, filepath.Join(outputDir, "shared.js"))
 	assertContains(t, sharedJS, `playNavSound`, "shared.js playNavSound function")
-	assertContains(t, sharedJS, `setupScrollDrivenSelection`, "shared.js scroll-driven selection")
-	assertContains(t, sharedJS, `activeIndexForVisibleRegion(sc)`, "shared.js visible center selection")
-	assertContains(t, sharedJS, `SCROLL_SELECTION_SOUND_GAP`, "shared.js throttles scroll selection sound")
 
 	// Final shortcut mapping: p = ambient playback start/pause, f = flash.
 	assertContains(t, sharedJS, "case 'p':", "shared.js p key handler")
@@ -387,6 +393,174 @@ func TestKeyboardNavJS(t *testing.T) {
 	// Nav hints and splash hints should display the updated keys.
 	assertContains(t, index, "<kbd>p</kbd> music", "index.html nav hint p=ambient")
 	assertContains(t, index, "<kbd>f</kbd> flash", "index.html nav hint f=flash")
+}
+
+// TestScrollDrivenPostSelection verifies the generated page behavior in a real
+// browser: scrolling the post container moves .post-active to the article
+// nearest the container center.
+func TestScrollDrivenPostSelection(t *testing.T) {
+	chromium, ok := findChromium()
+	if !ok {
+		t.Skip("Chromium executable not found; skipping browser scroll-selection test")
+	}
+
+	inputDir, outputDir := makeDirs(t)
+	for i := 0; i < 24; i++ {
+		name := fmt.Sprintf("scroll-post-%02d.txt", i)
+		content := fmt.Sprintf("Scroll selection fixture post %02d\n\n%s", i, strings.Repeat("body line\n", 6))
+		if err := os.WriteFile(filepath.Join(inputDir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	runPipeline(t, inputDir, outputDir)
+	writeScrollSelectionBrowserHarness(t, outputDir)
+
+	testHTML := filepath.Join(outputDir, "scroll-selection-test.html")
+	pageURL := url.URL{Scheme: "file", Path: testHTML}
+	out, err := exec.Command(
+		chromium,
+		"--headless",
+		"--disable-gpu",
+		"--no-sandbox",
+		"--disable-dev-shm-usage",
+		"--disable-background-networking",
+		"--allow-file-access-from-files",
+		"--window-size=900,700",
+		"--virtual-time-budget=4000",
+		"--dump-dom",
+		pageURL.String(),
+	).CombinedOutput()
+	if err != nil {
+		t.Fatalf("run headless Chromium: %v\n%s", err, string(out))
+	}
+
+	dom := string(out)
+	if !strings.Contains(dom, `data-scroll-selection-test="pass"`) {
+		t.Fatalf("scroll-driven post selection failed; result=%q DOM dump tail:\n%s",
+			scrollSelectionBrowserResult(dom), dom[max(0, len(dom)-3000):])
+	}
+}
+
+func findChromium() (string, bool) {
+	for _, name := range []string{"chromium", "chromium-browser", "google-chrome", "google-chrome-stable"} {
+		path, err := exec.LookPath(name)
+		if err == nil {
+			return path, true
+		}
+	}
+	return "", false
+}
+
+func writeScrollSelectionBrowserHarness(t *testing.T, outputDir string) {
+	t.Helper()
+
+	indexPath := filepath.Join(outputDir, "index.html")
+	html := readFile(t, indexPath)
+	html = strings.ReplaceAll(html, `<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>`, "")
+	html = strings.ReplaceAll(html, `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">`, "")
+	html = strings.Replace(html,
+		`<script src="shared.js" defer></script>`,
+		`<script>window.__snoTestNow = 1000; Date.now = function () { return window.__snoTestNow; };</script>`+"\n"+
+			`    <script src="shared.js" defer></script>`+"\n"+
+			`    <script src="scroll-selection-test.js" defer></script>`,
+		1,
+	)
+	if err := os.WriteFile(filepath.Join(outputDir, "scroll-selection-test.html"), []byte(html), 0o644); err != nil {
+		t.Fatalf("write scroll-selection-test.html: %v", err)
+	}
+
+	harness := `
+(function () {
+    function finish(status, detail) {
+        document.body.setAttribute('data-scroll-selection-test', status);
+        var pre = document.createElement('pre');
+        pre.id = 'scroll-selection-test-result';
+        pre.textContent = detail;
+        document.body.appendChild(pre);
+    }
+
+    function postIndex(post) {
+        return Array.prototype.indexOf.call(document.querySelectorAll('.post'), post);
+    }
+
+    function expectedCenterIndex(sc, posts) {
+        var sr = sc.getBoundingClientRect();
+        var centerY = sr.top + sr.height / 2;
+        var bestIndex = -1;
+        var bestDistance = Infinity;
+        posts.forEach(function (post, index) {
+            var r = post.getBoundingClientRect();
+            if (r.top <= centerY && centerY < r.bottom) {
+                bestIndex = index;
+                bestDistance = -1;
+                return;
+            }
+            if (bestDistance < 0 || r.bottom <= sr.top || r.top >= sr.bottom) return;
+            var visibleTop = Math.max(r.top, sr.top);
+            var visibleBottom = Math.min(r.bottom, sr.bottom);
+            var distance = Math.abs(((visibleTop + visibleBottom) / 2) - centerY);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = index;
+            }
+        });
+        return bestIndex;
+    }
+
+    function run() {
+        var sc = document.getElementById('post-content');
+        var posts = Array.prototype.slice.call(document.querySelectorAll('.post'));
+        if (!sc || posts.length < 8) {
+            finish('fail', 'missing scroll container or posts');
+            return;
+        }
+        if (sc.scrollHeight <= sc.clientHeight) {
+            finish('fail', 'post container is not scrollable: scrollHeight=' + sc.scrollHeight + ' clientHeight=' + sc.clientHeight);
+            return;
+        }
+
+        var target = posts[Math.min(10, posts.length - 2)];
+        var targetTop = target.offsetTop - (sc.clientHeight / 2) + (target.offsetHeight / 2);
+        sc.style.scrollBehavior = 'auto';
+        var realRequestAnimationFrame = window.requestAnimationFrame;
+        window.__snoTestNow += 1000;
+        window.requestAnimationFrame = function (callback) {
+            callback(performance.now());
+            return 1;
+        };
+        sc.scrollTop = Math.max(0, Math.min(targetTop, sc.scrollHeight - sc.clientHeight));
+        sc.dispatchEvent(new Event('scroll', { bubbles: true }));
+        window.requestAnimationFrame = realRequestAnimationFrame;
+
+        var active = document.querySelector('.post.post-active');
+        var activeIndex = postIndex(active);
+        var expectedIndex = expectedCenterIndex(sc, posts);
+        var detail = 'active=' + activeIndex + ' expected=' + expectedIndex + ' scrollTop=' + sc.scrollTop;
+        if (expectedIndex <= 0) {
+            finish('fail', 'scroll did not move center past the first post: ' + detail);
+            return;
+        }
+        finish(activeIndex === expectedIndex ? 'pass' : 'fail', detail);
+    }
+
+    run();
+})();
+`
+	if err := os.WriteFile(filepath.Join(outputDir, "scroll-selection-test.js"), []byte(harness), 0o644); err != nil {
+		t.Fatalf("write scroll-selection-test.js: %v", err)
+	}
+}
+
+func scrollSelectionBrowserResult(dom string) string {
+	marker := `id="scroll-selection-test-result"`
+	idx := strings.Index(dom, marker)
+	if idx < 0 {
+		return "missing result marker"
+	}
+	start := max(0, idx-200)
+	end := min(len(dom), idx+500)
+	return dom[start:end]
 }
 
 // TestIndexHTMLBakesSounds verifies that the generated index.html bakes the
