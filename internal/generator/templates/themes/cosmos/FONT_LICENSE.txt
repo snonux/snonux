@@ -1,0 +1,36 @@
+Exo 2
+=====
+
+This directory bundles the web fonts:
+
+    exo-2-v26-latin_latin-ext-regular.woff2  (weight 400)
+    exo-2-v26-latin_latin-ext-600.woff2      (weight 600)
+
+Subsets: latin, latin-ext.
+
+Source / version
+----------------
+- Family page : https://fonts.google.com/specimen/Exo+2
+- Designer    : Natanael Gama
+- Webfont set : exo-2-v26 (latin + latin-ext, woff2)
+- Fetched via : https://gwfh.mranftl.com/fonts/exo-2 (Webfonts Helper)
+- Download URL: https://gwfh.mranftl.com/api/fonts/exo-2?download=zip&subsets=latin,latin-ext&formats=woff2&variants=regular,600
+- Fetched on  : 2026-05-01
+- Project     : https://github.com/NDISCOVER/Exo-2.0
+
+License
+-------
+SIL Open Font License, Version 1.1.
+
+  - Summary    : https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web
+  - Full text  : https://openfontlicense.org/open-font-license-official-text/
+
+The OFL allows free use, modification, and redistribution of the font,
+including embedding in commercial products. Any standalone modified
+version of the font itself must be released under the same license and
+must not use the Reserved Font Name "Exo 2".
+
+Required attribution
+--------------------
+Font: "Exo 2" by Natanael Gama - https://github.com/NDISCOVER/Exo-2.0
+      Licensed under the SIL Open Font License 1.1.

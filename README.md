@@ -132,6 +132,10 @@ Bundled web fonts:
   Tyler Finck, from [Google Fonts](https://fonts.google.com/specimen/Oxanium),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
   See [internal/generator/templates/themes/biomech/FONT_LICENSE.txt](internal/generator/templates/themes/biomech/FONT_LICENSE.txt).
+- **cosmos** — *Exo 2* Regular + SemiBold (.woff2, latin+latin-ext) by
+  Natanael Gama, from [Google Fonts](https://fonts.google.com/specimen/Exo+2),
+  [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
+  See [internal/generator/templates/themes/cosmos/FONT_LICENSE.txt](internal/generator/templates/themes/cosmos/FONT_LICENSE.txt).
 - **matrix** — *VT323* Regular (.woff2, latin+latin-ext) by Peter Hull,
   from [Google Fonts](https://fonts.google.com/specimen/VT323),
   [SIL OFL 1.1](https://openfontlicense.org/open-font-license-official-text/).
