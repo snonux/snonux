@@ -20,6 +20,7 @@ import (
 //   theme.js            — required, always present
 //   meta.json           — required, always present
 //   sounds.json         — required, always present
+//   ambient.ogg         — optional, background music loop
 //   <Family-Weight>.woff2 — optional, one or more self-hosted web fonts
 //   <Family-Weight>.woff  — optional, fallback / non-woff2 web fonts
 //   FONT_LICENSE.txt    — required iff any font file is present;
@@ -34,7 +35,7 @@ import (
 // match at least one file. When you introduce a new font extension
 // that no other theme uses yet, append the matching glob here.
 //
-//go:embed shell.tmpl shared/*.tmpl shared/shared.css shared/shared.js themes/*/theme.css themes/*/theme.js themes/*/meta.json themes/*/sounds.json themes/*/*.woff themes/*/*.woff2 themes/*/FONT_LICENSE.txt
+//go:embed shell.tmpl shared/*.tmpl shared/shared.css shared/shared.js themes/*/theme.css themes/*/theme.js themes/*/meta.json themes/*/sounds.json themes/*/*.ogg themes/*/*.woff themes/*/*.woff2 themes/*/FONT_LICENSE.txt themes/*/MUSIC_LICENSE.txt
 var FS embed.FS
 
 // themeStandardFiles lists the per-theme files that have dedicated

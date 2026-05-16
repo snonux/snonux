@@ -24,6 +24,7 @@ import (
 	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/generator"
 	"codeberg.org/snonux/snonux/internal/processor"
+	"codeberg.org/snonux/snonux/internal/version"
 )
 
 var ctx = context.Background() //nolint:gochecknoglobals // test-only top-level helper used by every test in the file
@@ -391,8 +392,8 @@ func TestKeyboardNavJS(t *testing.T) {
 	assertContains(t, sharedJS, "triggerFlashEffect();", "shared.js f triggers flash")
 
 	// Nav hints and splash hints should display the updated keys.
-	assertContains(t, index, "<kbd>p</kbd> music", "index.html nav hint p=ambient")
-	assertContains(t, index, "<kbd>f</kbd> flash", "index.html nav hint f=flash")
+	assertContains(t, index, "<kbd>p</kbd><span class=\"sno-btn-text\">music</span>", "index.html nav hint p=ambient")
+	assertContains(t, index, "<kbd>f</kbd><span class=\"sno-btn-text\">flash</span>", "index.html nav hint f=flash")
 }
 
 // TestScrollDrivenPostSelection verifies the generated page behavior in a real
@@ -622,10 +623,12 @@ func TestThemeSelection(t *testing.T) {
 			assertContains(t, index, "theme test post", "post text")
 			assertContains(t, index, `data-index="0"`, "data-index attribute")
 			assertContains(t, index, `SNONUX_DEFAULT_THEME = "`+theme+`"`, "default theme baked in")
+			assertContains(t, index, "snonux v"+version.Version, "index.html header version")
 
 			// Per-theme assets are written under themes/<theme>/.
+			themeDir := filepath.Join(outputDir, "themes", theme)
 			for _, fname := range []string{"theme.css", "theme.js", "meta.json", "sounds.json"} {
-				path := filepath.Join(outputDir, "themes", theme, fname)
+				path := filepath.Join(themeDir, fname)
 				info, err := os.Stat(path)
 				if err != nil {
 					t.Fatalf("theme asset missing %s: %v", path, err)
@@ -665,7 +668,6 @@ func TestThemeSelection(t *testing.T) {
 				},
 			}
 			if assets, ok := fontAssets[theme]; ok {
-				themeDir := filepath.Join(outputDir, "themes", theme)
 				for _, fname := range assets {
 					path := filepath.Join(themeDir, fname)
 					info, err := os.Stat(path)
@@ -706,6 +708,34 @@ func TestThemeSelection(t *testing.T) {
 				if _, ok := ambient[key]; !ok {
 					t.Errorf("sounds.json ambient missing %q variant for theme %q", key, theme)
 				}
+			}
+			for _, key := range []string{"normal", "wild"} {
+				preset, ok := ambient[key].(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if preset["file"] != "ambient.ogg" {
+					t.Errorf("sounds.json ambient.%s file=%v for theme %q; want ambient.ogg", key, preset["file"], theme)
+				}
+			}
+			for _, asset := range []string{"ambient.ogg", "MUSIC_LICENSE.txt"} {
+				if _, err := os.Stat(filepath.Join(themeDir, asset)); err != nil {
+					t.Errorf("%s missing generated %s: %v", theme, asset, err)
+				}
+			}
+
+			metaData, err := os.ReadFile(filepath.Join(themeDir, "meta.json"))
+			if err != nil {
+				t.Fatalf("read generated meta.json: %v", err)
+			}
+			var meta struct {
+				HeaderHTML string `json:"header_html"`
+			}
+			if err := json.Unmarshal(metaData, &meta); err != nil {
+				t.Fatalf("generated meta.json invalid JSON: %v", err)
+			}
+			if !strings.Contains(meta.HeaderHTML, "snonux v"+version.Version) {
+				t.Errorf("%s generated meta.json header missing version", theme)
 			}
 
 			// shared.js holds the nav logic.

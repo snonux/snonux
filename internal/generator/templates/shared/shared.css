@@ -21,10 +21,12 @@
                 gap:clamp(16px,4vw,48px); }
 /* Flex column layout: let #post-content shrink so overflow-y scrolls; footer stays visible */
 #post-content.content { min-height:0; }
-.page-nav-footer { flex-shrink:0; width:100%; box-sizing:border-box; }
+ .page-nav-footer { flex-shrink:0; width:100%; box-sizing:border-box; }
 .page-nav-footer .page-nav { margin:0; }
 /* ~Half-height footer bar vs default .page-nav padding */
 .page-nav-footer .page-nav a { padding-top:4px; padding-bottom:4px; }
+/* Reorganized nav-hints shared layout */
+.nav-hints { display:flex; flex-direction:column; gap:0; padding:0 !important; }
 /* Shared nav FX keyframes — themes apply these classes for brief effects */
 /* Modal open: post zooms/flies into the modal overlay */
 @keyframes sno-modal-zoom { 0%{transform:scale(0.82) translateY(18px);opacity:0} 60%{transform:scale(1.02) translateY(-3px);opacity:1} 100%{transform:scale(1) translateY(0);opacity:1} }
@@ -947,9 +949,56 @@ body[data-sno-theme="matrix"] .post-text img,
 body[data-sno-theme="terminal"] .post-text img,
 body[data-sno-theme="dos"] .post-text img { animation:sno-matrix-decode 0.8s ease-out both; }
 
-/* Mobile touch-target and padding overrides */
+/* Mobile touch-target and layout overrides */
 @media(max-width:640px) {
+  .nav-hints { padding:4px 14px !important; gap:0; position:sticky; top:0; z-index:25; }
+  /* Remove navigation row on mobile */
+  .nav-hints-nav { display:none !important; }
+  /* FX row: single horizontal line of icon-only tiles */
+  .nav-hints-fx { display:flex !important; flex-direction:row !important;
+    flex-wrap:nowrap; padding:0; gap:4px; overflow-x:auto;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .nav-hints-fx::-webkit-scrollbar { display:none; }
+  .nav-hints-label, .nav-hints-spacer,
+  .nav-hints-row kbd, .sno-btn-text { display:none !important; }
+  .nav-fx-button {
+    flex:1 1 auto; min-height:44px; min-width:36px; max-width:none;
+    justify-content:center; align-items:center; gap:0; padding:0;
+    font-size:0; width:auto;
+  }
+  .nav-fx-button i, .nav-fx-button i.fas { font-size:1rem; display:inline-block; }
+  /* Suppress the theme select dropdown in the bar */
+  .nav-hints-fx #sno-theme-select { display:none !important; }
   .modal-inner { padding:20px 14px !important; }
   .transmit-btn { padding-top:11px !important; padding-bottom:11px !important; min-height:44px !important; }
   .page-nav a { padding-top:10px !important; padding-bottom:10px !important; min-height:44px !important; }
+  /* Floating action button for quick one-handed control */
+  #sno-fab {
+    position:fixed; right:14px; bottom:14px; z-index:5001;
+    width:56px; height:56px; border-radius:50%;
+    border:0; background:rgba(0,0,0,0.75); color:#fff;
+    font-size:1.2rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 16px rgba(0,0,0,0.48); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    transition:transform 0.18s ease, box-shadow 0.18s ease;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #sno-fab:focus-visible { outline:2px solid #fff; outline-offset:3px; }
+  #sno-fab:active { transform:scale(0.94); }
+  #sno-fab .sno-fab-menu {
+    position:absolute; bottom:64px; right:0;
+    display:flex; flex-direction:column; gap:10px;
+    opacity:0; pointer-events:none; transform:translateY(6px);
+    transition:opacity 0.2s ease, transform 0.2s ease;
+  }
+  #sno-fab.open .sno-fab-menu { opacity:1; pointer-events:auto; transform:translateY(0); }
+  #sno-fab .sno-fab-menu button {
+    width:48px; height:48px; border-radius:50%;
+    border:0; background:rgba(0,0,0,0.72); color:#fff;
+    font-size:1.05rem; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 10px rgba(0,0,0,0.35); backdrop-filter:blur(4px);
+    -webkit-tap-highlight-color:transparent;
+  }
+  #sno-fab .sno-fab-menu button:active { transform:scale(0.92); }
+  /* Swipe hint for first-time mobile visitors */
+  #sno-swipe-hint { display:flex; }
 }

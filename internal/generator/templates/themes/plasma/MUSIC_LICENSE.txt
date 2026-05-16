@@ -1,0 +1,7 @@
+Track: Energetic Electro Tune
+Author: TinyWorlds
+License: CC0 1.0 Universal / public domain dedication
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+Source: https://opengameart.org/content/energetic-electro-tune
+
+Bundled as ambient.ogg for the snonux plasma theme.

@@ -22,6 +22,8 @@ type ambientPreset struct {
 	BPM           float64      `json:"bpm,omitempty"`
 	PulseInterval float64      `json:"pulseInterval,omitempty"`
 	Gain          float64      `json:"gain,omitempty"`
+	File          string       `json:"file,omitempty"`
+	Volume        float64      `json:"volume,omitempty"`
 	Wave          string       `json:"wave,omitempty"`
 	DroneFreqs    []float64    `json:"droneFreqs,omitempty"`
 	PulseFreqs    []float64    `json:"pulseFreqs,omitempty"`

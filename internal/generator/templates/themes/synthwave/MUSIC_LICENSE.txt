@@ -1,0 +1,7 @@
+Track: Synthwave House Loop
+Author: Fupi
+License: CC0 1.0 Universal / public domain dedication
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+Source: https://opengameart.org/content/synthwave-house-loop
+
+Bundled as ambient.ogg for the snonux synthwave theme.

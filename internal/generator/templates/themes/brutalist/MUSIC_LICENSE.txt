@@ -1,0 +1,7 @@
+Track: Insistent: background loop
+Author: yd
+License: CC0 1.0 Universal / public domain dedication
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+Source: https://opengameart.org/content/insistent-background-loop
+
+Bundled as ambient.ogg for the snonux brutalist theme.

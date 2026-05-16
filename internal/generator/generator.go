@@ -15,6 +15,7 @@ import (
 	"codeberg.org/snonux/snonux/internal/generator/atom"
 	"codeberg.org/snonux/snonux/internal/generator/templates"
 	"codeberg.org/snonux/snonux/internal/post"
+	"codeberg.org/snonux/snonux/internal/version"
 )
 
 // pageData holds the template variables for a single HTML page.
@@ -339,7 +340,7 @@ func writeThemeAsset(dir, name string) error {
 		return fmt.Errorf("write %s/theme.js: %w", name, err)
 	}
 
-	meta, err := templates.ThemeMeta(name)
+	meta, err := themeMetaJSON(name)
 	if err != nil {
 		return fmt.Errorf("read %s/meta.json: %w", name, err)
 	}
@@ -376,7 +377,35 @@ func loadThemeMeta(name string) (themeMeta, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return m, fmt.Errorf("parse theme meta %q: %w", name, err)
 	}
+	m.HeaderHTML = headerHTMLWithVersion(m.HeaderHTML)
 	return m, nil
+}
+
+func themeMetaJSON(name string) ([]byte, error) {
+	m, err := loadThemeMeta(name)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal theme meta %q: %w", name, err)
+	}
+	return b, nil
+}
+
+func headerHTMLWithVersion(header string) string {
+	if strings.Contains(header, "sno-version") {
+		return header
+	}
+	versionHTML := ` <span class="sno-version-sep" aria-hidden="true">&middot;</span> <span class="sno-version">snonux v` + template.HTMLEscapeString(version.Version) + `</span>`
+	hostClass := `class="logo-host"`
+	if idx := strings.Index(header, hostClass); idx >= 0 {
+		if end := strings.Index(header[idx:], "</p>"); end >= 0 {
+			pos := idx + end
+			return header[:pos] + versionHTML + header[pos:]
+		}
+	}
+	return header + versionHTML
 }
 
 // allThemesJSON returns a JS array literal of all theme names.

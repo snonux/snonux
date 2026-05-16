@@ -1,0 +1,7 @@
+Track: Deep Space Array
+Author: Tozan
+License: CC0 1.0 Universal / public domain dedication
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+Source: https://opengameart.org/content/deep-space-array
+
+Bundled as ambient.ogg for the snonux spaceage theme.

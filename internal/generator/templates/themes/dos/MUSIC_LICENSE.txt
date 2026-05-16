@@ -1,0 +1,7 @@
+Track: Insert Coin
+Author: megupets
+License: CC0 1.0 Universal / public domain dedication
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+Source: https://opengameart.org/content/insert-coin
+
+Bundled as ambient.ogg for the snonux dos theme.

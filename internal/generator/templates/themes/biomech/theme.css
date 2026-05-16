@@ -53,7 +53,7 @@
         .post-modal.active { display:block; }
         .modal-inner { max-width:760px; margin:0 auto; background:rgba(11,9,16,0.98); border:1px solid rgba(147,255,216,0.18); padding:34px; box-shadow:0 22px 76px rgba(0,0,0,0.72); }
         .modal-close { float:right; background:none; border:none; color:var(--acid); font-family:'IBM Plex Mono',monospace; font-size:0.78rem; cursor:pointer; letter-spacing:0.18em; }
-        @media(max-width:640px) { .nav-hints{display:none;} header{padding:12px 16px;} .content{padding:14px 16px;} .modal-inner{padding:24px 16px;} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
+        @media(max-width:640px) { .nav-hints{padding:6px 16px} .nav-hints .nav-hints-row{padding:6px 0;gap:8px} .nav-hints kbd{display:none} .nav-hints-label,.nav-hints-spacer{display:none} .nav-fx-button{padding:10px 0;min-height:44px;flex:1 1 auto;justify-content:center;gap:0.2rem} header{padding:12px 16px;} .content{padding:14px 16px;} .modal-inner{padding:24px 16px;} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         [data-sno-theme="biomech"] .splash-overlay {
             background:
                 radial-gradient(circle at 50% 22%, rgba(245,91,125,0.14) 0%, transparent 28%),

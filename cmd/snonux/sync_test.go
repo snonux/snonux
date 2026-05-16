@@ -31,7 +31,8 @@ func TestSplitAndTrim(t *testing.T) {
 }
 
 func TestResolveSyncConfig_defaults(t *testing.T) {
-	t.Parallel()
+	unsetEnv(t, "SNONUX_SYNC_TARGETS")
+	unsetEnv(t, "SNONUX_SYNC_REMOTE_DIR")
 
 	cfg := &config.Config{}
 	resolveSyncConfig(cfg)
@@ -45,12 +46,8 @@ func TestResolveSyncConfig_defaults(t *testing.T) {
 }
 
 func TestResolveSyncConfig_envTargets(t *testing.T) {
-	t.Parallel()
-
-	orig := os.Getenv("SNONUX_SYNC_TARGETS")
-	defer os.Setenv("SNONUX_SYNC_TARGETS", orig)
-
-	os.Setenv("SNONUX_SYNC_TARGETS", "h1, h2 ,h3")
+	t.Setenv("SNONUX_SYNC_TARGETS", "h1, h2 ,h3")
+	unsetEnv(t, "SNONUX_SYNC_REMOTE_DIR")
 	cfg := &config.Config{}
 	resolveSyncConfig(cfg)
 	want := []string{"h1", "h2", "h3"}
@@ -60,12 +57,8 @@ func TestResolveSyncConfig_envTargets(t *testing.T) {
 }
 
 func TestResolveSyncConfig_envRemoteDir(t *testing.T) {
-	t.Parallel()
-
-	orig := os.Getenv("SNONUX_SYNC_REMOTE_DIR")
-	defer os.Setenv("SNONUX_SYNC_REMOTE_DIR", orig)
-
-	os.Setenv("SNONUX_SYNC_REMOTE_DIR", "/custom/path/")
+	unsetEnv(t, "SNONUX_SYNC_TARGETS")
+	t.Setenv("SNONUX_SYNC_REMOTE_DIR", "/custom/path/")
 	cfg := &config.Config{}
 	resolveSyncConfig(cfg)
 	if cfg.SyncRemoteDir != "/custom/path/" {
@@ -74,17 +67,8 @@ func TestResolveSyncConfig_envRemoteDir(t *testing.T) {
 }
 
 func TestResolveSyncConfig_flagsOverrideEnv(t *testing.T) {
-	t.Parallel()
-
-	origTargets := os.Getenv("SNONUX_SYNC_TARGETS")
-	origDir := os.Getenv("SNONUX_SYNC_REMOTE_DIR")
-	defer func() {
-		os.Setenv("SNONUX_SYNC_TARGETS", origTargets)
-		os.Setenv("SNONUX_SYNC_REMOTE_DIR", origDir)
-	}()
-
-	os.Setenv("SNONUX_SYNC_TARGETS", "from-env")
-	os.Setenv("SNONUX_SYNC_REMOTE_DIR", "/env/dir/")
+	t.Setenv("SNONUX_SYNC_TARGETS", "from-env")
+	t.Setenv("SNONUX_SYNC_REMOTE_DIR", "/env/dir/")
 
 	cfg := &config.Config{
 		SyncTargets:   []string{"from-flag"},
@@ -98,4 +82,19 @@ func TestResolveSyncConfig_flagsOverrideEnv(t *testing.T) {
 	if cfg.SyncRemoteDir != "/flag/dir/" {
 		t.Fatalf("flag dir should override env: got %q", cfg.SyncRemoteDir)
 	}
+}
+
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	orig, hadOrig := os.LookupEnv(key)
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("unset %s: %v", key, err)
+	}
+	t.Cleanup(func() {
+		if hadOrig {
+			_ = os.Setenv(key, orig)
+		} else {
+			_ = os.Unsetenv(key)
+		}
+	})
 }

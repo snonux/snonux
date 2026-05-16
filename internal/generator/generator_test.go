@@ -12,6 +12,7 @@ import (
 
 	"codeberg.org/snonux/snonux/internal/config"
 	"codeberg.org/snonux/snonux/internal/post"
+	"codeberg.org/snonux/snonux/internal/version"
 )
 
 var ctx = context.Background() //nolint:gochecknoglobals // test-only top-level helper used by every test in the file
@@ -90,6 +91,23 @@ func TestJSONStringOrNull(t *testing.T) {
 		got := jsonStringOrNull(tt.in)
 		if got != tt.want {
 			t.Fatalf("jsonStringOrNull(%q) = %q; want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestLoadThemeMetaInjectsVersion(t *testing.T) {
+	t.Parallel()
+
+	for name := range getThemeSet() {
+		meta, err := loadThemeMeta(name)
+		if err != nil {
+			t.Fatalf("loadThemeMeta(%q): %v", name, err)
+		}
+		if !strings.Contains(meta.HeaderHTML, "snonux v"+version.Version) {
+			t.Errorf("theme %q header missing snonux version", name)
+		}
+		if strings.Count(meta.HeaderHTML, `class="sno-version"`) != 1 {
+			t.Errorf("theme %q header has duplicate version markup", name)
 		}
 	}
 }
@@ -180,6 +198,12 @@ func TestThemeSoundPresetsAmbientValuesBounded(t *testing.T) {
 
 			if a.Gain <= 0 || a.Gain > 0.15 {
 				t.Errorf("theme %q ambient.%s gain=%f; want (0, 0.15]", name, mode, a.Gain)
+			}
+			if a.File != "ambient.ogg" {
+				t.Errorf("theme %q ambient.%s file=%q; want ambient.ogg", name, mode, a.File)
+			}
+			if a.Volume <= 0 || a.Volume > 0.8 {
+				t.Errorf("theme %q ambient.%s volume=%f; want (0, 0.8]", name, mode, a.Volume)
 			}
 			if a.BPM <= 0 || a.BPM > 400 {
 				t.Errorf("theme %q ambient.%s bpm=%f; want (0, 250]", name, mode, a.BPM)

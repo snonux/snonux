@@ -53,7 +53,7 @@
                        box-shadow:8px 8px 0 var(--red); }
         .modal-close { float:right; background:none; border:none; color:var(--red);
                        font-family:Impact; font-size:1.3rem; cursor:pointer; letter-spacing:2px; }
-        @media(max-width:640px) { .nav-hints{display:none;} header{padding:10px 16px;} .logo-mark{font-size:2rem;} .content{padding:12px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
+        @media(max-width:640px) { .nav-hints{padding:6px 16px} .nav-hints .nav-hints-row{padding:6px 0;gap:8px} .nav-hints kbd{display:none} .nav-hints-label,.nav-hints-spacer{display:none} .nav-fx-button{padding:10px 0;min-height:44px;flex:1 1 auto;justify-content:center;gap:0.2rem} header{padding:10px 16px;} .logo-mark{font-size:2rem;} .content{padding:12px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         [data-sno-theme="brutalist"] .splash-overlay { background:#000; }
         [data-sno-theme="brutalist"] .splash-frame {
             border:6px solid #fff; padding:clamp(1.5rem,5vw,2.5rem) clamp(1.25rem,4vw,2rem);

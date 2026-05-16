@@ -259,7 +259,9 @@
         "kick",
         "_",
         "hat"
-      ]
+      ],
+      "file": "ambient.ogg",
+      "volume": 0.46
     },
     "wild": {
       "bpm": 170,
@@ -375,7 +377,9 @@
         "kick",
         "_",
         "hat"
-      ]
+      ],
+      "file": "ambient.ogg",
+      "volume": 0.54
     }
   }
 }

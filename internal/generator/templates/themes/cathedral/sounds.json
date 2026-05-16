@@ -450,7 +450,9 @@
         "kick",
         "kick",
         "kick"
-      ]
+      ],
+      "file": "ambient.ogg",
+      "volume": 0.46
     },
     "wild": {
       "bpm": 180,
@@ -566,7 +568,9 @@
         "kick",
         "kick",
         "kick"
-      ]
+      ],
+      "file": "ambient.ogg",
+      "volume": 0.54
     }
   }
 }

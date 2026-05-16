@@ -471,6 +471,9 @@
         var melodyIndex = 0;
         var drumTimer = null;
         var drumIndex = 0;
+        var ambientAudio = null;
+        var ambientAudioSrc = '';
+        var ambientAudioFadeTimer = null;
 
         function wildifyPreset(base) {
             if (!base) return base;
@@ -493,7 +496,106 @@
             var ambient = SNONUX_SOUNDS.ambient;
             if (!ambient) return null;
             var base = isWild ? (ambient.wild || ambient.normal) : ambient.normal;
+            if (base && !base.file && ambient.normal && ambient.normal.file) {
+                var inherited = {};
+                for (var k in base) inherited[k] = base[k];
+                inherited.file = ambient.normal.file;
+                if (inherited.volume == null && ambient.normal.volume != null) inherited.volume = ambient.normal.volume;
+                base = inherited;
+            }
             return isWild ? wildifyPreset(base) : base;
+        }
+
+        function resolveAmbientFile(file) {
+            if (!file) return '';
+            if (/^(https?:)?\/\//.test(file) || file.charAt(0) === '/') return file;
+            if (file.indexOf('themes/') === 0) return file;
+            return 'themes/' + snonuxDetectThemeName() + '/' + file;
+        }
+
+        function ambientFileVolume(preset) {
+            var v = preset && preset.volume != null ? preset.volume : 0.46;
+            if (isWild) v = Math.min(v * 1.08, 0.8);
+            return Math.max(0, Math.min(v, 0.8));
+        }
+
+        function clearAmbientAudioFade() {
+            if (ambientAudioFadeTimer) {
+                clearInterval(ambientAudioFadeTimer);
+                ambientAudioFadeTimer = null;
+            }
+        }
+
+        function fadeAmbientAudioTo(target, duration, done) {
+            if (!ambientAudio) {
+                if (done) done();
+                return;
+            }
+            clearAmbientAudioFade();
+            var start = ambientAudio.volume || 0;
+            var dur = Math.max(duration || 0.35, 0.01);
+            var started = Date.now();
+            ambientAudioFadeTimer = setInterval(function() {
+                if (!ambientAudio) {
+                    clearAmbientAudioFade();
+                    if (done) done();
+                    return;
+                }
+                var t = Math.min((Date.now() - started) / (dur * 1000), 1);
+                ambientAudio.volume = start + (target - start) * t;
+                if (t >= 1) {
+                    clearAmbientAudioFade();
+                    if (done) done();
+                }
+            }, 30);
+        }
+
+        function stopFileAudio(resetPosition) {
+            clearAmbientAudioFade();
+            if (!ambientAudio) return;
+            try {
+                ambientAudio.pause();
+                ambientAudio.volume = 0;
+                if (resetPosition) ambientAudio.currentTime = 0;
+            } catch (_) {}
+        }
+
+        function startFileAudio(preset) {
+            var src = resolveAmbientFile(preset.file);
+            if (!src) return;
+            currentPreset = preset;
+
+            if (!ambientAudio || ambientAudioSrc !== src) {
+                if (ambientAudio) {
+                    try { ambientAudio.pause(); } catch (_) {}
+                }
+                ambientAudio = new Audio(src);
+                ambientAudio.loop = true;
+                ambientAudio.preload = 'auto';
+                ambientAudio.volume = 0.22;
+                ambientAudioSrc = src;
+            }
+
+            isPlaying = true;
+            var target = ambientFileVolume(preset);
+            if (ambientAudio.volume < 0.18) ambientAudio.volume = Math.min(target, 0.22);
+            var playResult;
+            try {
+                playResult = ambientAudio.play();
+            } catch (_) {
+                isPlaying = false;
+                return;
+            }
+            if (playResult && playResult.then) {
+                playResult.then(function() {
+                    if (!isPlaying) return;
+                    fadeAmbientAudioTo(target, 0.16);
+                }).catch(function() {
+                    isPlaying = false;
+                });
+            } else {
+                fadeAmbientAudioTo(target, 0.16);
+            }
         }
 
         function ensureCtx() {
@@ -732,6 +834,7 @@
             stopDrums();
             stopDrones();
             stopNoise();
+            stopFileAudio(true);
         }
 
         // ── drum synthesizer ──────────────────────────────────────────────
@@ -849,6 +952,10 @@
             var preset = getPreset();
             if (!preset) return;
             currentPreset = preset;
+            if (preset.file) {
+                startFileAudio(preset);
+                return;
+            }
             ensureCtx();
 
             // Begin scheduling only once the AudioContext is running.
@@ -887,7 +994,12 @@
 
         function pauseEngine() {
             isPlaying = false;
-            var fadeOut = currentPreset && currentPreset.release != null ? currentPreset.release : 0.5;
+            var fadeOut = ambientAudio ? 0.5 : (currentPreset && currentPreset.release != null ? currentPreset.release : 0.5);
+            if (ambientAudio) {
+                fadeAmbientAudioTo(0, fadeOut, function() {
+                    if (!isPlaying) stopFileAudio(false);
+                });
+            }
             fadeMasterTo(0, fadeOut);
             setTimeout(function() {
                 if (!isPlaying) stopAll();
@@ -919,10 +1031,15 @@
                     return;
                 }
                 fadeMasterTo(0, 0.3);
+                if (ambientAudio) fadeAmbientAudioTo(0, 0.3);
                 setTimeout(function() {
                     if (!isPlaying) return;
                     stopAll();
                     currentPreset = newPreset;
+                    if (newPreset.file) {
+                        startFileAudio(newPreset);
+                        return;
+                    }
                     melodyIndex = 0;
                     startDrones(newPreset);
                     startNoise(newPreset);
@@ -946,6 +1063,10 @@
             // we keep hearing whatever was cached as silence on top of it.
             stopAll();
             currentPreset = preset;
+            if (preset.file) {
+                startFileAudio(preset);
+                return;
+            }
             melodyIndex = 0;
             startDrones(preset);
             startNoise(preset);
@@ -1741,16 +1862,115 @@
             blank: toggleBlankMode,
             ambient: toggleAmbientMode,
             flash: triggerFlashEffect,
-            scatter: triggerScatterEffect
+            scatter: triggerScatterEffect,
+            theme: function() {
+                var pick = snonuxRandomTheme();
+                if (pick) snonuxSwitchTheme(pick);
+            }
+        };
+        var navHandlers = {
+            'prev-post': function() {
+                if (currentIndex <= 0) { bounceEffect('up'); }
+                else { selectPost(currentIndex - 1, 'up'); }
+            },
+            'next-post': function() {
+                if (currentIndex >= posts.length - 1) { bounceEffect('down'); }
+                else { selectPost(currentIndex + 1, 'down'); }
+            },
+            'prev-page': function() {
+                if (prevPageURL) { window.location.href = prevPageURL; }
+                else { bounceEffect('left'); }
+            },
+            'next-page': function() {
+                if (nextPageURL) { window.location.href = nextPageURL; }
+                else { bounceEffect('right'); }
+            },
+            'open': function() { openPostAt(currentIndex, true); },
+            'close': function() {
+                if (document.getElementById('post-modal').classList.contains('active')) closeModal();
+            }
         };
         document.querySelectorAll('.nav-fx-button').forEach(function(button) {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
                 var fx = button.getAttribute('data-sno-fx');
                 if (fxHandlers[fx]) fxHandlers[fx]();
+                var nav = button.getAttribute('data-sno-nav');
+                if (navHandlers[nav]) navHandlers[nav]();
             });
         });
         syncFxButtonStates();
+    })();
+
+    // Bind clickables on splash overlay so it is easy to tap-open.
+    (function touchSplashDismiss() {
+        var splash = document.getElementById('splash-overlay');
+        if (!splash || splash.classList.contains('splash--dismissed')) return;
+        splash.addEventListener('click', function() {
+            if (window._snonuxDismissSplash) window._snonuxDismissSplash();
+        });
+    })();
+
+    // Mobile floating action button (FAB): appears only on narrow viewports when nav-hints
+    // are visible but too cramped. Provides one-tap access to wild, music, and flash.
+    (function mobileFAB() {
+        if (document.getElementById('sno-fab')) return;
+        var btn = document.createElement('button');
+        btn.id = 'sno-fab';
+        btn.setAttribute('aria-label', 'Open controls menu');
+        btn.setAttribute('aria-haspopup', 'true');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.innerHTML = '<span id="sno-fab-icon"><i class="fas fa-bars" aria-hidden="true"></i></span>' +
+                        '<span class="sno-fab-menu" role="menu" aria-hidden="true">' +
+                        '<button type="button" role="menuitem" data-sno-fx="wild" aria-label="Toggle wild mode"><i class="fas fa-bolt" aria-hidden="true"></i></button>' +
+                        '<button type="button" role="menuitem" data-sno-fx="ambient" aria-label="Toggle ambient music"><i class="fas fa-music" aria-hidden="true"></i></button>' +
+                        '<button type="button" role="menuitem" data-sno-fx="flash" aria-label="Trigger flash effect"><i class="fas fa-camera" aria-hidden="true"></i></button>' +
+                        '<button type="button" role="menuitem" data-sno-fx="scatter" aria-label="Trigger scatter"><i class="fas fa-wind" aria-hidden="true"></i></button>' +
+                        '<button type="button" role="menuitem" data-sno-fx="crt" aria-label="Toggle CRT effect"><i class="fas fa-tv" aria-hidden="true"></i></button>' +
+                        '<button type="button" role="menuitem" data-sno-fx="ghost" aria-label="Toggle ghost mode"><i class="fas fa-ghost" aria-hidden="true"></i></button>' +
+                        '<button type="button" role="menuitem" data-sno-fx="blank" aria-label="Toggle blank mode"><i class="fas fa-eye-slash" aria-hidden="true"></i></button>' +
+                        '<button type="button" role="menuitem" data-sno-fx="theme" aria-label="Random theme"><i class="fas fa-palette" aria-hidden="true"></i></button>' +
+                        '</span>';
+        document.body.appendChild(btn);
+
+        var fxHandlers = {
+            wild: function() { toggleWildMode(); },
+            crt: toggleCrtMode,
+            ghost: toggleGhostMode,
+            blank: toggleBlankMode,
+            ambient: toggleAmbientMode,
+            flash: triggerFlashEffect,
+            scatter: triggerScatterEffect,
+            theme: function() {
+                var pick = snonuxRandomTheme();
+                if (pick) snonuxSwitchTheme(pick);
+            }
+        };
+
+        var menu = btn.querySelector('.sno-fab-menu');
+        var open = false;
+        function setOpen(o) {
+            open = o;
+            btn.classList.toggle('open', open);
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            menu.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        btn.addEventListener('click', function(e) {
+            if (e.target.closest('[role="menuitem"]')) return;
+            e.preventDefault();
+            setOpen(!open);
+        });
+        btn.querySelectorAll('[role="menuitem"]').forEach(function(item) {
+            item.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var fx = item.getAttribute('data-sno-fx');
+                if (fxHandlers[fx]) fxHandlers[fx]();
+                setOpen(false);
+            });
+        });
+        document.addEventListener('click', function(e) {
+            if (open && !btn.contains(e.target)) setOpen(false);
+        });
     })();
 
     // Restore ambient preference on load (opt-in; default off).

@@ -79,7 +79,7 @@
                        text-transform:uppercase; letter-spacing:1px; }
         .modal-close:hover { background:var(--duke-gold); color:var(--duke-bg);
                              box-shadow:0 0 12px var(--duke-gold); }
-        @media(max-width:640px) { .nav-hints{display:none;} header{padding:8px 14px;} .content{padding:10px 14px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
+        @media(max-width:640px) { .nav-hints{padding:6px 16px} .nav-hints .nav-hints-row{padding:6px 0;gap:8px} .nav-hints kbd{display:none} .nav-hints-label,.nav-hints-spacer{display:none} .nav-fx-button{padding:10px 0;min-height:44px;flex:1 1 auto;justify-content:center;gap:0.2rem} header{padding:8px 14px;} .content{padding:10px 14px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         [data-sno-theme="nukem"] .splash-overlay {
             background: radial-gradient(ellipse 70% 50% at 50% 50%, rgba(255,0,0,0.2) 0%, transparent 60%), var(--duke-bg);
         }

@@ -1,0 +1,7 @@
+Track: Feel Good Island Loop
+Author: AntumDeluge, based on Brandon Morris source
+License: CC0 1.0 Universal / public domain dedication
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+Source: https://opengameart.org/content/feel-good-island-loop
+
+Bundled as ambient.ogg for the snonux tropicale theme.

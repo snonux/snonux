@@ -349,7 +349,9 @@
         "_",
         "hat",
         "snare"
-      ]
+      ],
+      "file": "ambient.ogg",
+      "volume": 0.46
     },
     "wild": {
       "bpm": 190,
@@ -445,7 +447,9 @@
         "_",
         "hat",
         "snare"
-      ]
+      ],
+      "file": "ambient.ogg",
+      "volume": 0.54
     }
   }
 }

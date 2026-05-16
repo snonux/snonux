@@ -1,0 +1,7 @@
+Track: Space Music: Out There
+Author: yd
+License: CC0 1.0 Universal / public domain dedication
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+Source: https://lpc.opengameart.org/content/space-music-out-there
+
+Bundled as ambient.ogg for the snonux cosmos theme.

@@ -1,0 +1,7 @@
+Track: Mysterious, Futuristic 8-bit Music Loop
+Author: Frenchyboy
+License: CC0 1.0 Universal / public domain dedication
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+Source: https://opengameart.org/content/mysterious-futuristic-8-bit-music-loop
+
+Bundled as ambient.ogg for the snonux retrofuture theme.

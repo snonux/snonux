@@ -470,7 +470,9 @@
         "snare",
         "kick",
         "snare"
-      ]
+      ],
+      "file": "ambient.ogg",
+      "volume": 0.46
     },
     "wild": {
       "bpm": 190,
@@ -606,7 +608,9 @@
         "snare",
         "kick",
         "snare"
-      ]
+      ],
+      "file": "ambient.ogg",
+      "volume": 0.54
     }
   }
 }

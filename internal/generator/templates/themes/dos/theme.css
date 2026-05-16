@@ -73,7 +73,7 @@
                        font-size:1rem; cursor:pointer; padding:2px 8px; }
         .modal-close:hover { background:var(--dos-blue); color:var(--dos-bwhite);
                              border-style:inset; }
-        @media(max-width:640px) { .nav-hints{display:none;} header{padding:6px 12px;} .content{padding:8px 12px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
+        @media(max-width:640px) { .nav-hints{padding:6px 16px} .nav-hints .nav-hints-row{padding:6px 0;gap:8px} .nav-hints kbd{display:none} .nav-hints-label,.nav-hints-spacer{display:none} .nav-fx-button{padding:10px 0;min-height:44px;flex:1 1 auto;justify-content:center;gap:0.2rem} header{padding:6px 12px;} .content{padding:8px 12px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         [data-sno-theme="dos"] .splash-overlay { background:var(--dos-blue); font-family:var(--dos-font); }
         [data-sno-theme="dos"] .splash-inner { position:relative; z-index:1; }
         [data-sno-theme="dos"] .splash-title {
