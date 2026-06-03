@@ -949,11 +949,12 @@ body[data-sno-theme="matrix"] .post-text img,
 body[data-sno-theme="terminal"] .post-text img,
 body[data-sno-theme="dos"] .post-text img { animation:sno-matrix-decode 0.8s ease-out both; }
 
-/* Per-post share button — only surfaced on mobile (see media query below).
+/* Per-post share button — on mobile this uses navigator.share(); on desktop
+   it falls back to copying the permalink to the clipboard (handled in JS).
    Header is flex with @snonux on the left, time + share aligned to the right. */
 .post-header { align-items:center; }
 .post-share-btn {
-  display:none;
+  display:inline-flex; align-items:center; justify-content:center;
   appearance:none; border:0; background:none; color:inherit; font:inherit;
   padding:6px 8px; margin-left:6px; cursor:pointer; opacity:0.7;
   transition:opacity 0.18s ease, transform 0.18s ease;
