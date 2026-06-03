@@ -2029,6 +2029,48 @@
         });
     })();
 
+    // Per-post share button (visible only on mobile via CSS). Uses the Web Share
+    // API where available, otherwise copies the permalink to the clipboard and
+    // shows a brief toast. Falls back to window.prompt on very old browsers.
+    (function postShareButtons() {
+        var btns = document.querySelectorAll('.post-share-btn');
+        if (btns.length === 0) return;
+        function permalinkFor(id) {
+            return location.origin + location.pathname + '#post-' + encodeURIComponent(id);
+        }
+        function showToast(msg) {
+            var t = document.createElement('div');
+            t.className = 'sno-share-toast';
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(function() { t.classList.add('sno-share-toast-out'); }, 1400);
+            setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 1800);
+        }
+        btns.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var id = btn.getAttribute('data-share-id');
+                if (!id) return;
+                var url = permalinkFor(id);
+                var shareData = { title: document.title, text: '@snonux post', url: url };
+                if (navigator.share) {
+                    navigator.share(shareData).catch(function() {});
+                    return;
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(function() {
+                        showToast('Link copied');
+                    }).catch(function() {
+                        window.prompt('Copy link', url);
+                    });
+                    return;
+                }
+                window.prompt('Copy link', url);
+            });
+        });
+    })();
+
     (function deepLinkFromHash() {
         var h = location.hash;
         if (!h || h.indexOf('#post-') !== 0) return;

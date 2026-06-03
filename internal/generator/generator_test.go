@@ -465,6 +465,9 @@ func TestRun_writesPagesAndAtom(t *testing.T) {
 	if !strings.Contains(string(indexHTML), `rel="icon" href="favicon.ico"`) {
 		t.Fatalf("index.html missing favicon link: %s", string(indexHTML))
 	}
+	if !strings.Contains(string(indexHTML), `class="post-share-btn" data-share-id="a1"`) {
+		t.Fatalf("index.html missing per-post share button: %s", string(indexHTML))
+	}
 }
 
 func TestRun_writesVolcanoFontAssets(t *testing.T) {

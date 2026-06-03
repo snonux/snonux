@@ -58,6 +58,9 @@
                 <div class="post-header">
                     <div><strong>@snonux</strong></div>
                     <div class="post-time">{{$post.FormattedTime}}</div>
+                    <button type="button" class="post-share-btn" data-share-id="{{$post.ID}}" aria-label="Share post link">
+                        <i class="fas fa-share-nodes" aria-hidden="true"></i>
+                    </button>
                 </div>
                 <div class="post-text">{{$post.ContentHTML}}</div>
             </div>

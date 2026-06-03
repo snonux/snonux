@@ -949,9 +949,35 @@ body[data-sno-theme="matrix"] .post-text img,
 body[data-sno-theme="terminal"] .post-text img,
 body[data-sno-theme="dos"] .post-text img { animation:sno-matrix-decode 0.8s ease-out both; }
 
+/* Per-post share button — only surfaced on mobile (see media query below).
+   Header is flex with @snonux on the left, time + share aligned to the right. */
+.post-header { align-items:center; }
+.post-share-btn {
+  display:none;
+  appearance:none; border:0; background:none; color:inherit; font:inherit;
+  padding:6px 8px; margin-left:6px; cursor:pointer; opacity:0.7;
+  transition:opacity 0.18s ease, transform 0.18s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+.post-share-btn:hover { opacity:1; }
+.post-share-btn:active { transform:scale(0.92); }
+.post-share-btn:focus-visible { outline:1px solid currentColor; outline-offset:2px; border-radius:3px; }
+.post-share-btn i { font-size:0.95rem; }
+/* Toast surfaced when navigator.share is unavailable and the URL is copied to the clipboard. */
+.sno-share-toast {
+  position:fixed; left:50%; bottom:88px; transform:translateX(-50%);
+  z-index:6000; padding:10px 16px; border-radius:6px;
+  background:rgba(0,0,0,0.85); color:#fff; font:600 0.85rem/1.2 monospace;
+  pointer-events:none; box-shadow:0 4px 16px rgba(0,0,0,0.4);
+  opacity:1; transition:opacity 0.35s ease;
+}
+.sno-share-toast.sno-share-toast-out { opacity:0; }
+
 /* Mobile touch-target and layout overrides */
 @media(max-width:640px) {
   .nav-hints { padding:4px 14px !important; gap:0; position:sticky; top:0; z-index:25; }
+  .post-share-btn { display:inline-flex; align-items:center; justify-content:center;
+    min-width:40px; min-height:40px; }
   /* Remove navigation row on mobile */
   .nav-hints-nav { display:none !important; }
   /* FX row: single horizontal line of icon-only tiles */
