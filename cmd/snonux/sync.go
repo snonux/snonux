@@ -23,7 +23,7 @@ var defaultSyncTargets = []string{
 	"pi1.lan.buetow.org",
 }
 
-const defaultSyncRemoteDir = "/var/www/html/snonux/"
+const defaultSyncRemoteDir = "/var/www/html/snonux.foo/"
 
 // resolveSyncConfig populates cfg.SyncTargets and cfg.SyncRemoteDir from the
 // environment if they are empty, applying sensible defaults.
@@ -89,7 +89,11 @@ func syncOutput(ctx context.Context, cfg *config.Config) error {
 	for _, host := range cfg.SyncTargets {
 		dest := fmt.Sprintf("%s@%s:%s", sshUser, host, cfg.SyncRemoteDir)
 		log.Printf("rsync %s -> %s", src, dest)
-		cmd := exec.CommandContext(ctx, "rsync", "-az", "-e", ssh, src, dest)
+		// --chmod overrides the locally-generated (mode 600) output permissions:
+		// the remote webserver runs as its own unprivileged user (e.g. bozohttpd's
+		// _httpd), not as the SSH login user, so published files must be
+		// world-readable regardless of local perms.
+		cmd := exec.CommandContext(ctx, "rsync", "-az", "--chmod=D755,F644", "-e", ssh, src, dest)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {

@@ -40,7 +40,7 @@ func TestResolveSyncConfig_defaults(t *testing.T) {
 	if !reflect.DeepEqual(cfg.SyncTargets, want) {
 		t.Fatalf("got targets %v, want %v", cfg.SyncTargets, want)
 	}
-	if cfg.SyncRemoteDir != "/var/www/html/snonux/" {
+	if cfg.SyncRemoteDir != "/var/www/html/snonux.foo/" {
 		t.Fatalf("got remote dir %q", cfg.SyncRemoteDir)
 	}
 }

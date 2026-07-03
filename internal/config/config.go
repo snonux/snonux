@@ -33,6 +33,6 @@ type Config struct {
 	SyncTargets []string
 
 	// SyncRemoteDir is the destination directory on each target host.
-	// Defaults to "/var/www/html/snonux/". Override with SNONUX_SYNC_REMOTE_DIR env var.
+	// Defaults to "/var/www/html/snonux.foo/". Override with SNONUX_SYNC_REMOTE_DIR env var.
 	SyncRemoteDir string
 }
