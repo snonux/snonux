@@ -396,6 +396,240 @@ func TestKeyboardNavJS(t *testing.T) {
 	assertContains(t, index, "<kbd>f</kbd><span class=\"sno-btn-text\">flash</span>", "index.html nav hint f=flash")
 }
 
+// TestSplashMusicChoiceMarkup verifies (task js0) that the generated shared.js
+// injects an explicit "with music" / "without music" choice into the splash
+// overlay, and that shared.css styles it. The buttons are added at runtime
+// (identically for every theme) rather than baked into each theme's
+// splash_inner_html, so this asserts on the generated JS/CSS rather than on
+// index.html markup.
+func TestSplashMusicChoiceMarkup(t *testing.T) {
+	inputDir, outputDir := makeDirs(t)
+
+	if err := os.WriteFile(filepath.Join(inputDir, "splash-music.txt"), []byte("splash music choice test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runPipeline(t, inputDir, outputDir)
+
+	sharedJS := readFile(t, filepath.Join(outputDir, "shared.js"))
+	assertContains(t, sharedJS, "function snonuxRenderSplashMusicChoice()", "shared.js defines the splash music choice injector")
+	assertContains(t, sharedJS, "splash-music-choice", "shared.js references the splash-music-choice container class")
+	assertContains(t, sharedJS, `data-sno-music="on"`, "shared.js with-music button markup")
+	assertContains(t, sharedJS, `data-sno-music="off"`, "shared.js without-music button markup")
+	assertContains(t, sharedJS, "snonuxAmbientSavePreference(withMusic)", "shared.js saves the chosen preference")
+	// Re-injected after both places that replace #splash-overlay's innerHTML
+	// wholesale (theme switch at runtime, and theme-meta application on load
+	// when a visitor's saved theme differs from the page's baked-in default),
+	// otherwise those choice buttons would silently disappear again. Assert
+	// the exact count (not just presence) so a regression that drops one of
+	// the two call sites doesn't hide behind the other still matching.
+	reinjectLine := "if (typeof snonuxRenderSplashMusicChoice === 'function') snonuxRenderSplashMusicChoice();"
+	if got := strings.Count(sharedJS, reinjectLine); got != 2 {
+		t.Errorf("shared.js re-injects splash music choice at %d call sites; want 2 (snonuxSwitchTheme + snonuxApplyThemeMeta)", got)
+	}
+
+	sharedCSS := readFile(t, filepath.Join(outputDir, "shared.css"))
+	assertContains(t, sharedCSS, ".splash-music-choice", "shared.css styles the splash music choice container")
+	assertContains(t, sharedCSS, ".splash-music-btn", "shared.css styles the splash music choice buttons")
+}
+
+// TestSplashMusicChoiceBrowser drives a real headless browser to verify (task
+// js0) that clicking the splash's "without music" button dismisses the splash,
+// persists the decline, and actually leaves the ambient engine stopped; that
+// "with music" persists acceptance and actually starts the ambient engine;
+// and that the choice buttons survive (and keep working after) something
+// wiping #splash-overlay's innerHTML wholesale — the exact hazard
+// snonuxSwitchTheme() and snonuxApplyThemeMeta() pose, since both replace it
+// on the fly when a visitor's saved theme differs from the page default.
+func TestSplashMusicChoiceBrowser(t *testing.T) {
+	chromium, ok := findChromium()
+	if !ok {
+		t.Skip("Chromium executable not found; skipping browser splash-music-choice test")
+	}
+
+	inputDir, outputDir := makeDirs(t)
+	if err := os.WriteFile(filepath.Join(inputDir, "splash-music-browser.txt"), []byte("splash music choice browser test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runPipeline(t, inputDir, outputDir)
+	writeSplashMusicChoiceBrowserHarness(t, outputDir)
+
+	testHTML := filepath.Join(outputDir, "splash-music-choice-test.html")
+	pageURL := url.URL{Scheme: "file", Path: testHTML}
+	out, err := exec.Command(
+		chromium,
+		"--headless",
+		"--disable-gpu",
+		"--no-sandbox",
+		"--disable-dev-shm-usage",
+		"--disable-background-networking",
+		"--allow-file-access-from-files",
+		"--window-size=900,700",
+		"--virtual-time-budget=4000",
+		"--dump-dom",
+		pageURL.String(),
+	).CombinedOutput()
+	if err != nil {
+		t.Fatalf("run headless Chromium: %v\n%s", err, string(out))
+	}
+
+	dom := string(out)
+	if !strings.Contains(dom, `data-splash-music-test="pass"`) {
+		t.Fatalf("splash music choice behavior failed; DOM dump tail:\n%s", dom[max(0, len(dom)-3000):])
+	}
+}
+
+// writeSplashMusicChoiceBrowserHarness clones index.html (stripping CDN
+// assets unreachable from a file:// context, same as the scroll-selection
+// harness) and appends a script that exercises both splash music choice
+// buttons in sequence, recording pass/fail on document.body.
+func writeSplashMusicChoiceBrowserHarness(t *testing.T, outputDir string) {
+	t.Helper()
+
+	indexPath := filepath.Join(outputDir, "index.html")
+	html := readFile(t, indexPath)
+	html = strings.ReplaceAll(html, `<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>`, "")
+	html = strings.ReplaceAll(html, `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">`, "")
+	html = strings.Replace(html,
+		`<script src="shared.js" defer></script>`,
+		`<script src="shared.js" defer></script>`+"\n"+
+			`    <script src="splash-music-choice-test.js" defer></script>`,
+		1,
+	)
+	if err := os.WriteFile(filepath.Join(outputDir, "splash-music-choice-test.html"), []byte(html), 0o644); err != nil {
+		t.Fatalf("write splash-music-choice-test.html: %v", err)
+	}
+
+	harness := `
+(function () {
+    function finish(status, detail) {
+        document.body.setAttribute('data-splash-music-test', status);
+        var pre = document.createElement('pre');
+        pre.id = 'splash-music-test-result';
+        pre.textContent = detail;
+        document.body.appendChild(pre);
+    }
+
+    function ambientPref() {
+        try { return localStorage.getItem('snonuxAmbientEnabled'); } catch (_) { return null; }
+    }
+
+    function ambientPlaying() {
+        return !!(window.snonuxAmbientIsPlaying && window.snonuxAmbientIsPlaying());
+    }
+
+    function findButtons(overlay) {
+        return {
+            on: overlay.querySelector('.splash-music-btn[data-sno-music="on"]'),
+            off: overlay.querySelector('.splash-music-btn[data-sno-music="off"]')
+        };
+    }
+
+    function run() {
+        var overlay = document.getElementById('splash-overlay');
+        var btns = overlay && findButtons(overlay);
+        if (!overlay || !btns.on || !btns.off) {
+            finish('fail', 'missing splash overlay or music-choice buttons');
+            return;
+        }
+
+        // Negative path: decline music. Should dismiss the splash, persist
+        // '0', and actually leave the ambient engine stopped (not just the
+        // localStorage side effect).
+        try { localStorage.removeItem('snonuxAmbientEnabled'); } catch (_) {}
+        btns.off.click();
+        var declinedDismissed = overlay.classList.contains('splash--dismissed');
+        var declinedPref = ambientPref();
+        var declinedPlaying = ambientPlaying();
+
+        // Re-open the splash (buttons must still be attached and working)
+        // so the positive path starts from a clean slate.
+        if (window._snonuxShowSplash) window._snonuxShowSplash();
+        var reopened = !overlay.classList.contains('splash--dismissed');
+
+        // Positive path: accept music. Should dismiss the splash, persist
+        // '1', and actually start the ambient engine.
+        btns.on.click();
+        var acceptedDismissed = overlay.classList.contains('splash--dismissed');
+        var acceptedPref = ambientPref();
+        var acceptedPlaying = ambientPlaying();
+
+        // Simulate the hazard the re-injection fix guards against:
+        // snonuxSwitchTheme()/snonuxApplyThemeMeta() replace #splash-overlay's
+        // entire innerHTML with a fresh theme's markup on the fly, which wipes
+        // out anything appended to it — including these choice buttons. Drop
+        // just the choice element (same end state as that wholesale replace)
+        // and confirm the exported re-injector rebuilds a single, live copy.
+        var inner = overlay.querySelector('.splash-inner');
+        var choiceBeforeWipe = inner && inner.querySelector('.splash-music-choice');
+        if (choiceBeforeWipe) choiceBeforeWipe.remove();
+        var wiped = !overlay.querySelector('.splash-music-choice');
+        if (window.snonuxRenderSplashMusicChoice) window.snonuxRenderSplashMusicChoice();
+        var rebuilt = overlay.querySelectorAll('.splash-music-choice').length === 1;
+
+        // The rebuilt buttons must be freshly wired, not stale references —
+        // re-fetch them and exercise the decline path once more.
+        try { localStorage.removeItem('snonuxAmbientEnabled'); } catch (_) {}
+        if (window._snonuxShowSplash) window._snonuxShowSplash();
+        var rebuiltBtns = findButtons(overlay);
+        var rebuiltBtnsFound = !!(rebuiltBtns.on && rebuiltBtns.off);
+        if (rebuiltBtnsFound) rebuiltBtns.off.click();
+        var rebuiltDismissed = overlay.classList.contains('splash--dismissed');
+        var rebuiltPref = ambientPref();
+        // The prior scenario left the engine playing (acceptedPlaying), so this
+        // decline must flip it back off too — not just the localStorage side effect.
+        var rebuiltPlaying = ambientPlaying();
+
+        // Regression check for the keyboard-focus fix: the document-level
+        // splash keydown handler used to unconditionally preventDefault()
+        // and dismiss on Enter/Space whenever the splash was open, which
+        // swallows the native "activate the focused button" default action
+        // a keyboard-only visitor relies on to actually press one of these
+        // buttons. A trusted, browser-synthesized key press can't be faked
+        // from page script, but we can verify the property our fix controls
+        // directly: with a music button focused, our handler must leave the
+        // event un-prevented and must not itself dismiss the splash, so the
+        // browser is free to run its native button-activation default action.
+        if (window._snonuxShowSplash) window._snonuxShowSplash();
+        rebuiltBtns.off.focus();
+        var focusedButtonIsActive = document.activeElement === rebuiltBtns.off;
+        var enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+        rebuiltBtns.off.dispatchEvent(enterEvent);
+        var keydownPreventedByUs = enterEvent.defaultPrevented;
+        var dismissedByGenericKeydown = overlay.classList.contains('splash--dismissed');
+
+        var detail = 'declinedDismissed=' + declinedDismissed + ' declinedPref=' + declinedPref +
+            ' declinedPlaying=' + declinedPlaying +
+            ' reopened=' + reopened +
+            ' acceptedDismissed=' + acceptedDismissed + ' acceptedPref=' + acceptedPref +
+            ' acceptedPlaying=' + acceptedPlaying +
+            ' wiped=' + wiped + ' rebuilt=' + rebuilt +
+            ' rebuiltBtnsFound=' + rebuiltBtnsFound +
+            ' rebuiltDismissed=' + rebuiltDismissed + ' rebuiltPref=' + rebuiltPref +
+            ' rebuiltPlaying=' + rebuiltPlaying +
+            ' focusedButtonIsActive=' + focusedButtonIsActive +
+            ' keydownPreventedByUs=' + keydownPreventedByUs +
+            ' dismissedByGenericKeydown=' + dismissedByGenericKeydown;
+
+        var pass = declinedDismissed && declinedPref === '0' && !declinedPlaying &&
+            reopened &&
+            acceptedDismissed && acceptedPref === '1' && acceptedPlaying &&
+            wiped && rebuilt &&
+            rebuiltBtnsFound && rebuiltDismissed && rebuiltPref === '0' && !rebuiltPlaying &&
+            focusedButtonIsActive && !keydownPreventedByUs && !dismissedByGenericKeydown;
+        finish(pass ? 'pass' : 'fail', detail);
+    }
+
+    if (document.readyState === 'complete') run();
+    else window.addEventListener('load', run);
+})();
+`
+	if err := os.WriteFile(filepath.Join(outputDir, "splash-music-choice-test.js"), []byte(harness), 0o644); err != nil {
+		t.Fatalf("write splash-music-choice-test.js: %v", err)
+	}
+}
+
 // TestScrollDrivenPostSelection verifies the generated page behavior in a real
 // browser: scrolling the post container moves .post-active to the article
 // nearest the container center.

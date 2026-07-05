@@ -822,6 +822,21 @@ a.header-feed-link:hover { opacity:1; text-decoration:underline; }
 .splash-controls kbd { display:inline-block; background:rgba(255,255,255,0.08);
   border:1px solid rgba(255,255,255,0.2); border-radius:3px; padding:0 4px;
   font-family:monospace; font-size:0.62rem; margin:0 1px; }
+/* Splash music choice (task js0): explicit "with"/"without music" buttons so
+   visitors decide before ambient audio ever starts, instead of only finding
+   the 'p' shortcut afterward. Injected by shared.js into every theme's
+   .splash-inner, so kept theme-neutral here (ghost/outline style over the
+   frosted splash panel background). */
+.splash-music-choice { margin-top:0.85rem; display:flex; gap:0.6rem; justify-content:center; flex-wrap:wrap; }
+.splash-music-btn {
+  appearance:none; border:1px solid rgba(255,255,255,0.35); border-radius:999px;
+  background:rgba(255,255,255,0.06); color:inherit; font:inherit; font-size:0.72rem;
+  letter-spacing:0.04em; padding:0.45rem 0.9rem; margin:0; cursor:pointer;
+  display:inline-flex; align-items:center; gap:0.4rem; -webkit-tap-highlight-color:transparent;
+  transition:background 0.18s ease, transform 0.18s ease, border-color 0.18s ease; }
+.splash-music-btn:hover { background:rgba(255,255,255,0.16); border-color:rgba(255,255,255,0.6); }
+.splash-music-btn:active { transform:scale(0.96); }
+.splash-music-btn:focus-visible { outline:1px solid currentColor; outline-offset:3px; }
 #splash-overlay.splash-brutalist .splash-inner.splash-frame {
   padding: clamp(1.4rem, 4.5vw, 2.25rem) clamp(1.1rem, 3.5vw, 1.9rem); background: rgba(0, 0, 0, 0.78); }
 html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidden !important; pointer-events:none !important; }

@@ -216,7 +216,13 @@
                 if (m.title) document.title = m.title;
                 var headerEl = document.querySelector('header');
                 if (headerEl && m.header_html) headerEl.innerHTML = m.header_html;
-                if (splashOverlay && m.splash_inner_html) splashOverlay.innerHTML = m.splash_inner_html;
+                // Replacing splash_inner_html wipes out the music-choice buttons
+                // injected earlier (snonuxRenderSplashMusicChoice runs once on
+                // load), so re-inject them against the freshly-swapped markup.
+                if (splashOverlay && m.splash_inner_html) {
+                    splashOverlay.innerHTML = m.splash_inner_html;
+                    if (typeof snonuxRenderSplashMusicChoice === 'function') snonuxRenderSplashMusicChoice();
+                }
                 var prevA = document.getElementById('sno-prev-page');
                 if (prevA && m.prev_page_text) prevA.innerHTML = m.prev_page_text;
                 var nextA = document.getElementById('sno-next-page');
@@ -1991,6 +1997,52 @@
         hint.appendChild(extra);
     })();
 
+    // Splash music choice (task js0): give visitors an explicit "with music" /
+    // "without music" choice on the splash screen itself, instead of only
+    // discovering the 'p' ambient shortcut after they are already inside.
+    // Purely additive -- clicking elsewhere on the splash, or Enter/Space/Escape,
+    // still dismisses it without changing whichever ambient preference (if any)
+    // was already restored from localStorage on this load.
+    //
+    // A named function declaration (not an IIFE) so it is hoisted and can be
+    // re-invoked wherever #splash-overlay's innerHTML gets replaced wholesale
+    // -- snonuxSwitchTheme() and snonuxApplyThemeMeta() both do this when the
+    // visitor's saved theme differs from the one baked into this page, which
+    // would otherwise silently wipe the choice buttons out again.
+    function snonuxRenderSplashMusicChoice() {
+        var overlay = document.getElementById('splash-overlay');
+        var inner = overlay && overlay.querySelector('.splash-inner');
+        // Nothing to attach to (unexpected theme markup), or already injected.
+        if (!inner || inner.querySelector('.splash-music-choice')) return;
+        var choice = document.createElement('div');
+        choice.className = 'splash-music-choice';
+        choice.innerHTML =
+            '<button type="button" class="splash-music-btn" data-sno-music="on" aria-label="Enter with background music">' +
+                '<i class="fas fa-music" aria-hidden="true"></i> With music</button>' +
+            '<button type="button" class="splash-music-btn" data-sno-music="off" aria-label="Enter without background music">' +
+                '<i class="fas fa-volume-mute" aria-hidden="true"></i> Without music</button>';
+        inner.appendChild(choice);
+        choice.addEventListener('click', function(e) {
+            var btn = e.target.closest('.splash-music-btn');
+            if (!btn) return;
+            // Stop the click from also bubbling to the overlay's own
+            // click-to-dismiss handler: we want our preference set first,
+            // then dismiss explicitly ourselves, as a single clear path.
+            e.stopPropagation();
+            var withMusic = btn.getAttribute('data-sno-music') === 'on';
+            snonuxAmbientSavePreference(withMusic);
+            if (withMusic) {
+                if (window.snonuxAmbientStart) window.snonuxAmbientStart('splash-choice');
+            } else if (window.snonuxAmbientPause) {
+                window.snonuxAmbientPause('splash-choice');
+            }
+            if (window._snonuxPlaySplashChime) window._snonuxPlaySplashChime();
+            if (window._snonuxDismissSplash) window._snonuxDismissSplash();
+            syncFxButtonStates();
+        });
+    }
+    snonuxRenderSplashMusicChoice();
+
     function openPostAt(index, scrollIntoView) {
         if (posts.length === 0) return;
         setActiveHighlight(index, false, !!scrollIntoView);
@@ -2090,6 +2142,15 @@
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
         var splash = document.getElementById('splash-overlay');
         if (splash && !splash.classList.contains('splash--dismissed')) {
+            // A Tab-focused .splash-music-btn must keep native Enter/Space
+            // button activation (which fires the click handler that sets the
+            // chosen preference) instead of falling into the generic
+            // dismiss-without-choice branch below, which would silently
+            // strand keyboard-only visitors: they'd never be able to
+            // actually pick "with" or "without" music via the keyboard.
+            if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('.splash-music-btn')) {
+                return;
+            }
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 if (window._snonuxPlaySplashChime) window._snonuxPlaySplashChime();
@@ -2304,7 +2365,14 @@
             if (m.title) document.title = m.title;
             var headerEl = document.querySelector('header');
             if (headerEl && m.header_html) headerEl.innerHTML = m.header_html;
-            if (splashOverlay && m.splash_inner_html) splashOverlay.innerHTML = m.splash_inner_html;
+            // Same re-injection concern as snonuxSwitchTheme(): this runs on
+            // initial load when the visitor's saved theme differs from the
+            // one baked into the page, so the choice buttons must be rebuilt
+            // against the swapped-in splash markup.
+            if (splashOverlay && m.splash_inner_html) {
+                splashOverlay.innerHTML = m.splash_inner_html;
+                if (typeof snonuxRenderSplashMusicChoice === 'function') snonuxRenderSplashMusicChoice();
+            }
             var prevA = document.getElementById('sno-prev-page');
             if (prevA && m.prev_page_text) prevA.innerHTML = m.prev_page_text;
             var nextA = document.getElementById('sno-next-page');
