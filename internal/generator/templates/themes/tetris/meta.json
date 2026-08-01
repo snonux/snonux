@@ -1,0 +1,7 @@
+{
+  "title": "snonux.foo // BLOCK DROP",
+  "header_html": "<div class=\"logo\"><div class=\"block-logo\" aria-hidden=\"true\"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class=\"logo-title\"><h1>snonux.foo</h1><p class=\"subtitle\">BLOCK DROP MICROBLOG · <a href=\"https://foo.zone\">FOO.ZONE</a> IS THE REAL BLOG</p><p class=\"logo-host\">Served by NetBSD on a Raspberry Pi 3</p></div></div><div class=\"nav\"><a href=\"atom.xml\" class=\"header-feed-link\" rel=\"alternate\" title=\"Atom feed\" type=\"application/atom+xml\">ATOM FEED</a><a href=\"https://foo.zone/about\" class=\"transmit-btn\"><span aria-hidden=\"true\">▦</span> DROP A LINE</a></div>",
+  "splash_inner_html": "<canvas class=\"splash-gl-canvas\" id=\"splash-gl-canvas\" aria-hidden=\"true\"></canvas><div class=\"splash-inner\"><div class=\"splash-stack\" aria-hidden=\"true\"><i class=\"b1\"></i><i class=\"b2\"></i><i class=\"b3\"></i><i class=\"b4\"></i><i class=\"b5\"></i><i class=\"b6\"></i><i class=\"b7\"></i><i class=\"b8\"></i><i class=\"b9\"></i><i class=\"b10\"></i><i class=\"b11\"></i><i class=\"b12\"></i></div><div class=\"splash-kicker\">LEVEL 01 · READY</div><div class=\"splash-title\">SNONUX</div><div class=\"splash-tag\">Stack thoughts. Clear lines.</div><div class=\"splash-hint\">PRESS ENTER OR CLICK TO DROP IN</div></div>",
+  "prev_page_text": "◀ NEWER BLOCKS",
+  "next_page_text": "OLDER BLOCKS ▶"
+}
