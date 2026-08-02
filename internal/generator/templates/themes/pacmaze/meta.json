@@ -1,0 +1,7 @@
+{
+  "title": "snonux.foo // NEON MAZE",
+  "header_html": "<div class=\"logo\"><span class=\"maze-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span><div class=\"logo-title\"><h1>snonux.foo</h1><p class=\"subtitle\">NEON MAZE MICROBLOG · <a href=\"https://foo.zone\">FOO.ZONE</a> IS THE REAL BLOG</p><p class=\"logo-host\">Served by NetBSD on a Raspberry Pi 3</p></div></div><div class=\"nav\"><a href=\"atom.xml\" class=\"header-feed-link\" rel=\"alternate\" title=\"Atom feed\" type=\"application/atom+xml\">ATOM FEED</a><a href=\"https://foo.zone/about\" class=\"transmit-btn\">ENTER NEXT CHAMBER</a></div>",
+  "splash_inner_html": "<canvas class=\"splash-gl-canvas\" id=\"splash-gl-canvas\" aria-hidden=\"true\"></canvas><div class=\"splash-maze\" aria-hidden=\"true\"><span class=\"splash-runner\"></span></div><div class=\"splash-inner\"><div class=\"splash-kicker\">PATH READY · DOTS ONLINE</div><div class=\"splash-title\">SNONUX</div><div class=\"splash-tag\">Dispatches from the neon maze</div><div class=\"splash-hint\">CLICK OR PRESS ENTER TO CHASE THE SIGNAL</div></div>",
+  "prev_page_text": "◀ NEWER CHAMBERS",
+  "next_page_text": "OLDER CHAMBERS ▶"
+}

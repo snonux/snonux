@@ -1,0 +1,11 @@
+{
+  "splash": {"freqs":[261.63,329.63,392,523.25],"spacing":0.08,"gain":0.075,"wave":"square"},
+  "nav": {"freq":523.25,"wave":"square","dur":0.045,"gain":0.05},
+  "open": {"wave":"triangle","start":261.63,"end":783.99,"dur":0.13,"gain":0.07},
+  "close": {"wave":"square","start":523.25,"end":130.81,"dur":0.12,"gain":0.06},
+  "bounce": {"wave":"triangle","start":196,"end":98,"dur":0.09,"gain":0.065},
+  "ambient": {
+    "normal": {"bpm":132,"gain":0.026,"wave":"square","droneFreqs":[65.41,130.81],"pulseFreqs":[261.63,392,523.25],"cutoffMin":850,"cutoffMax":4300,"attack":0.01,"release":0.07,"melody":[{"freq":261.63,"dur":0.1,"step":0.18},{"freq":329.63,"dur":0.1,"step":0.18},{"freq":392,"dur":0.1,"step":0.18},{"freq":523.25,"dur":0.18,"step":0.36}],"drums":["kick","","hat","","snare","","hat",""] ,"file":"ambient.ogg","volume":0.32},
+    "wild": {"bpm":184,"gain":0.055,"wave":"square","droneFreqs":[73.42,146.83,293.66],"pulseFreqs":[587.33,698.46,880],"cutoffMin":1900,"cutoffMax":7200,"attack":0.005,"release":0.04,"detuneCents":8,"melody":[{"freq":880,"dur":0.08,"step":0.11},{"freq":698.46,"dur":0.08,"step":0.11},{"freq":587.33,"dur":0.08,"step":0.11},{"freq":440,"dur":0.08,"step":0.11}],"drums":["kick","hat","snare","hat","kick","hat","snare","hat"],"file":"ambient.ogg","volume":0.46}
+  }
+}

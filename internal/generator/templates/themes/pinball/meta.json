@@ -1,0 +1,7 @@
+{
+  "title": "snonux.foo // PINBALL",
+  "header_html": "<div class=\"logo\"><div class=\"pinball-logo\" aria-hidden=\"true\"><span></span></div><div class=\"logo-title\"><h1>SNONUX <b>PINBALL</b></h1><p class=\"subtitle\">HIGH-SCORE MICROBLOG · <a href=\"https://foo.zone\">FOO.ZONE</a> IS THE REAL BLOG</p><p class=\"logo-host\">Served by NetBSD on a Raspberry Pi 3</p></div></div><div class=\"nav\"><a href=\"atom.xml\" class=\"header-feed-link\" rel=\"alternate\" title=\"Atom feed\" type=\"application/atom+xml\">SCORE FEED</a><a href=\"https://foo.zone/about\" class=\"transmit-btn\"><span aria-hidden=\"true\">●</span> SHOOT AGAIN</a></div>",
+  "splash_inner_html": "<canvas class=\"splash-gl-canvas\" id=\"splash-gl-canvas\" aria-hidden=\"true\"></canvas><div class=\"splash-inner\"><div class=\"launch-lane\" aria-hidden=\"true\"><i></i><span></span></div><div class=\"splash-kicker\">BALL 1 · PLAYER ONE</div><div class=\"splash-title\">SNONUX</div><div class=\"splash-tag\">ELECTRO-MECHANICAL MICROBLOG</div><div class=\"splash-hint\">PRESS ENTER OR CLICK TO LAUNCH BALL</div></div>",
+  "prev_page_text": "‹ NEWER SCORES",
+  "next_page_text": "OLDER SCORES ›"
+}

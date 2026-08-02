@@ -1,0 +1,7 @@
+{
+  "title": "snonux.foo // FORMATION",
+  "header_html": "<div class=\"logo\"><span class=\"formation-mark\" aria-hidden=\"true\"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><div class=\"logo-title\"><h1>snonux.foo</h1><p class=\"subtitle\">COMMAND TRANSMISSIONS · <a href=\"https://foo.zone\">FOO.ZONE</a> IS THE REAL BLOG</p><p class=\"logo-host\">Served by NetBSD on a Raspberry Pi 3</p></div></div><div class=\"nav\"><a href=\"atom.xml\" class=\"header-feed-link\" rel=\"alternate\" title=\"Atom feed\" type=\"application/atom+xml\">SIGNAL FEED</a><a href=\"https://foo.zone/about\" class=\"transmit-btn\">OPEN CHANNEL</a></div>",
+  "splash_inner_html": "<canvas class=\"splash-gl-canvas\" id=\"splash-gl-canvas\" aria-hidden=\"true\"></canvas><div class=\"splash-inner\"><div class=\"descent\" aria-hidden=\"true\"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div><div class=\"splash-kicker\">FORMATION DETECTED</div><div class=\"splash-title\">SNONUX</div><div class=\"splash-tag\">Command channel ready</div><div class=\"splash-hint\">PRESS ENTER OR CLICK TO RESPOND</div></div>",
+  "prev_page_text": "◀ NEWER SIGNALS",
+  "next_page_text": "OLDER SIGNALS ▶"
+}

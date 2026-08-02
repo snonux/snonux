@@ -1,0 +1,7 @@
+{
+  "title": "snonux.foo // BREAKOUT",
+  "header_html": "<div class=\"logo\"><span class=\"ball-mark\" aria-hidden=\"true\"></span><div><h1>snonux.foo</h1><p class=\"subtitle\">NOTES FROM THE MIDNIGHT ARCADE · <a href=\"https://foo.zone\">FOO.ZONE</a> IS THE REAL BLOG</p><p class=\"logo-host\">Served by NetBSD on a Raspberry Pi 3</p></div></div><nav class=\"nav\" aria-label=\"Site\"><a href=\"atom.xml\" class=\"header-feed-link\" rel=\"alternate\" title=\"Atom feed\" type=\"application/atom+xml\">ATOM</a><a href=\"https://foo.zone/about\" class=\"transmit-btn\">SEND A NOTE</a></nav>",
+  "splash_inner_html": "<canvas class=\"splash-gl-canvas\" id=\"splash-gl-canvas\" aria-hidden=\"true\"></canvas><div class=\"splash-inner\"><div class=\"splash-bricks\" aria-hidden=\"true\"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class=\"splash-ball\" aria-hidden=\"true\"></div><div class=\"splash-paddle\" aria-hidden=\"true\"></div><p class=\"splash-kicker\">PLAYER ONE · READY</p><div class=\"splash-title\">BREAKOUT</div><p class=\"splash-tag\">Clear a line. Leave a thought.</p><p class=\"splash-hint\">PRESS ENTER OR CLICK TO SERVE</p></div>",
+  "prev_page_text": "← NEWER ROUND",
+  "next_page_text": "OLDER ROUND →"
+}
