@@ -5,7 +5,7 @@
   "close": {"wave":"square","start":660,"end":110,"dur":0.12,"gain":0.07},
   "bounce": {"wave":"sine","start":1200,"end":240,"dur":0.09,"gain":0.09},
   "ambient": {
-    "normal": {"bpm":124,"gain":0.03,"wave":"triangle","droneFreqs":[82.41,164.81],"pulseFreqs":[329.63,493.88,659.25],"cutoffMin":800,"cutoffMax":4400,"attack":0.01,"release":0.12,"melody":[{"freq":659.25,"dur":0.08,"step":0.24},{"freq":987.77,"dur":0.08,"step":0.24},{"freq":783.99,"dur":0.08,"step":0.24},{"freq":1318.5,"dur":0.12,"step":0.48}],"drums":["kick","","hat","","snare","","hat",""],"file":"ambient.ogg","volume":0.34},
-    "wild": {"bpm":198,"gain":0.06,"wave":"square","droneFreqs":[82.41,164.81,329.63],"pulseFreqs":[659.25,987.77,1318.5],"cutoffMin":1800,"cutoffMax":7600,"attack":0.005,"release":0.05,"detuneCents":8,"melody":[{"freq":1318.5,"dur":0.05,"step":0.1},{"freq":987.77,"dur":0.05,"step":0.1},{"freq":1567.98,"dur":0.05,"step":0.1},{"freq":1975.53,"dur":0.06,"step":0.1}],"drums":["kick","hat","snare","hat","kick","hat","snare","clap"],"file":"ambient.ogg","volume":0.48}
+    "normal": {"bpm":124,"gain":0.03,"wave":"triangle","droneFreqs":[82.41,164.81],"pulseFreqs":[329.63,493.88,659.25],"cutoffMin":800,"cutoffMax":4400,"attack":0.01,"release":0.12,"melody":[{"freq":659.25,"dur":0.08,"step":0.24},{"freq":987.77,"dur":0.08,"step":0.24},{"freq":783.99,"dur":0.08,"step":0.24},{"freq":1318.5,"dur":0.12,"step":0.48}],"drums":["kick","","hat","","snare","","hat",""],"file":"ambient.ogg","volume":0.42},
+    "wild": {"bpm":198,"gain":0.06,"wave":"square","droneFreqs":[82.41,164.81,329.63],"pulseFreqs":[659.25,987.77,1318.5],"cutoffMin":1800,"cutoffMax":7600,"attack":0.005,"release":0.05,"detuneCents":8,"melody":[{"freq":1318.5,"dur":0.05,"step":0.1},{"freq":987.77,"dur":0.05,"step":0.1},{"freq":1567.98,"dur":0.05,"step":0.1},{"freq":1975.53,"dur":0.06,"step":0.1}],"drums":["kick","hat","snare","hat","kick","hat","snare","clap"],"file":"ambient.ogg","volume":0.58}
   }
 }
