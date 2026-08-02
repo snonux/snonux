@@ -84,6 +84,56 @@ func TestResolveSyncConfig_flagsOverrideEnv(t *testing.T) {
 	}
 }
 
+func TestReachableSyncTarget(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		host      string
+		reachable map[string]bool
+		fallback  map[string]bool
+		want      string
+		wantOK    bool
+	}{
+		{
+			name:      "LAN reachable",
+			host:      "pi0.lan.buetow.org",
+			reachable: map[string]bool{"pi0.lan.buetow.org": true},
+			want:      "pi0.lan.buetow.org",
+			wantOK:    true,
+		},
+		{
+			name:     "WireGuard fallback reachable",
+			host:     "pi1.lan.buetow.org",
+			fallback: map[string]bool{"pi1.wg0": true},
+			want:     "pi1.wg0",
+			wantOK:   true,
+		},
+		{
+			name: "neither reachable",
+			host: "pi0.lan.buetow.org",
+		},
+		{
+			name: "custom target has no fallback",
+			host: "custom.example.org",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := reachableSyncTarget(tt.host, func(host string) bool {
+				return tt.reachable[host]
+			}, func(host string) bool {
+				return tt.fallback[host]
+			})
+			if got != tt.want || ok != tt.wantOK {
+				t.Fatalf("reachableSyncTarget(%q) = (%q, %v), want (%q, %v)", tt.host, got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
 func unsetEnv(t *testing.T, key string) {
 	t.Helper()
 	orig, hadOrig := os.LookupEnv(key)

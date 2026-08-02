@@ -84,7 +84,7 @@ All source files are removed from the input directory once they have been succes
 --output DIR     Output directory for generated site (default: ./dist)
 --base-url URL   Base URL for Atom feed links (default: https://snonux.foo)
 --theme NAME     Visual theme, or "random" (default: random)
---sync           Rsync output to pi0/pi1 after generation
+--sync           Rsync output to pi0/pi1 after generation (LAN, then WireGuard fallback)
 --list-themes    Print available theme names and exit
 --version        Print version and exit
 ```

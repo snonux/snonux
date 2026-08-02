@@ -29,6 +29,7 @@ type Config struct {
 
 	// SyncTargets are the remote hostnames to rsync to when Sync is true.
 	// Defaults to ["pi0.lan.buetow.org", "pi1.lan.buetow.org"].
+	// The default targets fall back to pi0.wg0 and pi1.wg0 when unreachable.
 	// Override with SNONUX_SYNC_TARGETS env var (comma-separated).
 	SyncTargets []string
 
