@@ -17,7 +17,10 @@ import (
 // SNONUX_SYNC_USER overrides the SSH username for rsync (default: current login name).
 const envSyncUser = "SNONUX_SYNC_USER"
 
-const wireGuardJumpHost = "rex@fishfinger.buetow.org:2"
+const (
+	wireGuardJumpHost = "rex@fishfinger.buetow.org:2"
+	sshControlPath    = "~/.ssh/snonux-%C"
+)
 
 // defaultSyncTargets are the built-in mirror hosts used when no configuration overrides them.
 var defaultSyncTargets = []string{
@@ -77,7 +80,9 @@ func syncOutput(ctx context.Context, cfg *config.Config) error {
 
 	syncTargets := make([]string, 0, len(cfg.SyncTargets))
 	for _, host := range cfg.SyncTargets {
+		log.Printf("checking sync target %q", host)
 		target, ok := reachableSyncTarget(host, hostPingable, func(fallback string) bool {
+			log.Printf("sync target %q not pingable; checking WireGuard fallback %q via %q", host, fallback, wireGuardJumpHost)
 			return hostReachableViaWireGuard(fallback, sshUser)
 		})
 		if !ok {
@@ -108,11 +113,11 @@ func syncOutput(ctx context.Context, cfg *config.Config) error {
 		// the remote webserver runs as its own unprivileged user (e.g. bozohttpd's
 		// _httpd), not as the SSH login user, so published files must be
 		// world-readable regardless of local perms.
-		ssh := "ssh -p 22 -o BatchMode=yes -o ConnectTimeout=15"
+		ssh := "ssh -p 22 -o BatchMode=yes -o ConnectTimeout=15 -o ControlMaster=auto -o ControlPersist=30 -o ControlPath=" + sshControlPath
 		if wireGuardFallbackHost(host) {
 			ssh += " -o HostKeyAlias=" + wireGuardHostKeyAlias(host) + " -J " + wireGuardJumpHost
 		}
-		cmd := exec.CommandContext(ctx, "rsync", "-az", "--chmod=D755,F644", "-e", ssh, src, dest)
+		cmd := exec.CommandContext(ctx, "rsync", "-az", "--checksum", "--info=progress2", "--chmod=D755,F644", "-e", ssh, src, dest)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
@@ -166,6 +171,7 @@ func hostReachableViaWireGuard(host, sshUser string) bool {
 	defer cancel()
 	cmd := exec.CommandContext(ctx,
 		"ssh", "-p", "22", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+		"-o", "ControlMaster=auto", "-o", "ControlPersist=30", "-o", "ControlPath="+sshControlPath,
 		"-o", "HostKeyAlias="+wireGuardHostKeyAlias(host),
 		"-J", wireGuardJumpHost, sshUser+"@"+host, "true",
 	)
@@ -175,10 +181,10 @@ func hostReachableViaWireGuard(host, sshUser string) bool {
 }
 
 func hostPingable(host string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	// Linux iputils-ping: -c 1 one packet, -W 3 wait up to 3s for reply.
-	cmd := exec.CommandContext(ctx, "ping", "-c", "1", "-W", "3", host)
+	// Linux iputils-ping: -c 1 one packet, -W 1 wait up to 1s for reply.
+	cmd := exec.CommandContext(ctx, "ping", "-c", "1", "-W", "1", host)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	return cmd.Run() == nil
