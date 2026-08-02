@@ -17,17 +17,16 @@
         window.snonuxNextPageURL = {{.NextPageJSON}};
 
         // Default theme's Web Audio preset is baked in so the splash chime
-        // can fire instantly. shared.js may overwrite this with the saved
-        // theme's sounds.json if the user picked a different one.
+        // can fire instantly. shared.js overwrites this when the user picks
+        // a different theme during the current page view.
         window.SNONUX_SOUNDS = {{.DefaultSoundsJSON}};
 
         // Pick the active theme synchronously so paint blocks on the right
-        // stylesheet — no FOUC. Falls back to the default if localStorage
-        // holds nothing (or something we don't recognise).
+        // stylesheet — no FOUC. Always start with the generated default so a
+        // newly published random theme is visible after a reload.
         (function () {
-            var saved = null;
-            try { saved = localStorage.getItem('snonuxTheme'); } catch (_) {}
-            var theme = (saved && SNONUX_ALL_THEMES.indexOf(saved) >= 0) ? saved : SNONUX_DEFAULT_THEME;
+            var theme = SNONUX_DEFAULT_THEME;
+            try { localStorage.removeItem('snonuxTheme'); } catch (_) {}
             window.SNONUX_CURRENT_THEME = theme;
             document.documentElement.setAttribute('data-sno-theme', theme);
             // document.write blocks parsing until the stylesheet loads, which

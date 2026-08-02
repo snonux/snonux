@@ -170,7 +170,6 @@
         var all = (typeof window !== 'undefined' && window.SNONUX_ALL_THEMES) || [];
         if (all.indexOf(theme) < 0) return;
         if (theme === window.SNONUX_CURRENT_THEME) return;
-        try { localStorage.setItem('snonuxTheme', theme); } catch (_) {}
 
         // Tear down the previous theme's splash WebGL animation so we don't
         // leak its requestAnimationFrame loop and renderer when theme.js
