@@ -4,7 +4,7 @@ import (
 	"log"
 	"sync"
 
-	"codeberg.org/snonux/snonux/internal/generator/templates"
+	"github.com/snonux/snonux/internal/generator/templates"
 )
 
 // navDefs is the content of templates/shared/nav.tmpl loaded once at startup.

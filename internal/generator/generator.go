@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/snonux/snonux/internal/config"
-	"codeberg.org/snonux/snonux/internal/generator/atom"
-	"codeberg.org/snonux/snonux/internal/generator/templates"
-	"codeberg.org/snonux/snonux/internal/post"
-	"codeberg.org/snonux/snonux/internal/version"
+	"github.com/snonux/snonux/internal/config"
+	"github.com/snonux/snonux/internal/generator/atom"
+	"github.com/snonux/snonux/internal/generator/templates"
+	"github.com/snonux/snonux/internal/post"
+	"github.com/snonux/snonux/internal/version"
 )
 
 // pageData holds the template variables for a single HTML page.

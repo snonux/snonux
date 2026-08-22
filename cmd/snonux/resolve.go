@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 
-	"codeberg.org/snonux/snonux/internal/config"
-	"codeberg.org/snonux/snonux/internal/generator"
+	"github.com/snonux/snonux/internal/config"
+	"github.com/snonux/snonux/internal/generator"
 )
 
 // resolvePaths expands home directories in cfg.InputDir and cfg.OutputDir.

@@ -1,4 +1,4 @@
-module codeberg.org/snonux/snonux
+module github.com/snonux/snonux
 
 go 1.25.8
 

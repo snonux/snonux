@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"codeberg.org/snonux/snonux/internal/post"
+	"github.com/snonux/snonux/internal/post"
 )
 
 type audioBuilder struct{}

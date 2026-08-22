@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/snonux/snonux/internal/post"
+	"github.com/snonux/snonux/internal/post"
 )
 
 // urlPattern matches http/https URLs in plain text.

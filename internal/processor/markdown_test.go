@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"codeberg.org/snonux/snonux/internal/config"
+	"github.com/snonux/snonux/internal/config"
 )
 
 func TestIsSimpleImageRef(t *testing.T) {

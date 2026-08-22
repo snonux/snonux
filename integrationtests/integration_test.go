@@ -21,10 +21,10 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/snonux/snonux/internal/config"
-	"codeberg.org/snonux/snonux/internal/generator"
-	"codeberg.org/snonux/snonux/internal/processor"
-	"codeberg.org/snonux/snonux/internal/version"
+	"github.com/snonux/snonux/internal/config"
+	"github.com/snonux/snonux/internal/generator"
+	"github.com/snonux/snonux/internal/processor"
+	"github.com/snonux/snonux/internal/version"
 )
 
 var ctx = context.Background() //nolint:gochecknoglobals // test-only top-level helper used by every test in the file
