@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -244,6 +247,43 @@ func TestResolveTheme_nilRng(t *testing.T) {
 	cfg := &config.Config{Theme: "random"}
 	if err := resolveTheme(cfg, nil); err == nil {
 		t.Fatal("expected error for nil rng")
+	}
+}
+
+// TestResolveTheme_random_printsSelectedTheme verifies that resolving a
+// "random" theme announces the chosen theme on the log output. It is not
+// parallel because it temporarily swaps the default logger's writer.
+func TestResolveTheme_random_printsSelectedTheme(t *testing.T) {
+	var buf bytes.Buffer
+	orig := log.Writer()
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(orig) })
+
+	cfg := &config.Config{Theme: "random"}
+	if err := resolveTheme(cfg, rand.New(rand.NewSource(1))); err != nil {
+		t.Fatal(err)
+	}
+	want := fmt.Sprintf("random theme selected: %s", cfg.Theme)
+	if got := strings.Count(buf.String(), want); got != 1 {
+		t.Fatalf("expected exactly one announcement of selected theme %q, got %d in log %q", cfg.Theme, got, buf.String())
+	}
+}
+
+// TestResolveTheme_fixed_doesNotPrint verifies that an explicitly chosen theme
+// does not produce the random-theme announcement. It is not parallel because
+// it temporarily swaps the default logger's writer.
+func TestResolveTheme_fixed_doesNotPrint(t *testing.T) {
+	var buf bytes.Buffer
+	orig := log.Writer()
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(orig) })
+
+	cfg := &config.Config{Theme: "neon"}
+	if err := resolveTheme(cfg, rand.New(rand.NewSource(1))); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "random theme selected") {
+		t.Fatalf("expected no random-theme log for fixed theme, got %q", buf.String())
 	}
 }
 

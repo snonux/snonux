@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 
 	"github.com/snonux/snonux/internal/config"
@@ -37,7 +38,8 @@ func validateDirs(cfg *config.Config) error {
 }
 
 // resolveTheme resolves the special "random" theme value by picking a registered
-// theme using rng. The rng parameter must be non-nil.
+// theme using rng and logs which theme was chosen so the user can see the result.
+// The rng parameter must be non-nil.
 func resolveTheme(cfg *config.Config, rng *rand.Rand) error {
 	if cfg.Theme != "random" {
 		return nil
@@ -47,5 +49,6 @@ func resolveTheme(cfg *config.Config, rng *rand.Rand) error {
 	}
 	themes := generator.ListThemes()
 	cfg.Theme = themes[rng.Intn(len(themes))]
+	log.Printf("random theme selected: %s", cfg.Theme)
 	return nil
 }
