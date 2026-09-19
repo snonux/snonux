@@ -250,40 +250,47 @@ func TestResolveTheme_nilRng(t *testing.T) {
 	}
 }
 
-// TestResolveTheme_random_printsSelectedTheme verifies that resolving a
-// "random" theme announces the chosen theme on the log output. It is not
-// parallel because it temporarily swaps the default logger's writer.
-func TestResolveTheme_random_printsSelectedTheme(t *testing.T) {
-	var buf bytes.Buffer
-	orig := log.Writer()
-	log.SetOutput(&buf)
-	t.Cleanup(func() { log.SetOutput(orig) })
-
-	cfg := &config.Config{Theme: "random"}
-	if err := resolveTheme(cfg, rand.New(rand.NewSource(1))); err != nil {
-		t.Fatal(err)
+// TestResolveTheme_printsSelectedTheme verifies that both random and explicitly
+// selected themes are announced. It is not parallel because it temporarily
+// swaps the default logger's writer.
+func TestResolveTheme_printsSelectedTheme(t *testing.T) {
+	tests := []struct {
+		name  string
+		theme string
+		want  string
+	}{
+		{name: "random", theme: "random"},
+		{name: "fixed", theme: "matrix", want: "matrix"},
+		{name: "unknown falls back", theme: "no-such-theme", want: "neon"},
 	}
-	want := fmt.Sprintf("random theme selected: %s", cfg.Theme)
-	if got := strings.Count(buf.String(), want); got != 1 {
-		t.Fatalf("expected exactly one announcement of selected theme %q, got %d in log %q", cfg.Theme, got, buf.String())
-	}
-}
 
-// TestResolveTheme_fixed_doesNotPrint verifies that an explicitly chosen theme
-// does not produce the random-theme announcement. It is not parallel because
-// it temporarily swaps the default logger's writer.
-func TestResolveTheme_fixed_doesNotPrint(t *testing.T) {
-	var buf bytes.Buffer
-	orig := log.Writer()
-	log.SetOutput(&buf)
-	t.Cleanup(func() { log.SetOutput(orig) })
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			origWriter := log.Writer()
+			origFlags := log.Flags()
+			origPrefix := log.Prefix()
+			log.SetOutput(&buf)
+			log.SetFlags(0)
+			log.SetPrefix("")
+			t.Cleanup(func() {
+				log.SetOutput(origWriter)
+				log.SetFlags(origFlags)
+				log.SetPrefix(origPrefix)
+			})
 
-	cfg := &config.Config{Theme: "neon"}
-	if err := resolveTheme(cfg, rand.New(rand.NewSource(1))); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(buf.String(), "random theme selected") {
-		t.Fatalf("expected no random-theme log for fixed theme, got %q", buf.String())
+			cfg := &config.Config{Theme: tt.theme}
+			if err := resolveTheme(cfg, rand.New(rand.NewSource(1))); err != nil {
+				t.Fatal(err)
+			}
+			if tt.want != "" && cfg.Theme != tt.want {
+				t.Fatalf("theme = %q, want %q", cfg.Theme, tt.want)
+			}
+			want := fmt.Sprintf("theme selected: %s\n", cfg.Theme)
+			if got := buf.String(); got != want {
+				t.Fatalf("log = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

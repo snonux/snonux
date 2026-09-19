@@ -378,13 +378,13 @@ func TestBuildPageData_navLinks(t *testing.T) {
 	}
 }
 
-func TestValidThemeName_unknownFallsBackToNeon(t *testing.T) {
+func TestNormalizeThemeName_unknownFallsBackToNeon(t *testing.T) {
 	t.Parallel()
-	if got := validThemeName("no-such-theme-"); got != "neon" {
-		t.Fatalf("validThemeName(\"no-such-theme-\") = %q; want \"neon\"", got)
+	if got := NormalizeThemeName("no-such-theme-"); got != "neon" {
+		t.Fatalf("NormalizeThemeName(\"no-such-theme-\") = %q; want \"neon\"", got)
 	}
-	if got := validThemeName("matrix"); got != "matrix" {
-		t.Fatalf("validThemeName(\"matrix\") = %q; want \"matrix\"", got)
+	if got := NormalizeThemeName("matrix"); got != "matrix" {
+		t.Fatalf("NormalizeThemeName(\"matrix\") = %q; want \"matrix\"", got)
 	}
 }
 

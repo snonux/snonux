@@ -94,7 +94,7 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	defaultTheme := validThemeName(cfg.Theme)
+	defaultTheme := NormalizeThemeName(cfg.Theme)
 	defaultMeta, err := loadThemeMeta(defaultTheme)
 	if err != nil {
 		return err

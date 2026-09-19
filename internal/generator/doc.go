@@ -6,7 +6,7 @@
 //   - generator.go — Orchestration: load posts from disk, sort newest-first,
 //     paginate, parse shell+nav templates, write index.html / pageN.html plus
 //     shared.css/shared.js and per-theme assets, then call atom.Generate.
-//   - themes.go — ListThemes / validThemeName helpers backed by the embedded FS.
+//   - themes.go — ListThemes / NormalizeThemeName helpers backed by the embedded FS.
 //   - shared.go — navDefs: shared {{define}} blocks (splashGate, navhints,
 //     navSharedCSS) merged at parse time with shell.tmpl so a single html/template
 //     parse sees every name.

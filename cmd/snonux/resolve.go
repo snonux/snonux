@@ -38,17 +38,17 @@ func validateDirs(cfg *config.Config) error {
 }
 
 // resolveTheme resolves the special "random" theme value by picking a registered
-// theme using rng and logs which theme was chosen so the user can see the result.
-// The rng parameter must be non-nil.
+// theme using rng, then logs the theme that will be used. The rng parameter only
+// needs to be non-nil when resolving "random".
 func resolveTheme(cfg *config.Config, rng *rand.Rand) error {
-	if cfg.Theme != "random" {
-		return nil
+	if cfg.Theme == "random" {
+		if rng == nil {
+			return fmt.Errorf("theme %q requires a seeded rng", cfg.Theme)
+		}
+		themes := generator.ListThemes()
+		cfg.Theme = themes[rng.Intn(len(themes))]
 	}
-	if rng == nil {
-		return fmt.Errorf("theme %q requires a seeded rng", cfg.Theme)
-	}
-	themes := generator.ListThemes()
-	cfg.Theme = themes[rng.Intn(len(themes))]
-	log.Printf("random theme selected: %s", cfg.Theme)
+	cfg.Theme = generator.NormalizeThemeName(cfg.Theme)
+	log.Printf("theme selected: %s", cfg.Theme)
 	return nil
 }

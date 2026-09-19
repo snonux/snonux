@@ -39,10 +39,10 @@ func getThemeSet() map[string]struct{} {
 	return themeSetCache
 }
 
-// validThemeName returns name if it is a known theme, otherwise the fallback.
+// NormalizeThemeName returns name if it is a known theme, otherwise the fallback.
 // Callers use this to coerce CLI input ("--theme random" already resolves
 // upstream) so downstream lookups never miss.
-func validThemeName(name string) string {
+func NormalizeThemeName(name string) string {
 	if _, ok := getThemeSet()[name]; ok {
 		return name
 	}
