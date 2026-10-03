@@ -172,7 +172,9 @@ export async function startSession() {
         if (chrome) chrome.proc.kill();
         if (server) server.close();
         await sleep(200);
-        rmSync(work, { recursive: true, force: true });
+        // Chrome may still be writing its profile while it shuts down;
+        // retry instead of failing the run on a half-removed directory.
+        rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
     };
     try {
         server = await serve(buildSite(work));
