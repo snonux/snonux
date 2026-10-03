@@ -16,6 +16,7 @@
     var L = 10, R = G.W - 10, T = G.HUD + 8, B = G.H - 24;
     var P_SPEED = 235, P_R = 7, FIRE_GAP = 0.13, SHOT_SPEED = 640, BOMB_R = 300, MAX_BOMBS = 3;
     var FORK_PERIOD = 6, MAX_ENEMIES = 80, MAX_EBUL = 140;
+    var DASH = 0.85;                                        // seconds a pipe's full dash lasts
 
     // mass scales knockback and decides what a bomb kills outright (< 5).
     var TYPES = {
@@ -25,7 +26,7 @@
         '>': { hp: 2, r: 10, speed: 540, mass: 1.5, score: 30, drop: 0.14, name: 'pipe' },
         '#': { hp: 12, r: 16, speed: 40, mass: 5, score: 80, drop: 1, name: 'rootsh' },
         'S': { hp: 28, r: 26, speed: 0, mass: 1e6, score: 150, drop: 1, name: 'spawner' },
-        'I': { hp: 300, r: 38, speed: 40, mass: 40, score: 2000, drop: 0, name: 'init' }
+        'I': { hp: 450, r: 38, speed: 40, mass: 40, score: 2000, drop: 0, name: 'init' }
     };
     var DROPS = ['$', '$', '$', '$', '!', '!', '!', '*', '*', '+'];
 
@@ -34,7 +35,8 @@
 
     // waves: glyph -> count per wave. gen: how often a fork splits. blocks:
     // solid directories. spawners: nests that must be destroyed. forkBomb:
-    // forks grow up and replicate by themselves. supply: seconds between
+    // forks grow up and replicate by themselves, and the process table holds
+    // at most cap of them. supply: seconds between
     // free pickups.
     var LEVELS = [
         { waves: [{ Z: 5 }, { Z: 7 }, { Z: 9 }, { Z: 11 }, { Z: 13 }] },
@@ -48,8 +50,8 @@
             waves: [{ Z: 6 }, { Z: 6, d: 2 }, { Z: 6, '>': 3 }, { Z: 8, d: 3, '&': 3 }],
             spawners: [nest(150, 130, '&', 3.5, 10), nest(810, 420, '&', 3.5, 10)]
         },
-        { waves: [{ '#': 1, Z: 6 }, { '#': 2, d: 3 }, { '#': 2, '&': 3, '>': 2 }, { '#': 3, Z: 8, d: 2 }], gen: 2 },
-        { waves: [{ '&': 10 }, { '&': 12 }, { '&': 14 }], gen: 2, forkBomb: true, cap: 40, supply: 12 },
+        { waves: [{ '#': 1, Z: 6 }, { '#': 2, d: 3 }, { '#': 2, '&': 3, '>': 2 }, { '#': 3, Z: 8, d: 2 }, { '#': 3, '&': 4, d: 3, '>': 3 }], gen: 2 },
+        { waves: [{ '&': 10 }, { '&': 12 }, { '&': 14 }, { '&': 16 }], gen: 2, forkBomb: true, cap: 40, supply: 12 },
         {
             waves: [{ '>': 5, Z: 4 }, { '>': 5, d: 3 }, { '>': 6, '#': 1, Z: 6 }],
             blocks: [block(300, 160, 360, 34, '/dev/null'), block(300, 350, 360, 34, '/dev/zero')],
@@ -72,7 +74,7 @@
             kind: kind, x: x, y: y, vx: 0, vy: 0, hp: t.hp, r: t.r, pid: s.pid, born: 0.8, dead: false,
             t: s.rnd() * 6, side: s.rnd() < 0.5 ? -1 : 1, detour: 0, wall: false, flash: 0,
             cool: 1.2 + s.rnd() * 1.6, mode: 'rest', mt: 0.3 + s.rnd(), dx: 1, dy: 0,
-            gen: 0, age: s.rnd() * 3, atk: -1, spiral: 0, spin: 0, gap: 0, nest: null
+            gen: 0, age: s.rnd() * 3, dash: DASH, atk: -1, spiral: 0, spin: 0, gap: 0, nest: null
         };
         if (kind === '&') { e.gen = gen; e.r = 7 + gen * 3; }
         if (kind === 'I') { e.pid = 1; e.cool = 2; }
@@ -160,6 +162,12 @@
         return n;
     }
 
+    // No room for one more process: the engine-wide limit, or the level's own
+    // process table on the fork bomb level.
+    function tableFull(s) {
+        return s.enemies.length >= MAX_ENEMIES || (!!s.cfg.cap && liveCount(s) >= s.cfg.cap);
+    }
+
     // --------------------------------------------------------------- waves
 
     // A seeded point just inside the arena edge, away from the player so
@@ -203,7 +211,8 @@
         s.waveT += dt;
         s.queue = s.queue.filter(function (q) {
             q.t -= dt;
-            if (q.t > 0) return true;
+            // A full process table makes an arrival wait rather than vanish.
+            if (q.t > 0 || tableFull(s)) return true;
             spawnAtEdge(s, q.kind);
             return false;
         });
@@ -233,7 +242,10 @@
         s.picks = s.picks.filter(function (k) {
             k.t -= dt;
             var dx = p.x - k.x, dy = p.y - k.y, d = Math.hypot(dx, dy) || 1;
-            if (d < 90) { k.x += dx / d * 260 * dt * (1 - d / 90); k.y += dy / d * 260 * dt * (1 - d / 90); }
+            if (d < 90) {
+                k.x += dx / d * 260 * dt * (1 - d / 90); k.y += dy / d * 260 * dt * (1 - d / 90);
+                confine(s, k, 10);                          // the pull must not drag it into a block
+            }
             if (d < 20) { collect(s, k); return false; }
             return k.t > 0;
         });
@@ -247,10 +259,12 @@
 
     // -------------------------------------------------------------- damage
 
+    // A shot fork becomes two smaller ones, as far as the process table has
+    // room (the parent is already marked dead, so it has freed its slot).
     function splitFork(s, e) {
         var a = Math.atan2(e.vy, e.vx) + Math.PI / 2;
         for (var i = -1; i <= 1; i += 2) {
-            if (s.enemies.length >= MAX_ENEMIES) return;
+            if (tableFull(s)) break;
             var c = makeEnemy(s, '&', e.x + Math.cos(a) * 10 * i, e.y + Math.sin(a) * 10 * i, e.gen - 1);
             c.vx = Math.cos(a) * 200 * i; c.vy = Math.sin(a) * 200 * i;
             c.born = 0.2; c.side = i;
@@ -297,7 +311,9 @@
     }
 
     // Costs a life, then gives the player room: nearby processes are thrown
-    // back and nearby bullets vanish, so one mistake is not three.
+    // back and nearby bullets vanish, so one mistake is not three. The mass
+    // is capped for this shove so that even init is moved off a player it
+    // has walked into a corner (nests ignore it: they zero their velocity).
     function hitPlayer(s) {
         var p = s.p;
         if (p.inv > 0) return;
@@ -310,7 +326,7 @@
         s.enemies.forEach(function (e) {
             var v = toPlayer(s, e);
             if (v.d > 160) return;
-            var m = TYPES[e.kind].mass;
+            var m = Math.min(TYPES[e.kind].mass, 1.8);
             e.vx -= v.x * 460 / m; e.vy -= v.y * 460 / m;
         });
     }
@@ -441,7 +457,7 @@
         if (e.age < FORK_PERIOD) return;
         e.age = 0;
         if (e.gen < 2) { e.gen++; e.r = 7 + e.gen * 3; return; }
-        if (liveCount(s) >= s.cfg.cap || s.enemies.length >= MAX_ENEMIES) return;
+        if (tableFull(s)) return;
         var c = makeEnemy(s, '&', e.x + e.side * 14, e.y, 2);
         c.born = 0.3; c.age = 0;
         s.enemies.push(c);
@@ -468,22 +484,64 @@
         G.tone(330, 0.1, { type: 'sawtooth', vol: 0.08, slide: 160 });
     }
 
+    // The first block that a pipe-wide path from a to b would run into.
+    function sightBlock(s, ax, ay, bx, by) {
+        var n = Math.ceil(G.dist(ax, ay, bx, by) / 10), pad = 9;
+        for (var i = 1; i < n; i++) {
+            var x = ax + (bx - ax) * i / n, y = ay + (by - ay) * i / n;
+            for (var j = 0; j < s.blocks.length; j++) {
+                var b = s.blocks[j];
+                if (x > b.x - pad && x < b.x + b.w + pad && y > b.y - pad && y < b.y + b.h + pad) return b;
+            }
+        }
+        return null;
+    }
+
+    // Where a pipe should dash: at the player, or, when a block is in the
+    // way, at the corner of that block which gives the shortest way round.
+    // Without this a pipe rams the same wall for ever.
+    function pipeTarget(s, e) {
+        var p = s.p, b = sightBlock(s, e.x, e.y, p.x, p.y);
+        if (!b) return p;
+        var m = e.r + 14, best = p, bd = Infinity;
+        for (var i = 0; i < 4; i++) {
+            var cx = i % 2 ? b.x + b.w + m : b.x - m, cy = i < 2 ? b.y - m : b.y + b.h + m;
+            var near = G.dist(e.x, e.y, cx, cy);
+            // A corner it already stands on leads nowhere; one it cannot see is no shortcut.
+            if (near < 30 || sightBlock(s, e.x, e.y, cx, cy)) continue;
+            var d = near + G.dist(cx, cy, p.x, p.y);
+            if (d < bd) { bd = d; best = { x: cx, y: cy }; }
+        }
+        return best;
+    }
+
+    // A dash at the player runs its full length; a hop to a corner stops there.
+    function aimPipe(s, e) {
+        var t = pipeTarget(s, e), dx = t.x - e.x, dy = t.y - e.y, d = Math.hypot(dx, dy) || 1;
+        e.dx = dx / d; e.dy = dy / d;
+        e.dash = t === s.p ? DASH : G.clamp(d / TYPES['>'].speed, 0.1, DASH);
+    }
+
     // Pipes take aim (the line is drawn as a warning and locks shortly
     // before the dash), dash straight until something stops them, then rest.
     function pipeAI(s, e, dt) {
         e.mt -= dt;
         if (e.mode === 'dash') {
             e.vx = e.dx * TYPES['>'].speed; e.vy = e.dy * TYPES['>'].speed;
-            if (e.mt > 0 && !e.wall) return;
-            if (e.wall) { G.noise(0.06, { filter: 'lowpass', freq: 500, vol: 0.14 }); G.burst(e.x, e.y, { n: 5, color: DIM, speed: 120 }); }
-            e.mode = 'rest'; e.mt = 0.75;
+            // Wall contact is ignored for the first moments, so a pipe that
+            // starts its dash leaning on a wall still gets away from it.
+            var bumped = e.wall && e.mt < e.dash - 0.1;
+            if (e.mt > 0 && !bumped) return;
+            if (bumped) { G.noise(0.06, { filter: 'lowpass', freq: 500, vol: 0.14 }); G.burst(e.x, e.y, { n: 5, color: DIM, speed: 120 }); }
+            // After a corner hop the next aim follows quickly.
+            e.mode = 'rest'; e.mt = e.dash < DASH ? 0.25 : 0.75;
             return;
         }
         steer(e, 0, 0, 0, dt);
-        if (e.mode === 'aim' && e.mt > 0.3) { var v = toPlayer(s, e); e.dx = v.x; e.dy = v.y; }
+        if (e.mode === 'aim' && e.mt > 0.3) aimPipe(s, e);
         if (e.mt > 0) return;
         if (e.mode === 'rest') { e.mode = 'aim'; e.mt = 1.0; G.tone(1100, 0.04, { type: 'square', vol: 0.05 }); return; }
-        e.mode = 'dash'; e.mt = 0.85; e.wall = false;
+        e.mode = 'dash'; e.mt = e.dash;
         G.noise(0.22, { filter: 'bandpass', freq: 700, slide: 2600, vol: 0.13 });
     }
 
@@ -613,10 +671,13 @@
         fire(s, dt);
         useBomb(s);
         updateShots(s, dt);
-        // Forks split while this loop runs; the children wait for the next tick.
+        // Nests, replicating forks and init add processes while this loop
+        // runs; the cached length makes the newcomers wait for the next tick.
         for (var i = 0, n = s.enemies.length; i < n; i++) if (!s.enemies[i].dead) updateEnemy(s, s.enemies[i], dt);
         s.enemies = s.enemies.filter(function (e) { return !e.dead; });
         separate(s);
+        // Separation may have shoved someone through the edge or into a block.
+        s.enemies.forEach(function (e) { confine(s, e, e.r); });
         updateEnemyShots(s, dt);
         updatePickups(s, dt);
         if (s.wave >= s.cfg.waves.length && !s.queue.length && !s.enemies.length) G.win(400 + s.level * 100 + G.lives * 200);
@@ -671,7 +732,7 @@
             ctx.strokeStyle = RED; ctx.lineWidth = 1;
             ctx.globalAlpha = 0.35 + 0.4 * (1 - e.mt);
             ctx.setLineDash([8, 8]);
-            ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + e.dx * 460, e.y + e.dy * 460); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + e.dx * e.dash * TYPES['>'].speed, e.y + e.dy * e.dash * TYPES['>'].speed); ctx.stroke();
             ctx.setLineDash([]); ctx.globalAlpha = 1;
         }
         ctx.save();
@@ -692,9 +753,10 @@
     function drawBoss(ctx, e) {
         var rage = e.hp < TYPES.I.hp / 2, c = e.flash > 0 ? WHITE : (rage ? RED : GREEN), wob = Math.sin(e.t * 3) * 2;
         ctx.strokeStyle = c; ctx.lineWidth = 2;
-        ctx.strokeRect(e.x - 34, e.y - 24 + wob, 68, 48);
-        glyph('init', e.x, e.y - 8 + wob, 24, c, c);
-        glyph('pid 1', e.x, e.y + 13 + wob, 13, c);
+        // A 72px square, so what is drawn is what the r=38 collision circle hits.
+        ctx.strokeRect(e.x - 36, e.y - 36 + wob, 72, 72);
+        glyph('init', e.x, e.y - 9 + wob, 25, c, c);
+        glyph('pid 1', e.x, e.y + 15 + wob, 13, c);
         var w = 300, frac = G.clamp(e.hp / TYPES.I.hp, 0, 1);
         ctx.strokeStyle = DIM; ctx.lineWidth = 1;
         ctx.strokeRect(G.W / 2 - w / 2 + 0.5, T + 8.5, w, 9);
@@ -775,9 +837,9 @@
         title: 'kill -9',
         blurb: 'Rogue processes are eating the box. Kill every one of them.',
         controls: [
-            'W A S D: move the @',
-            'Arrow keys: fire in eight directions (or hold the mouse button to aim)',
-            'SPACE or right click: bomb (kill -9 -1)',
+            'W A S D: move the @ · arrow keys: fire in eight directions',
+            'Mouse: hold the button to aim and fire · SPACE or right click: bomb',
+            'Touch: hold the screen to aim and fire; the pad arrows then walk',
             'Pickups: [$] score · [+] life · [!] spread shot · [*] bomb'
         ],
         levelNames: ['/bin/sh', 'fork()', 'daemons', '| pipes', '[fork] nests', 'su root', ':(){ :|:& };:', 'pipeline', 'kernel panic', 'init (pid 1)'],
