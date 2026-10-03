@@ -24,6 +24,8 @@
     var STREET_Y = 510;             // the line runners' and wheels' feet touch
     var CHAMBERS = 6, RELOAD_TIME = 0.95, SHOT_COOLDOWN = 0.16;
     var AIM_ACCEL = 5200, AIM_SPEED = 820, AIM_DRAG = 26;
+    var SNAP = 50;                  // keyboard aim: releasing the keys this close to a head locks on
+    var LIFE_STREAK = 12;           // this many busts in a row without a miss earn a life
     var GRACE = 1.2;                // seconds every draw timer pauses after the player is hit
     var DARK_PERIOD = 11, DARK_FROM = 6.5;
 
@@ -51,7 +53,7 @@
         heavy: { hostile: true, score: 200, hp: 2, draw: 1.3, wide: 37 },
         hostage: { hostile: true, score: 250, draw: 1.3 },
         runner: { hostile: true, score: 150, draw: 1.15, mover: true },
-        car: { hostile: true, score: 300, draw: 1.35, mover: true },
+        car: { hostile: true, score: 300, draw: 1.6, mover: true },
         boss: { hostile: true, score: 500, draw: 0.8, sc: 1.25 },
         civ: { hostile: false },
         informant: { hostile: false, tip: 200 },
@@ -61,16 +63,16 @@
     // quota: gangsters to bust; max: targets at once; draw: seconds before a
     // gangster fires; gap: seconds between spawns; mix: spawn weights.
     var LEVELS = [
-        { quota: 20, max: 1, draw: 3.2, gap: 1.3, slots: 'w', mix: { thug: 8, civ: 2 } },
-        { quota: 22, max: 2, draw: 2.9, gap: 1.2, slots: 'wd', mix: { thug: 8, civ: 3 } },
-        { quota: 24, max: 2, draw: 2.7, gap: 1.1, slots: 'wd', mix: { thug: 6, civ: 2, runner: 3 } },
-        { quota: 26, max: 2, draw: 2.5, gap: 1.0, slots: 'wdc', mix: { thug: 7, civ: 2, runner: 2, informant: 3 } },
-        { quota: 28, max: 3, draw: 2.5, gap: 1.0, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 4 } },
-        { quota: 28, max: 3, draw: 2.6, gap: 0.95, slots: 'wdc', dark: true, mix: { thug: 7, civ: 3, runner: 2, informant: 1, hostage: 2 } },
-        { quota: 30, max: 3, draw: 2.3, gap: 0.9, slots: 'wdc', mix: { thug: 6, civ: 2, runner: 2, informant: 1, hostage: 2, car: 3 } },
-        { quota: 32, max: 4, draw: 2.2, gap: 0.8, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 4 } },
-        { quota: 34, max: 4, draw: 2.0, gap: 0.7, slots: 'wdc', dark: true, mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 3, paperboy: 2 } },
-        { quota: 0, max: 2, draw: 2.1, gap: 1.1, slots: 'wd', boss: 16, mix: { thug: 6, civ: 2, runner: 2, hostage: 2 } }
+        { quota: 38, max: 1, draw: 3.2, gap: 1.3, slots: 'w', mix: { thug: 8, civ: 2 } },
+        { quota: 46, max: 2, draw: 2.9, gap: 1.2, slots: 'wd', mix: { thug: 8, civ: 3 } },
+        { quota: 52, max: 2, draw: 2.7, gap: 1.1, slots: 'wd', mix: { thug: 6, civ: 2, runner: 3 } },
+        { quota: 58, max: 2, draw: 2.5, gap: 1.0, slots: 'wdc', mix: { thug: 7, civ: 2, runner: 2, informant: 3 } },
+        { quota: 64, max: 3, draw: 2.5, gap: 1.0, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 4 } },
+        { quota: 64, max: 3, draw: 2.6, gap: 0.95, slots: 'wdc', dark: true, mix: { thug: 7, civ: 3, runner: 2, informant: 1, hostage: 2 } },
+        { quota: 68, max: 3, draw: 2.3, gap: 0.9, slots: 'wdc', mix: { thug: 6, civ: 2, runner: 2, informant: 1, hostage: 2, car: 3 } },
+        { quota: 72, max: 4, draw: 2.2, gap: 0.8, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 4 } },
+        { quota: 76, max: 4, draw: 2.0, gap: 0.7, slots: 'wdc', dark: true, mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 3, paperboy: 2 } },
+        { quota: 0, max: 2, draw: 2.1, gap: 1.1, slots: 'wd', boss: 28, mix: { thug: 6, civ: 2, runner: 2, hostage: 2 } }
     ];
 
     // ------------------------------------------------------------------
@@ -139,7 +141,7 @@
             cfg: cfg, rnd: G.rng(level * 7919 + 13), targets: [], busts: 0, streak: 0,
             spawnT: 0.8, grace: 0,
             boss: cfg.boss ? { hp: cfg.boss, max: cfg.boss, wait: 2.2, last: -1 } : null,
-            cx: W / 2, cy: 250, vx: 0, vy: 0, lastMx: G.mouse.x, lastMy: G.mouse.y,
+            cx: W / 2, cy: 250, vx: 0, vy: 0, steering: false, lock: null, lastMx: G.mouse.x, lastMy: G.mouse.y,
             ammo: CHAMBERS, reload: 0, cool: 0, kick: 0, muzzle: 0, spin: 0, emptyHint: 0,
             holes: [], rain: makeRain(level), splashes: makeSplashes(), splashI: 0, wind: -40 - level * 16,
             boltIn: G.rnd(4, 9), bolt: 0, dim: 0, wasDark: false, stepT: 0
@@ -174,8 +176,10 @@
         };
     }
 
-    // Runners and cars cross the whole street; they fire when they reach the
-    // far side, so their speed is derived from the draw time.
+    // Runners and cars cross the whole street. Their speed is derived from
+    // the draw time so that they fire while still on screen, near the far
+    // side; one that is delayed past the edge leaves without firing (see
+    // phaseAim).
     function addMover(s, kind) {
         var tg = newTarget(s, kind, null), car = kind === 'car', margin = car ? 130 : 30;
         tg.dir = s.rnd() < 0.5 ? 1 : -1;
@@ -275,6 +279,10 @@
     // The timer stands still during the grace period after a hit, so three
     // gangsters cannot empty all three lives in one instant.
     function phaseAim(s, tg, dt) {
+        // A mover keeps moving while the timers are frozen. Once his head has
+        // passed the far edge the crosshair cannot reach him, so he must not
+        // be allowed to fire from out there: he simply gets away.
+        if (tg.def.mover && (tg.hx - W / 2) * tg.dir > W / 2) { tg.phase = 'out'; return; }
         if (s.grace <= 0) tg.t += dt;
         if (!tg.warned && tg.t > tg.draw * 0.7) { tg.warned = true; G.tone(1250, 0.05, { vol: 0.09 }); }
         if (tg.t >= tg.draw) enemyFires(s, tg);
@@ -360,8 +368,11 @@
 
     function inSlot(sl, x, y) { return Math.abs(x - sl.x) < sl.w / 2 && y > sl.y && y < sl.y + sl.h; }
 
+    // The whole lit rear window counts as the gunner, and only while he is
+    // still taking aim: a moving head alone is too small a mark for keyboard
+    // aiming. The bodywork stops bullets at any time.
     function carHit(tg, x, y) {
-        if (!tg.down && G.dist(x, y, tg.hx, tg.hy) < 15) return 'head';
+        if (tg.phase === 'aim' && Math.abs(x - tg.hx) < 22 && Math.abs(y - tg.hy - 1) < 13) return 'head';
         var dx = Math.abs(x - tg.x), dy = y - tg.y;
         return (dy > 0 && dy < 74 && dx < (dy < 30 ? 62 : 110)) ? 'metal' : '';
     }
@@ -377,7 +388,7 @@
 
     function hitPart(tg, x, y) {
         var open = tg.phase === 'aim' || tg.phase === 'stay' || (tg.phase === 'in' && tg.pop > 0.5);
-        if (tg.kind === 'car') return tg.phase === 'dead' ? '' : carHit(tg, x, y);
+        if (tg.kind === 'car') return carHit(tg, x, y);
         if (!open || (tg.clip && !inSlot(tg.clip, x, y))) return '';
         if (tg.kind === 'hostage') return hostageHit(tg, x, y);
         var k = tg.sc;
@@ -403,7 +414,7 @@
         tg.phase = 'dead'; tg.t = 0; tg.vy = -160;
         s.streak = 0;
         sndScream();
-        G.burst(s.cx, s.cy, { n: 14, color: BLOOD, speed: 190, gravity: 600 });
+        G.burst(s.cx, s.cy, { n: 14, color: BLOOD, speed: 150, gravity: 600 });
         say(s.cx, s.cy - 30, 'INNOCENT!', HOT);
         G.flash(BLOOD, 0.2);
         G.loseLife();
@@ -421,6 +432,15 @@
         G.win(1000 + G.lives * 300);
     }
 
+    // The levels are long, so steady shooting earns lives back.
+    function rewardStreak(s) {
+        if (s.streak % LIFE_STREAK !== 0) return;
+        var before = G.lives;
+        if (G.addLife(5) <= before) return;
+        say(s.cx, s.cy + 4, 'EXTRA LIFE', LAMP);
+        G.sfx('power');
+    }
+
     function kill(s, tg, part) {
         var head = part === 'head' && tg.kind !== 'car' && tg.kind !== 'hostage';
         // Quick shots, head shots and an unbroken streak all pay more.
@@ -432,6 +452,7 @@
         if (head) G.sfx('coin');
         if (tg.kind === 'boss') { bossHit(s, tg); return; }
         s.busts++;
+        rewardStreak(s);
         if (tg.kind === 'car') { tg.down = true; tg.phase = 'out'; sndScreech(); return; }
         tg.phase = 'dead'; tg.t = 0; tg.vy = -180;
     }
@@ -442,8 +463,9 @@
         tg.hp--;
         if (tg.hp <= 0) { kill(s, tg, part); return; }
         // A heavy shrugs off the first bullet but loses his hat and his aim.
+        // The hat is tossed gently so that it never flies up into the HUD.
         tg.t = Math.max(0, tg.t - 0.5);
-        G.burst(tg.hx, tg.hy - 18, { n: 1, color: SILVER, size: 16, speed: 260, gravity: 900, angle: -Math.PI / 2, spread: 1, life: 0.9 });
+        G.burst(tg.hx, tg.hy - 18, { n: 1, color: SILVER, size: 16, speed: 150, gravity: 900, angle: -Math.PI / 2, spread: 1, life: 0.9 });
         say(s.cx, s.cy - 30, 'ONE MORE', SILVER);
     }
 
@@ -502,18 +524,45 @@
         return G.clamp(v + axis * AIM_ACCEL * dt, -AIM_SPEED, AIM_SPEED);
     }
 
+    function nearestHead(s) {
+        var best = null, near = SNAP;
+        s.targets.forEach(function (tg) {
+            if (!tg.def.hostile || !(tg.phase === 'aim' || (tg.phase === 'in' && tg.pop > 0.5))) return;
+            var d = G.dist(s.cx, s.cy, tg.hx, tg.hy);
+            if (d < near) { near = d; best = tg; }
+        });
+        return best;
+    }
+
+    // Keyboard aim assist: letting go of the keys close to a gangster's head
+    // locks the crosshair onto it, and it stays there (following a runner or
+    // a car) until a key or the mouse moves it again. Without this, a moving
+    // head is a fair mark for a mouse but not for four arrow keys.
+    function keyboardLock(s, steering) {
+        if (steering) s.lock = null;
+        else if (s.steering) s.lock = nearestHead(s);
+        s.steering = steering;
+        var tg = s.lock;
+        if (!tg) return;
+        if (tg.gone || (tg.phase !== 'aim' && tg.phase !== 'in')) { s.lock = null; return; }
+        s.cx = tg.hx; s.cy = tg.hy; s.vx = s.vy = 0;
+    }
+
     // The keys accelerate the crosshair; the mouse takes over only when it
     // really moves, so a resting pointer never drags the aim away.
     function moveCrosshair(s, dt) {
-        s.vx = steer(s.vx, (G.key.right ? 1 : 0) - (G.key.left ? 1 : 0), dt);
-        s.vy = steer(s.vy, (G.key.down ? 1 : 0) - (G.key.up ? 1 : 0), dt);
+        var ax = (G.key.right ? 1 : 0) - (G.key.left ? 1 : 0), ay = (G.key.down ? 1 : 0) - (G.key.up ? 1 : 0);
+        s.vx = steer(s.vx, ax, dt);
+        s.vy = steer(s.vy, ay, dt);
         s.cx += s.vx * dt; s.cy += s.vy * dt;
+        keyboardLock(s, !!(ax || ay));
         if (G.mouse.x !== s.lastMx || G.mouse.y !== s.lastMy) {
             s.cx = s.lastMx = G.mouse.x; s.cy = s.lastMy = G.mouse.y;
-            s.vx = s.vy = 0;
+            s.vx = s.vy = 0; s.lock = null;
         }
+        // The whole reticle, not just its centre, stays below the HUD bar.
         s.cx = G.clamp(s.cx, 6, W - 6);
-        s.cy = G.clamp(s.cy, G.HUD + 6, H - 6);
+        s.cy = G.clamp(s.cy, G.HUD + 26, H - 6);
     }
 
     function updateRain(s, dt) {
@@ -875,9 +924,17 @@
         ctx.fillRect(b.x + 22, b.y + 46, (b.w - 44) * boss.hp / boss.max, 10);
     }
 
-    function drawTargets(ctx, s, movers) {
+    // Figures are painted in three layers: 0 inside the facade's windows and
+    // doors, 1 behind street cover (crates, car, barricade) and so after the
+    // pavement is filled, 2 out in the open street.
+    function layerOf(tg) {
+        if (tg.def.mover) return 2;
+        return tg.slot.type === 'c' || tg.slot.type === 'b' ? 1 : 0;
+    }
+
+    function drawTargets(ctx, s, layer) {
         s.targets.forEach(function (tg) {
-            if (!!tg.def.mover !== movers) return;
+            if (layerOf(tg) !== layer) return;
             if (tg.kind === 'car') drawDriveBy(ctx, tg); else drawFigure(ctx, tg);
         });
     }
@@ -935,7 +992,7 @@
     }
 
     function drawCrosshair(ctx, s) {
-        var x = s.cx, y = s.cy - s.kick;
+        var x = s.cx, y = Math.max(G.HUD + 26, s.cy - s.kick);   // recoil must not lift it into the HUD
         if (s.muzzle > 0) {
             ctx.fillStyle = 'rgba(240,234,214,0.5)';
             ctx.beginPath(); ctx.arc(x, y, 26, 0, TAU); ctx.fill();
@@ -957,12 +1014,13 @@
         drawWall(ctx, s);
         drawSign(ctx, s);
         drawOpenings(ctx, s);
-        drawTargets(ctx, s, false);
+        drawTargets(ctx, s, 0);
         drawStreet(ctx);
         drawLamp(ctx, s);
+        drawTargets(ctx, s, 1);
         drawCover(ctx);
         if (s.boss) drawBarricade(ctx, s);
-        drawTargets(ctx, s, true);
+        drawTargets(ctx, s, 2);
         drawRain(ctx, s);
         drawLight(ctx, s);
         s.targets.forEach(function (tg) { drawRing(ctx, tg); });
@@ -981,12 +1039,13 @@
         controls: [
             'Mouse or ← ↑ → ↓: move the crosshair · click or SPACE: shoot',
             'X or right click: reload the six-shot revolver',
-            'Black with a red tie: shoot · pale: civilian or informant, hold your fire'
+            'Keyboard: let go of the arrows near a gangster to lock on',
+            'Black with a red tie: shoot · pale: hold your fire · 12 busts in a row: extra life'
         ],
         levelNames: ['First Watch', 'Back Doors', 'Runners', 'The Informant', 'Human Shields', 'Lights Out', 'Drive-By', 'Heavy Hitters', 'The Long Rain', 'The Kingpin'],
         colors: { bg: FOG, fg: INK, accent: BLOOD, dim: SILVER },
         lives: 3,
-        cursor: 'crosshair',
+        cursor: 'none',
         // A slow twelve-bar blues: the bass walks root, fifth, octave, fifth
         // in quarter notes under a muted, sighing lead.
         music: {
