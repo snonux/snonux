@@ -169,12 +169,20 @@ export async function startSession() {
     const work = mkdtempSync(join(tmpdir(), 'snonux-games-'));
     let server, chrome;
     const close = async () => {
-        if (chrome) chrome.proc.kill();
         if (server) server.close();
-        await sleep(200);
-        // Chrome may still be writing its profile while it shuts down;
-        // retry instead of failing the run on a half-removed directory.
-        rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+        if (chrome) {
+            // Wait for Chrome to be gone before removing its profile; while
+            // it shuts down it still writes there.
+            const gone = new Promise((ok) => chrome.proc.once('exit', ok));
+            chrome.proc.kill();
+            await Promise.race([gone, sleep(5000)]);
+        }
+        // A leftover temp dir is not a test failure, so cleanup never throws.
+        try {
+            rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+        } catch (err) {
+            console.error(`warning: could not remove ${work}: ${err.message}`);
+        }
     };
     try {
         server = await serve(buildSite(work));
