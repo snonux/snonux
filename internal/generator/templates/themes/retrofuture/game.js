@@ -17,7 +17,8 @@
 (function () {
     'use strict';
     var G = window.SnoGame;
-    var GROUND = 496, AMMO = 10, SHOT_SPEED = 760, BLAST_R = 40, BONUS_AT = 3000;
+    var GROUND = 496, CUR_TOP = 44, CUR_BOTTOM = 456, AMMO = 10, SHOT_SPEED = 760, BLAST_R = 40, BONUS_AT = 3000;
+    var BOSS_GUARD = 0.9, FREE_VOLLEYS = 14;
     var PINK = '#ff6b9d', TEAL = '#00d9c0', ORANGE = '#ff8c42', CREAM = '#f0efe4', BG = '#0a0121';
     var BLAST_HUES = [CREAM, TEAL, PINK, ORANGE];
     // Batteries stand at the ends and in the middle, three cities between each pair.
@@ -132,10 +133,13 @@
         return q;
     }
 
+    // The aiming cursor starts where the pointer already is (the engine's
+    // default is the screen centre), so a click without moving the mouse
+    // after a restart still lands under the visible crosshair.
     function init(level) {
         var s = {
             cfg: LEVELS[level - 1], rnd: G.rng(level * 7919), wave: 0, waveT: 0, phase: 'wave', tally: null,
-            sites: SITE_X.map(newSite), cur: { x: G.W / 2, y: 250, hold: 0 }, mx: G.mouse.x, my: G.mouse.y,
+            sites: SITE_X.map(newSite), cur: { x: G.clamp(G.mouse.x, 8, G.W - 8), y: G.clamp(G.mouse.y, CUR_TOP, CUR_BOTTOM), hold: 0 }, mx: G.mouse.x, my: G.mouse.y,
             shots: [], blasts: [], foes: [], saucers: [], boss: null, queue: [],
             earned: 0, nextBonus: BONUS_AT, spare: 0, nextId: 1, cool: 0, hum: 0, warble: false,
             regen: 0, sirened: false, stars: buildStars(level)
@@ -194,7 +198,7 @@
         if (G.mouse.x !== s.mx || G.mouse.y !== s.my) { c.x = s.mx = G.mouse.x; c.y = s.my = G.mouse.y; }
         c.x = G.clamp(c.x, 8, G.W - 8);
         // Blasts stay above the skyline, so the rooftops are never hidden by them.
-        c.y = G.clamp(c.y, G.HUD + 14, GROUND - 40);
+        c.y = G.clamp(c.y, CUR_TOP, CUR_BOTTOM);
     }
 
     function nearestBattery(s) {
@@ -275,9 +279,15 @@
     }
 
     // Cruise missiles come in level from a screen edge and only dive once
-    // they are over their target.
+    // they are over their target. One aimed near an edge enters from the far
+    // side, so every cruise missile flies level for at least 250px and even
+    // the corner batteries get a fair warning.
     function makeCruise(s) {
-        var left = s.rnd() < 0.5, f = makeFoe(s, 'cruise', left ? -12 : G.W + 12, 250 + s.rnd() * 90);
+        var f = makeFoe(s, 'cruise', 0, 250 + s.rnd() * 90), left = s.rnd() < 0.5;
+        if (f.tx < 262) left = false;
+        if (f.tx > G.W - 262) left = true;
+        f.x = left ? -12 : G.W + 12;
+        f.trail = [{ x: f.x, y: f.y }];
         f.vx = left ? f.speed : -f.speed; f.vy = 0; f.dive = false;
         SND.buzz();
         return f;
@@ -334,12 +344,13 @@
     function chainFactor(chain) { return Math.min(5, 1 + chain); }
 
     function killFoe(s, f, b) {
-        var pts = KIND[f.kind].pts * chainFactor(b.chain);
+        // Warheads of the mothership's late volleys are worth nothing (f.free).
+        var pts = f.free ? 0 : KIND[f.kind].pts * chainFactor(b.chain);
         score(s, pts);
         addBlast(s, f.x, f.y, f.kind === 'heavy' ? 44 : 30, b.chain + 1);
         SND.kill(b.chain);
         G.burst(f.x, f.y, { n: 10, color: KIND[f.kind].color, speed: 170, life: 0.5 });
-        G.popup(f.x, f.y - 12, b.chain ? 'x' + chainFactor(b.chain) + ' ' + pts : pts, b.chain ? ORANGE : CREAM);
+        if (pts) G.popup(f.x, f.y - 12, b.chain ? 'x' + chainFactor(b.chain) + ' ' + pts : pts, b.chain ? ORANGE : CREAM);
     }
 
     // One blast hurts a warhead only once, so a heavy one needs two blasts.
@@ -444,12 +455,49 @@
     }
 
     // While the mothership lives the batteries are resupplied, because the
-    // fight has no fixed length and must not be decided by an empty magazine.
-    function resupply(s, dt) {
+    // fight has no fixed length and must not be decided by an empty magazine;
+    // for the same reason a wrecked battery is rebuilt every eight seconds
+    // (there is no next wave that would do it).
+    function resupply(s, m, dt) {
         s.regen -= dt;
-        if (s.regen > 0) return;
-        s.regen = 1.3;
-        s.sites.forEach(function (b) { if (b.base && b.alive && b.ammo < AMMO) b.ammo++; });
+        if (s.regen <= 0) {
+            s.regen = 1.3;
+            s.sites.forEach(function (b) { if (b.base && b.alive && b.ammo < AMMO) b.ammo++; });
+        }
+        m.rebuild -= dt;
+        if (m.rebuild > 0) return;
+        m.rebuild = 8;
+        var down = s.sites.filter(function (b) { return b.base && !b.alive; })[0];
+        if (!down) return;
+        down.alive = true; down.ammo = 4;
+        G.sfx('power');
+        G.popup(down.x, GROUND - 40, 'BATTERY REBUILT', ORANGE);
+    }
+
+    // Volleys come faster and faster, so the fight cannot be dragged out, and
+    // after FREE_VOLLEYS of them the warheads stop scoring: with resupplied
+    // magazines the mothership would otherwise be an endless source of points
+    // and bonus cities.
+    function bossVolley(s, m) {
+        m.volley++;
+        m.fire = Math.max(1.3, 2.8 - m.volley * 0.1);
+        var pair = [makeFoe(s, 'icbm', m.x - 30, m.y + 16), makeFoe(s, m.volley % 3 ? 'icbm' : 'smart', m.x + 30, m.y + 16)];
+        pair.forEach(function (f) { f.free = m.volley > FREE_VOLLEYS; s.foes.push(f); });
+        SND.drop();
+    }
+
+    // The hull is shielded until the first volley and for BOSS_GUARD seconds
+    // after every bite, so no amount of rapid fire shortens the fight below
+    // hp * BOSS_GUARD seconds; a blast absorbed by the shield is spent.
+    function biteBoss(s, m) {
+        var b = blastOn(s, m.x, m.y, 116, 34, true);
+        if (!b) return;
+        b.boss = true;
+        if (m.hurt > 0 || !m.volley) { if (m.ping <= 0) { SND.clang(); m.ping = 0.3; } return; }
+        m.hp--; m.hurt = BOSS_GUARD;
+        SND.bossHit();
+        G.burst(b.x, m.y, { n: 12, color: ORANGE, speed: 200, life: 0.5 });
+        if (m.hp <= 0) killBoss(s, m);
     }
 
     function updateBoss(s, dt) {
@@ -459,20 +507,11 @@
         m.x = G.W / 2 + 330 * Math.sin(m.t * 0.4);
         m.y = 96 + 12 * Math.sin(m.t * 1.7);
         if (m.hurt > 0) m.hurt -= dt;
-        resupply(s, dt);
+        if (m.ping > 0) m.ping -= dt;
+        resupply(s, m, dt);
         m.fire -= dt;
-        if (m.fire <= 0) {
-            m.fire = 2.8; m.volley++;
-            s.foes.push(makeFoe(s, 'icbm', m.x - 30, m.y + 16), makeFoe(s, m.volley % 3 ? 'icbm' : 'smart', m.x + 30, m.y + 16));
-            SND.drop();
-        }
-        var b = blastOn(s, m.x, m.y, 116, 34, true);
-        if (!b) return;
-        b.boss = true;      // each blast bites the hull once
-        m.hp--; m.hurt = 0.2;
-        SND.bossHit();
-        G.burst(b.x, m.y, { n: 12, color: ORANGE, speed: 200, life: 0.5 });
-        if (m.hp <= 0) killBoss(s, m);
+        if (m.fire <= 0) bossVolley(s, m);
+        biteBoss(s, m);
     }
 
     // ------------------------------------------------------------------
@@ -497,7 +536,7 @@
         s.wave++; s.waveT = 0; s.phase = 'wave'; s.tally = null; s.sirened = false;
         s.sites.forEach(function (b) { if (b.base) { b.alive = true; b.ammo = AMMO; } });
         s.queue = buildWave(s);
-        if (s.cfg.boss && isLastWave(s)) s.boss = { x: G.W / 2, y: 96, hp: 14, max: 14, t: 0, fire: 3, hurt: 0, volley: 0 };
+        if (s.cfg.boss && isLastWave(s)) s.boss = { x: G.W / 2, y: 96, hp: 18, max: 18, t: 0, fire: 3, hurt: 0, ping: 0, volley: 0, rebuild: 8 };
     }
 
     // Counts the unused missiles and the surviving cities one by one, then
@@ -753,15 +792,22 @@
     }
 
     function drawBoss(ctx, m) {
-        ctx.fillStyle = m.hurt > 0 ? '#ffffff' : TEAL;
+        var stung = m.hurt > BOSS_GUARD - 0.15;
+        ctx.fillStyle = stung ? '#ffffff' : TEAL;
         ctx.beginPath(); ctx.arc(m.x, m.y - 8, 24, Math.PI, 0); ctx.fill();
-        ctx.fillStyle = m.hurt > 0 ? '#ffffff' : CREAM;
+        ctx.fillStyle = stung ? '#ffffff' : CREAM;
         ctx.beginPath(); ctx.ellipse(m.x, m.y, 58, 17, 0, 0, 6.3); ctx.fill();
         ctx.fillStyle = '#2a1150';
         ctx.beginPath(); ctx.ellipse(m.x, m.y + 8, 34, 6, 0, 0, 6.3); ctx.fill();
         for (var i = -3; i <= 3; i++) {
             ctx.fillStyle = Math.floor(G.t * 8 + i + 9) % 4 === 0 ? ORANGE : PINK;
             ctx.beginPath(); ctx.arc(m.x + i * 15, m.y, 3, 0, 6.3); ctx.fill();
+        }
+        // A shimmering shield shows when shots are wasted on it.
+        if (m.hurt > 0 || !m.volley) {
+            ctx.strokeStyle = TEAL; ctx.lineWidth = 2; ctx.globalAlpha = 0.45 + 0.35 * Math.sin(G.t * 22);
+            ctx.beginPath(); ctx.ellipse(m.x, m.y - 2, 70, 30, 0, 0, 6.3); ctx.stroke();
+            ctx.globalAlpha = 1;
         }
         // Hull gauge right under the HUD.
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(G.W / 2 - 122, 36, 244, 10);
