@@ -11,6 +11,11 @@
  * the turret's zone eating nodes, and a fast eye poisons nodes so that a worm
  * touching one dives straight down. Level 10 adds the Queen, who breeds worms
  * and only takes damage in the head.
+ *
+ * A turret that sits still is hunted down: unhurt worms speed up and finally
+ * dive, a worm on the turret's own row chews through the bone in its way, and
+ * while a worm is loose in the turret's zone lone heads keep coming in from
+ * the side walls.
  */
 (function () {
     'use strict';
@@ -20,6 +25,12 @@
     var QROW = 5;                                       // first row below the Queen's body
     var NODE_HP = 3, MAX_NODES = 170, MAX_SHOTS = 5;
     var PLAYER_SPEED = 340, SHOT_SPEED = 820, FIRE_DELAY = 0.12, INVULN = 2.5;
+    var PARA_LEAD = 60;                                 // px beyond the wall where a parasite starts
+    var DIVE_AGE = 15, DIVE_STEP = 2;                   // seconds unhurt before a worm dives on level 1; added per level
+    var REINFORCE = 4, REINFORCE_STEP = 0.5;            // seconds between lone heads on level 1; added per level
+    var QUEEN_BROOD_CAP = 12;                           // the Queen holds her brood back above this many
+    var MAX_LIVE = 30;                                  // no lone heads while this many segments are alive
+    var BOLD_RATE = 0.08, BOLD_CAP = 12;                // unhurt worms speed up by 8 % a second
     var BONE = '#d0c7bb', FLESH = '#803f5d', VEIN = '#f55b7d', ACID = '#93ffd8', STEEL = '#2d3642', BG = '#09070d';
 
     // ------------------------------------------------------------------
@@ -46,7 +57,7 @@
     // Diagonal seams of venom through an ordinary scatter.
     function bands(c, r, seed) {
         var h = hash(c, r, seed);
-        if ((c + r * 2) % 13 === 0 && r > 1 && r < 13 && h < 0.6) return 2;
+        if ((c + r * 2) % 13 === 0 && r > 1 && r < 13 && h < 0.45) return 2;
         return h < 0.06 ? 1 : 0;
     }
 
@@ -61,7 +72,8 @@
         return out;
     }
 
-    // speed is cells per second; spore / para / eye are spawn intervals in
+    // speed is cells per second; top is the first row that may hold nodes (the
+    // rows above it are where worms enter); spore / para / eye are spawn intervals in
     // seconds (absent = that creature does not appear); regen is the seconds
     // between healing-and-sprouting pulses; queen is her head's hit points.
     var LEVELS = [
@@ -71,14 +83,14 @@
         { speed: 7.5, layout: mirror(0.06), spore: 8, para: 8,
             waves: [wave(8, -1, 0, 0), wave(8, 1, 0, 0), wave(8, -1, 0, 18), wave(8, 1, 0, 18),
                 wave(6, -1, 0, 36), wave(6, 1, 0, 36)] },
-        { speed: 8, layout: scatter(0.06), spore: 9, para: 8, eye: 8,
+        { speed: 8, layout: scatter(0.06), top: 3, spore: 9, para: 8, eye: 8,
             waves: [wave(14, -1, 0, 0), wave(1, 1, 0, 5), wave(1, -1, 2, 7), wave(12, 1, 0, 22), wave(10, -1, 0, 40)] },
         { speed: 8.5, layout: scatter(0.09), regen: 2.5, spore: 10, para: 8, eye: 12,
             waves: [wave(10, -1, 0, 0), wave(10, 1, 0, 0), wave(13, -1, 0, 22), wave(10, 1, 0, 40)] },
-        { speed: 10.5, layout: scatter(0.05), spore: 8, para: 6, eye: 14, waves: swarm() },
+        { speed: 10.5, layout: scatter(0.05), top: 3, spore: 8, para: 6, eye: 14, waves: swarm() },
         { speed: 10, layout: ribs, spore: 7, para: 6, eye: 9, waves: [wave(18, -1, 0, 0), wave(14, 1, 0, 22), wave(12, -1, 0, 42)] },
-        { speed: 11, layout: bands, regen: 2.2, spore: 7, para: 6, eye: 6,
-            waves: [wave(12, -1, 0, 0), wave(12, 1, 0, 0), wave(12, -1, 0, 20), wave(12, 1, 0, 20)] },
+        { speed: 10.5, layout: bands, regen: 2.5, spore: 8, para: 7, eye: 7,
+            waves: [wave(12, -1, 0, 0), wave(12, 1, 0, 0), wave(12, -1, 0, 24), wave(8, 1, 0, 30)] },
         { speed: 10, layout: scatter(0.05), top: QROW + 1, queen: 24, regen: 4, spore: 8, para: 8, eye: 11,
             waves: [wave(8, -1, QROW + 1, 0)] }
     ];
@@ -105,6 +117,10 @@
             G.tone(52, 0.13, { type: 'sine', slide: 34, vol: 0.3, delay: 0.16 });
         },
         spore: function () { G.tone(980, 0.5, { type: 'sine', slide: 180, vol: 0.09 }); },
+        chitter: function () {
+            for (var i = 0; i < 4; i++) G.noise(0.04, { filter: 'bandpass', freq: 2400 + i * 500, q: 9, vol: 0.17, delay: i * 0.07 });
+            G.tone(230, 0.3, { type: 'sine', slide: 520, vol: 0.1 });
+        },
         skitter: function () { G.noise(0.03, { filter: 'bandpass', freq: 4200, q: 8, vol: 0.1 }); },
         eye: function () { G.tone(1300, 0.45, { type: 'sawtooth', slide: 520, vol: 0.07 }); },
         poison: function () { G.tone(320, 0.12, { type: 'sine', slide: 900, vol: 0.12 }); },
@@ -137,13 +153,29 @@
         return c < 0 || c >= COLS || r < 0 || r >= ROWS ? 0 : s.hp[idx(c, r)];
     }
 
-    // The top rows stay open so worms can enter, the bottom row so the turret
-    // always has a lane, and the turret's zone is thinned to a few stragglers.
+    // The cells the turret grows in: they never hold a node at level start and
+    // are swept clean again on every respawn.
+    function isSpawnCell(c, r) { return r >= ROWS - 3 && (c === COLS / 2 - 1 || c === COLS / 2); }
+
+    function clearSpawn(s) {
+        for (var r = ROWS - 3; r < ROWS; r++) {
+            for (var c = COLS / 2 - 1; c <= COLS / 2; c++) removeNode(s, c, r);
+        }
+    }
+
+    function underTurret(s, c, r) {
+        var p = s.player, reach = CELL / 2 + 8;
+        return Math.abs(cellX(c) - p.x) <= reach && Math.abs(cellY(r) - p.y) <= reach;
+    }
+
+    // Rows above cfg.top stay open because worms enter along them (only row 0
+    // on most levels), the bottom row so the turret always has a lane, and
+    // the turret's zone is thinned to a few stragglers.
     function buildNodes(s, level) {
         var top = s.cfg.top || 1;
         for (var r = 0; r < ROWS; r++) {
             for (var c = 0; c < COLS; c++) {
-                var kind = r < top || r > ROWS - 2 ? 0 : s.cfg.layout(c, r, level);
+                var kind = r < top || r > ROWS - 2 || isSpawnCell(c, r) ? 0 : s.cfg.layout(c, r, level);
                 if (r >= ZONE && hash(c, r, level + 50) > 0.3) kind = 0;
                 s.hp.push(kind ? NODE_HP : 0);
                 s.poison.push(kind === 2);
@@ -151,8 +183,10 @@
         }
     }
 
+    // Bone never forms on top of the turret, so the turret can treat every
+    // node as solid without ever being sealed inside one.
     function calcify(s, c, r, hp) {
-        if (c < 0 || c >= COLS || r < 0 || r >= ROWS || s.hp[idx(c, r)]) return false;
+        if (c < 0 || c >= COLS || r < 0 || r >= ROWS || s.hp[idx(c, r)] || underTurret(s, c, r)) return false;
         s.hp[idx(c, r)] = hp;
         s.poison[idx(c, r)] = false;
         return true;
@@ -199,7 +233,8 @@
         s.regen -= dt;
         if (s.regen > 0) return;
         s.regen = s.cfg.regen;
-        for (var i = 0; i < s.hp.length; i++) if (s.hp[i] > 0 && s.hp[i] < NODE_HP) s.hp[i]++;
+        // Only bone above the turret's zone heals; nubs down there stay brittle.
+        for (var i = 0; i < ZONE * COLS; i++) if (s.hp[i] > 0 && s.hp[i] < NODE_HP) s.hp[i]++;
         if (countNodes(s) < MAX_NODES) sprout(s);
     }
 
@@ -223,7 +258,7 @@
             var cx = side < 0 ? -1 - k : COLS + k;
             segs.push(segment(cx, row, cx - dir, row, dir));
         }
-        return { segs: segs, t: 0, speed: speed, gate: 0 };
+        return { segs: segs, t: 0, speed: speed, gate: 0, age: 0 };
     }
 
     // A worm stacked up inside the Queen; segments above the gate row are
@@ -231,12 +266,16 @@
     function queenWorm(col, len, speed) {
         var segs = [], dir = Math.random() < 0.5 ? 1 : -1;
         for (var k = 0; k < len; k++) segs.push(segment(col, QROW - k, col, QROW - k - 1, dir));
-        return { segs: segs, t: 0, speed: speed, gate: QROW };
+        return { segs: segs, t: 0, speed: speed, gate: QROW, age: 0 };
     }
 
     function hidden(w, g) { return g.cx < 0 || g.cx >= COLS || g.cy < w.gate; }
     function segX(w, g) { return cellX(G.lerp(g.px, g.cx, w.t)); }
     function segY(w, g) { return cellY(G.lerp(g.py, g.cy, w.t)); }
+
+    function playerRow(s) {
+        return G.clamp(Math.floor((s.player.y - OY) / CELL), ZONE, ROWS - 1);
+    }
 
     // Drops (or, once it has reached the floor, climbs) one row and reverses.
     // Inside the turret's zone the worm bounces between the floor and ZONE.
@@ -251,9 +290,24 @@
         h.px = h.cx; h.py = h.cy;
         if (h.cy < w.gate) { h.cy++; return; }
         if (h.dive) { h.cy++; h.dive = h.cy < ZONE; return; }
+        // A worm left unhurt for too long stops winding and plunges. Later
+        // levels wait longer: they field more worms than can all be tended.
+        if (w.age > DIVE_AGE + DIVE_STEP * (G.level - 1) && h.cy < ZONE - 1 && h.cx >= 0 && h.cx < COLS) {
+            h.dive = true; h.cy++;
+            SND.dive();
+            return;
+        }
         var nx = h.cx + h.dir;
         var wall = (nx < 0 && h.dir < 0) || (nx >= COLS && h.dir > 0);
         if (!wall && !nodeAt(s, nx, h.cy)) { h.cx = nx; return; }
+        // On the turret's own row a worm chews through bone instead of
+        // turning, so a turret cannot sit safely behind a pair of nodes.
+        if (!wall && h.cy >= ZONE && h.cy === playerRow(s)) {
+            removeNode(s, nx, h.cy);
+            h.cx = nx;
+            SND.gulp();
+            return;
+        }
         // Venom drives the worm mad: it plunges straight for the turret.
         if (!wall && s.poison[idx(nx, h.cy)] && h.cy < ZONE - 1) {
             h.dive = true; h.cy++;
@@ -273,9 +327,19 @@
         advanceHead(s, w, w.segs[0]);
     }
 
+    // A worm nobody is hurting grows bold and speeds up; every hit on it
+    // resets that, so only neglected worms get out of hand. The ceiling is
+    // half again the level's pace, but never beyond BOLD_CAP: the late levels
+    // are already fast enough that their worms do not speed up at all.
+    function wormSpeed(w) {
+        var ceiling = Math.min(w.speed * 1.5, Math.max(BOLD_CAP, w.speed));
+        return Math.min(w.speed * (1 + BOLD_RATE * w.age), ceiling);
+    }
+
     function updateWorms(s, dt) {
         s.worms.forEach(function (w) {
-            w.t += w.speed * dt;
+            w.age += dt;
+            w.t += wormSpeed(w) * dt;
             while (w.t >= 1) { w.t -= 1; stepWorm(s, w); }
         });
     }
@@ -288,13 +352,19 @@
         return liveSegments(s) + s.queue.reduce(function (n, q) { return n + q.len; }, 0);
     }
 
-    // The wound calcifies into a node; whatever was behind it becomes a worm
-    // of its own, whose new head runs straight into that node and turns.
+    // The wound calcifies into a node and whatever was behind it becomes a
+    // worm of its own. Its new head meets that node on its next step: it turns
+    // away if the node lies ahead on its row, and crawls over it if the shot
+    // segment had just dropped a row (a turning worm never looks below).
+    // In the Queen's airspace nothing calcifies, or every kill up there would
+    // add to a bone shield under her head; in the turret's zone only a brittle
+    // one-hit nub forms, so a fight down there does not wall the turret in.
     function killSegment(s, w, k) {
         var g = w.segs[k], x = segX(w, g), y = segY(w, g);
         var rear = w.segs.splice(k).slice(1);
-        calcify(s, g.cx, g.cy, NODE_HP);
-        if (rear.length) s.worms.push({ segs: rear, t: w.t, speed: w.speed, gate: w.gate });
+        if (!s.cfg.queen || g.cy >= s.cfg.top) calcify(s, g.cx, g.cy, g.cy >= ZONE ? 1 : NODE_HP);
+        w.age = 0;
+        if (rear.length) s.worms.push({ segs: rear, t: w.t, speed: w.speed, gate: w.gate, age: 0 });
         var points = (k === 0 ? 100 : 10) * G.level;
         G.addScore(points);
         if (k === 0) G.popup(x, y - 10, points, ACID);
@@ -303,14 +373,35 @@
     }
 
     function spawnWaves(s, dt) {
+        var spawned = false;
         s.clock += dt;
         while (s.queue.length && (s.clock >= s.queue[0].at || !s.worms.length)) {
             var q = s.queue.shift();
             // Jumping the clock forward keeps waves that belong together together.
             s.clock = Math.max(s.clock, q.at);
             s.worms.push(sideWorm(q.len, q.side, q.row, s.cfg.speed));
-            SND.hiss();
+            spawned = true;
         }
+        // One hiss per wave, however many worms arrive in it.
+        if (spawned) SND.hiss();
+    }
+
+    function reinforceEvery(level) { return REINFORCE + REINFORCE_STEP * (level - 1); }
+
+    // Centipede's rule: while a worm from above is loose in the turret's zone, lone heads
+    // keep crawling in from the side walls, so letting one through is never
+    // a stable situation. They come fastest on the early levels, which have
+    // nothing else to punish a turret that sits still.
+    function reinforce(s, dt, loose) {
+        var every = reinforceEvery(G.level);
+        if (!loose) { s.reinforce = every; return; }
+        s.reinforce -= dt;
+        if (s.reinforce > 0 || liveSegments(s) >= MAX_LIVE) return;
+        s.reinforce = every;
+        var head = sideWorm(1, G.pick([-1, 1]), ZONE, s.cfg.speed);
+        head.lone = true;
+        s.worms.push(head);
+        SND.hiss();
     }
 
     // ------------------------------------------------------------------
@@ -325,10 +416,13 @@
 
     function spawnPara(s) {
         var side = Math.random() < 0.5 ? -1 : 1;
+        // It starts well beyond the wall and announces itself, so a turret
+        // hugging that wall has time to step away.
         s.bugs.push({
-            kind: 'para', x: side < 0 ? -14 : G.W + 14, y: ZONE_Y + G.rnd(0, 60),
+            kind: 'para', x: side < 0 ? -PARA_LEAD : G.W + PARA_LEAD, y: ZONE_Y + G.rnd(0, 60),
             vx: -side * G.rnd(80, 130), vy: 190, r: 11, hp: 1, turn: 0.4
         });
+        SND.chitter();
     }
 
     function spawnEye(s) {
@@ -391,7 +485,7 @@
         var movers = { spore: moveSpore, para: movePara, eye: moveEye };
         s.bugs = s.bugs.filter(function (b) {
             movers[b.kind](s, b, dt);
-            return b.hp > 0 && b.y < G.H + 30 && b.x > -40 && b.x < G.W + 40;
+            return b.hp > 0 && b.y < G.H + 30 && b.x > -PARA_LEAD - 20 && b.x < G.W + PARA_LEAD + 20;
         });
     }
 
@@ -432,11 +526,11 @@
         if (q.hurt > 0) q.hurt -= dt;
         q.brood -= dt;
         if (!s.worms.length) q.brood = Math.min(q.brood, 1.2);
-        if (q.brood > 0 || liveSegments(s) >= 16) return;
+        if (q.brood > 0 || liveSegments(s) >= QUEEN_BROOD_CAP) return;
         var angry = q.hp < q.max / 2;
-        q.brood = angry ? 6 : 8.5;
+        q.brood = angry ? 7.5 : 10;
         var col = G.clamp(Math.floor(q.x / CELL), 1, COLS - 2);
-        s.worms.push(queenWorm(col, angry ? 7 : 5, s.cfg.speed));
+        s.worms.push(queenWorm(col, angry ? 6 : 5, s.cfg.speed));
         SND.roar();
         G.burst(q.x, headY(q), { n: 10, color: VEIN, speed: 120, angle: Math.PI / 2, spread: 1.6 });
     }
@@ -483,12 +577,11 @@
         return false;
     }
 
-    // Moves along one axis and stops at a node. A turret that already overlaps
-    // one (a segment calcified on top of it) may always move, so it can never
-    // be sealed in.
+    // Moves along one axis and stops at a node. Nodes are always solid:
+    // calcify() and clearSpawn() make sure the turret never starts inside one.
     function slide(s, p, dx, dy) {
         var nx = G.clamp(p.x + dx, 12, G.W - 12), ny = G.clamp(p.y + dy, ZONE_Y + 12, G.H - 12);
-        if (touchesNode(s, nx, ny) && !touchesNode(s, p.x, p.y)) {
+        if (touchesNode(s, nx, ny)) {
             if (dx) p.vx = 0; else p.vy = 0;
             return;
         }
@@ -564,7 +657,8 @@
     }
 
     // A hit costs a life but the fight goes on: the turret regrows at the
-    // bottom centre, briefly untouchable, and the loose creatures scatter.
+    // bottom centre (any bone there is cleared), briefly untouchable, and the
+    // loose creatures scatter.
     function checkPlayerHit(s) {
         var p = s.player;
         if (p.inv > 0) return;
@@ -574,6 +668,7 @@
         G.noise(0.4, { freq: 700, slide: 90, vol: 0.35 });
         if (G.loseLife() <= 0) return;
         p.x = G.W / 2; p.y = G.H - 36; p.vx = 0; p.vy = 0; p.inv = INVULN;
+        clearSpawn(s);
         s.bugs = [];
     }
 
@@ -589,23 +684,26 @@
             player: { x: G.W / 2, y: G.H - 36, vx: 0, vy: 0, inv: 0 },
             next: { spore: cfg.spore || 0, para: cfg.para || 0, eye: cfg.eye || 0 },
             snd: { thump: 0, beat: 0, skit: 0 },
-            regen: cfg.regen || 0, clock: 0, time: 0, cool: 0, recoil: 0
+            regen: cfg.regen || 0, reinforce: reinforceEvery(level), clock: 0, time: 0, cool: 0, recoil: 0
         };
         buildNodes(s, level);
         return s;
     }
 
-    function inZone(s) {
+    // Whether a worm is inside the turret's zone. Lone reinforcement heads can
+    // be left out: they must not summon further heads themselves, or one slip
+    // would feed an endless chain.
+    function inZone(s, countLone) {
         return s.worms.some(function (w) {
-            return w.segs.some(function (g) { return !hidden(w, g) && g.cy >= ZONE; });
+            return (countLone || !w.lone) && w.segs.some(function (g) { return !hidden(w, g) && g.cy >= ZONE; });
         });
     }
 
     // Gated timers for the repeating sounds; a heartbeat warns while a worm
     // is loose in the turret's zone.
-    function tickSounds(s, dt) {
+    function tickSounds(s, dt, loose) {
         for (var k in s.snd) if (s.snd[k] > 0) s.snd[k] -= dt;
-        if (s.snd.beat > 0 || !inZone(s)) return;
+        if (s.snd.beat > 0 || !loose) return;
         SND.beat();
         s.snd.beat = 0.62;
     }
@@ -613,11 +711,12 @@
     function update(s, dt) {
         s.time += dt;
         s.recoil = Math.max(0, s.recoil - dt * 9);
-        tickSounds(s, dt);
+        tickSounds(s, dt, inZone(s, true));
         movePlayer(s, dt);
         fire(s, dt);
         updateShots(s, dt);
         spawnWaves(s, dt);
+        reinforce(s, dt, inZone(s, false));
         updateWorms(s, dt);
         spawnBugs(s, dt);
         updateBugs(s, dt);
