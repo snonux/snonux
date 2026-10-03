@@ -2201,7 +2201,8 @@
                 e.preventDefault();
                 var pick = snonuxRandomTheme();
                 if (pick) snonuxSwitchTheme(pick);
-            } else if (e.key === 'a' && !e.repeat) {
+            } else if (e.key === 'a' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                // Ctrl+A (select all) and friends stay with the browser.
                 e.preventDefault();
                 launchThemeGame();
             } else if (splashDrift.keyPush(e)) {
@@ -2291,6 +2292,8 @@
                 e.preventDefault(); break;
             }
             case 'a':
+                // Ctrl+A (select all) and friends stay with the browser.
+                if (e.ctrlKey || e.metaKey || e.altKey) break;
                 if (!e.repeat) launchThemeGame();
                 e.preventDefault(); break;
         }

@@ -60,8 +60,11 @@ A game is one self-contained file that registers itself under its theme name.
 7. **Always animate.** Something on screen must change every half second even
    if the player does nothing (the e2e test checks this).
 8. **No state outside `s`.** `init` may be called at any time (title screen
-   preview, restart after death, level select). Module-level variables may only
-   hold constants. Never touch the DOM, cookies, timers or `window` events.
+   preview, every move of the level select, restart after death), so it must
+   not play sounds or change the score. `draw` is also called on a state that
+   `update` has never seen (title and intro screens). Module-level variables
+   may only hold constants. Never touch the DOM, cookies, timers or `window`
+   events.
 9. **Keep the top 30 px clear** (`y < G.HUD`): the engine draws the HUD there.
 10. **House style**: functions of about 30 lines (never above 50), comments that
     explain why, no dead code. Reserved keys: `Esc`, `Enter`, `P`, `M`.
@@ -73,11 +76,12 @@ State and flow:
 | | |
 |---|---|
 | `G.W`, `G.H`, `G.HUD`, `G.STEP` | 960, 540, 30, 1/60 |
-| `G.level`, `G.lives`, `G.score`, `G.t` | current level, lives left, run score, seconds played in this level |
+| `G.level`, `G.lives`, `G.score`, `G.t` | current level, lives left, run score, seconds played since the level's last `init` (it restarts after `G.die()`) |
 | `G.win(bonus)` | level cleared; `bonus` is added to the score |
 | `G.die()` | lose a life and restart the level from `init` (after a one-second freeze) |
 | `G.loseLife()` | lose a life but keep playing; returns lives left (0 means the engine already showed game over) |
 | `G.addScore(n)` | add to the score |
+| `G.addLife(max)` | one extra life, capped at `max` (default 5); do not write `G.lives` yourself |
 
 Lives are reset to `def.lives` at the start of each level. Set `lives: 1` for
 one-hit games.
@@ -109,6 +113,15 @@ Helpers:
 | `G.circRect(cx, cy, r, rx, ry, rw, rh)` | circle against rectangle |
 | `G.closestOnSeg(px, py, ax, ay, bx, by)` | `{x, y, t}` nearest point on a segment |
 | `G.tileMove(body, dt, tileSize, solid)` | moves `{x, y, w, h, vx, vy}` against a tile grid; `solid(tx, ty)` returns whether a tile blocks; sets `body.ground`, `body.ceil`, `body.wall` (-1/0/1) |
+
+Notes on `G.tileMove`: `solid` is called with negative and out-of-range tile
+indices, so bounds-check inside it. `body.ground` is true whenever the body
+stands on a tile; `ceil` and `wall` only on the tick it ran into one. Never
+place a body inside a solid tile (spawning, tiles that turn solid): it is
+pushed out by its leading edge and will jump. The helper knows only solid
+tiles — one-way and moving platforms are the game's own job (move the body
+with the platform, and treat a one-way tile as solid only while the body is
+falling and its feet were above the tile's top on the previous tick).
 
 Effects (all in world coordinates; set `G.cam.x/y` if your world scrolls and
 subtract it yourself when drawing):
@@ -145,7 +158,7 @@ music: {
     scale: 'mixolydian',      // major minor dorian phrygian lydian mixolydian
                               // harmonic pentatonic majorpenta blues whole
     prog: [0, 3, 4, 0],
-    bass: 'x..x..x.x..x.o..', // x = chord root, o = octave above, 5 = fifth
+    bass: 'x..x..x.x..x.o..', // x = chord root, o = octave above, 5 = perfect fifth
     lead: ['4.4.7.4.2...4...', '5.5.7.5.3...2...'],   // scale degrees in base 36
                               // (0-9, a-z), '.' = rest, '-' = hold the note
     arp:  '0121',             // chord tones 0-3 on every step ('.' = rest)
@@ -153,6 +166,12 @@ music: {
     leadWave: 'square', bassWave: 'triangle', arpWave: 'square', leadOct: 2
 }
 ```
+
+The bass and the arp follow `prog`; the lead does not — its degrees are
+absolute in the scale, so write it to fit the chords. Arp tones are stacked
+thirds (root, third, fifth, octave) in seven-note scales and neighbouring
+scale tones in the five- and six-note ones. The tune starts on the title
+screen and restarts with each level.
 
 Write a tune that fits: the lead should be at least four bars and must not be
 a copy of another game's.
@@ -174,7 +193,7 @@ node integrationtests/games/e2e.mjs mytheme --shots=/tmp/shots
 | | |
 |---|---|
 | `SnoGame.debug.start(level)` | jump straight into play |
-| `SnoGame.debug.step(n, input)` | run `n` ticks synchronously; `input` is `{left, right, up, down, a, b, codes: {KeyW: true}, mouse: {x, y, down}}` or a function `(i, s, G) => input` |
+| `SnoGame.debug.step(n, input)` | run `n` ticks synchronously; `input` is `{left, right, up, down, a, b, codes: {KeyW: true}, mouse: {x, y, down, rdown}}` or a function `(i, s, G) => input` |
 | `SnoGame.debug.state()` | `{screen, level, lives, score, …}`; `screen` is `play`, `clear`, `over`, `victory`, … |
 | `SnoGame.debug.s()` | the game's own state object |
 | `SnoGame.debug.errors` | exceptions thrown by `init` / `update` / `draw` |
@@ -185,10 +204,11 @@ level in milliseconds. Before a game is done, show with such a bot (reading
 real play**, and that doing nothing loses. Look at screenshots of at least
 levels 1, 5 and 10: check nothing overlaps the HUD and the picture is readable.
 
-`e2e.mjs` checks the rest in real Chrome: all three launchers, `Esc`, real key
-presses, a drawing and animating canvas, music and sound effects, a random bot
-on all ten levels without exceptions, the unlock cookie and its survival
-across a reload.
+`e2e.mjs` checks the rest in real Chrome: all four launchers, `Esc`, real key
+presses, a canvas that draws and keeps changing with no input, pause, music,
+sound effects made by the game itself (the engine's own jingles do not
+count), a random bot on all ten levels without exceptions, the unlock cookie,
+the level select and the cookie's survival across a reload.
 
 ## The games
 

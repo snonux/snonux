@@ -10,11 +10,13 @@
 // protocol (see lib.mjs). To poke at a single game by hand, use play.mjs.
 //
 // For every theme it checks that the game launches from the splash button,
-// the header button and the 'a' key; that Esc quits; that real key presses
-// reach the game and not the blog; that the canvas draws and animates; that
-// music and sound effects play; that all ten levels survive a random-input
-// bot without errors; that winning unlocks the next level in the cookie and
-// that the cookie survives a reload.
+// the header button, the fx-row button and the 'a' key; that Esc quits; that
+// real key presses reach the game and not the blog; that the canvas draws and
+// keeps animating with no input; that P pauses (and silences) the game; that
+// music plays and the game makes sound effects of its own; that all ten
+// levels survive a random-input bot without errors; that winning unlocks the
+// next level in the cookie, that the level select follows it, and that the
+// cookie survives a reload.
 
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -94,6 +96,12 @@ async function playForReal(page, theme, shots) {
     if (shots) await page.screenshot(join(shots, `${theme}-title.jpg`));
     await page.press('Enter');
     await page.waitFor(`${STATE}.screen==='play'`, 'play screen after Enter');
+    // Rule 7 of docs/games.md: the picture keeps changing with no input.
+    const idleA = await page.eval(CANVAS_STATS);
+    await sleep(600);
+    const idleB = await page.eval(CANVAS_STATS);
+    check(idleA.hash !== idleB.hash, 'canvas did not change over 0.6s with no input');
+    await checkPause(page);
     await page.key('keyDown', 'ArrowRight');
     await page.key('keyDown', 'Space');
     await sleep(120);
@@ -110,6 +118,18 @@ async function playForReal(page, theme, shots) {
     const audio = await page.eval('SnoGame.debug.audio()');
     check(audio.state === 'running', `audio context is ${audio.state}`);
     check(audio.musicSteps > 0, 'no music steps were scheduled');
+}
+
+// P must freeze the game and silence it, and P again must bring both back.
+async function checkPause(page) {
+    await page.press('KeyP');
+    await page.waitFor(`${STATE}.screen==='paused'`, 'pause on P');
+    const t0 = (await page.eval(STATE)).t;
+    await sleep(350);
+    check((await page.eval(STATE)).t === t0, 'game time advanced while paused');
+    check((await page.eval('SnoGame.debug.audio()')).state === 'suspended', 'audio kept running while paused');
+    await page.press('KeyP');
+    await page.waitFor(`${STATE}.screen==='play' && SnoGame.debug.audio().state==='running'`, 'resume on P');
 }
 
 // Runs the bot on one level, then forces a win and checks the save.
@@ -133,7 +153,6 @@ async function runLevel(page, theme, level, shots) {
     const save = (await cookieSave(page, theme)) || '';
     const want = Math.min(LEVELS, level + 1);
     check(Number(save.split('.')[0]) >= want, `level ${level}: cookie "${save}" did not unlock level ${want}`);
-    return st.screen;
 }
 
 async function checkGameOver(page) {
@@ -162,7 +181,13 @@ async function checkPersistenceAndLaunchers(page, base, theme) {
     await page.waitFor(`SnoGame.active && ${STATE}.screen==='title'`, 'title screen after header launch');
     const st = await page.eval(STATE);
     check(st.unlocked === LEVELS && st.won === 1, `progress lost on reload: unlocked ${st.unlocked}, won ${st.won}`);
+    check(st.sel === LEVELS, `title should offer the last level played (${LEVELS}), offers ${st.sel}`);
+    await page.press('ArrowLeft');
+    check((await page.eval(STATE)).sel === LEVELS - 1, 'level select did not move left');
     await quitWithEsc(page, 'header launch');
+    await page.click('.nav-fx-button[data-sno-fx="game"]');
+    await page.waitFor(`SnoGame.active && ${STATE}`, 'launch from the fx-row button');
+    await quitWithEsc(page, 'fx-row launch');
     await page.press('KeyA');
     await page.waitFor(`SnoGame.active && ${STATE} && ${STATE}.theme===${JSON.stringify(theme)}`, "launch with the 'a' key");
     await quitWithEsc(page, "'a' launch");
@@ -174,15 +199,13 @@ async function testTheme(page, base, theme, shots) {
     await launchFromSplash(page, base, theme);
     await checkDefinition(page);
     await playForReal(page, theme, shots);
-    const sfxBefore = (await page.eval('SnoGame.debug.audio()')).sfx;
     await checkGameOver(page);
-    let botWins = 0;
-    for (let level = 1; level <= LEVELS; level++) {
-        const end = await runLevel(page, theme, level, shots);
-        if (end) botWins++;
-    }
+    // `sfx` counts only sounds the game asked for; the engine's own jingles
+    // (hurt, win, game over) are counted apart and do not satisfy this.
+    const sfxBefore = (await page.eval('SnoGame.debug.audio()')).sfx;
+    for (let level = 1; level <= LEVELS; level++) await runLevel(page, theme, level, shots);
     const audio = await page.eval('SnoGame.debug.audio()');
-    check(audio.sfx > sfxBefore, 'no sound effects were played during ten levels of bot play');
+    check(audio.sfx > sfxBefore, 'the game played no sound effects of its own during ten levels of bot play');
     await quitWithEsc(page, 'splash launch');
     await checkPersistenceAndLaunchers(page, base, theme);
     check(!page.problems.length, `page errors: ${page.problems.slice(0, 3).join(' | ')}`);

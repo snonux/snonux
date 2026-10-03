@@ -135,20 +135,29 @@
     // Moves body b ({x, y, w, h, vx, vy}) by its velocity against a tile grid
     // of size ts. solid(tx, ty) says whether a tile blocks. Afterwards
     // b.ground / b.ceil are booleans and b.wall is -1, 0 or 1.
+    // b.ground is also true for a body merely resting on a tile (vy = 0), so
+    // a game need not push it down every tick to learn that. solid() is
+    // called with negative and out-of-range indices and must cope.
     G.tileMove = function (b, dt, ts, solid) {
         b.ground = false; b.ceil = false; b.wall = 0;
         moveAxis(b, b.vx * dt, 0, ts, solid);
         moveAxis(b, 0, b.vy * dt, ts, solid);
+        if (!b.ground && b.vy >= 0) {
+            b.ground = hitsTiles({ x: b.x, y: b.y + b.h, w: b.w, h: 1 }, ts, solid);
+        }
     };
 
     // ------------------------------------------------------------------
     // Saved progress: one small cookie per game
     // ------------------------------------------------------------------
 
+    // document.cookie itself can throw (sandboxed frames), so every access
+    // is guarded: a game must still run when nothing can be saved.
     function readCookie(name) {
-        var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-        if (!m) return null;
-        try { return decodeURIComponent(m[1]); } catch (_) { return null; }
+        try {
+            var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+            return m ? decodeURIComponent(m[1]) : null;
+        } catch (_) { return null; }
     }
 
     function writeCookie(name, value) {
@@ -170,9 +179,13 @@
         try { localStorage.setItem(name, value); } catch (_) {}
     }
 
+    var MAX_SCORE = 999999999;
+
+    // Only plain digit strings count; "4abc" or "-5" are not numbers here.
     function intIn(v, lo, hi, fallback) {
+        if (!/^\d{1,9}$/.test(String(v))) return fallback;
         var n = parseInt(v, 10);
-        return (isNaN(n) || n < lo || n > hi) ? fallback : n;
+        return (n < lo || n > hi) ? fallback : n;
     }
 
     // Save format: "unlocked.hiscore.lastLevel.won". Anything malformed or
@@ -181,7 +194,7 @@
         var p = String(raw || '').split('.');
         var save = {
             unlocked: intIn(p[0], 1, LEVELS, 1),
-            hi: intIn(p[1], 0, 999999999, 0),
+            hi: intIn(p[1], 0, MAX_SCORE, 0),
             last: intIn(p[2], 1, LEVELS, 1),
             won: intIn(p[3], 0, 1, 0)
         };
@@ -194,7 +207,7 @@
     function writeSave() {
         if (!cur) return;
         var s = cur.save;
-        if (G.score > s.hi) s.hi = Math.floor(G.score);
+        if (G.score > s.hi) s.hi = Math.min(MAX_SCORE, Math.floor(G.score));
         storeSet('snog_' + cur.theme, [s.unlocked, s.hi, s.last, s.won].join('.'));
     }
 
@@ -206,7 +219,9 @@
     var muted = storeGet('snog_mute') === '1';
     // Counters for the e2e test: `sfx` counts sounds a game asked for itself,
     // as opposed to notes the music sequencer scheduled.
-    var audioStats = { tones: 0, noises: 0, musicSteps: 0, sfx: 0 };
+    var audioStats = { tones: 0, noises: 0, musicSteps: 0, sfx: 0, engineSfx: 0 };
+    var audioHeld = false;   // true while paused, hidden or quit: nothing may resume the context
+    var engineSound = false; // true while the engine itself plays a jingle
 
     function audio() {
         if (!actx) {
@@ -219,8 +234,29 @@
                 sfxBus = actx.createGain(); sfxBus.gain.value = 0.9; sfxBus.connect(master);
             } catch (_) { actx = null; return null; }
         }
-        if (actx.state === 'suspended') actx.resume().catch(noop);
+        if (actx.state === 'suspended' && !audioHeld) actx.resume().catch(noop);
         return actx;
+    }
+
+    // Freezes or releases all sound. Pausing, a hidden tab and quitting hold
+    // the context so neither the music pump nor a key press can restart it.
+    function holdAudio(on) {
+        audioHeld = on;
+        if (!actx) return;
+        if (on) actx.suspend().catch(noop); else actx.resume().catch(noop);
+    }
+
+    function countSfx(o) {
+        if (o.bus) return;
+        if (engineSound) audioStats.engineSfx++; else audioStats.sfx++;
+    }
+
+    // Engine jingles (hurt, win, over, menu blips) are kept out of the game's
+    // own sfx count so the e2e test can tell a silent game from a noisy engine.
+    function engineSfx(name) {
+        engineSound = true;
+        G.sfx(name);
+        engineSound = false;
     }
 
     // Shared attack/decay envelope for both oscillators and noise.
@@ -239,7 +275,7 @@
         if (!c) return;
         o = o || {};
         audioStats.tones++;
-        if (!o.bus) audioStats.sfx++;
+        countSfx(o);
         var t = c.currentTime + (o.delay || 0);
         var osc = c.createOscillator();
         var g = envelope(c, t, dur, o.vol == null ? 0.2 : o.vol, o.attack);
@@ -265,7 +301,7 @@
         if (!c) return;
         o = o || {};
         audioStats.noises++;
-        if (!o.bus) audioStats.sfx++;
+        countSfx(o);
         var t = c.currentTime + (o.delay || 0);
         var src = c.createBufferSource(), f = c.createBiquadFilter();
         var g = envelope(c, t, dur, o.vol == null ? 0.25 : o.vol, o.attack);
@@ -352,10 +388,11 @@
 
     function midiHz(n) { return 440 * Math.pow(2, (n - 69) / 12); }
 
-    function scaleHz(m, degree, octave) {
+    // semis shifts the result by plain semitones (used for a true fifth).
+    function scaleHz(m, degree, octave, semis) {
         var sc = SCALES[m.scale] || SCALES.minor, n = sc.length;
         var oct = Math.floor(degree / n), idx = ((degree % n) + n) % n;
-        return midiHz((m.root || 45) + 12 * (oct + octave) + sc[idx]);
+        return midiHz((m.root || 45) + 12 * (oct + octave) + sc[idx] + (semis || 0));
     }
 
     function scaleLen(m) { return (SCALES[m.scale] || SCALES.minor).length; }
@@ -377,9 +414,9 @@
     function playBass(m, i, t, root) {
         var ch = patAt(m.bass, i);
         if (ch === '.' || ch === '-') return;
-        // 'x' plays the chord root, 'o' the octave above it, '5' its fifth.
-        var deg = root + (ch === 'o' ? scaleLen(m) : (ch === '5' ? 4 : 0));
-        G.tone(scaleHz(m, deg, 0), music.spb * 1.8, {
+        // 'x' plays the chord root, 'o' the octave above it, '5' a perfect
+        // fifth above it (in semitones, so it is right in every scale).
+        G.tone(scaleHz(m, root, ch === 'o' ? 1 : 0, ch === '5' ? 7 : 0), music.spb * 1.8, {
             type: m.bassWave || 'triangle', vol: 0.3, bus: musicBus, delay: t
         });
     }
@@ -397,7 +434,10 @@
     function playArp(m, i, t, root) {
         var ch = patAt(m.arp, i);
         if (ch === '.' || ch === '-') return;
-        var tone = [0, 2, 4, 7][parseInt(ch, 10) % 4] || 0;
+        // Chord tones are stacked thirds in seven-note scales; five- and
+        // six-note scales use neighbouring scale tones, which stay consonant.
+        var n = scaleLen(m), steps = n === 7 ? [0, 2, 4, 7] : [0, 1, 2, n];
+        var tone = steps[parseInt(ch, 10) % 4] || 0;
         G.tone(scaleHz(m, root + tone, 1), music.spb * 0.9, {
             type: m.arpWave || 'square', vol: 0.06, bus: musicBus, delay: t
         });
@@ -424,7 +464,13 @@
     // Schedules a little ahead of the audio clock so timing stays tight even
     // when the main thread is busy drawing.
     function musicPump() {
-        if (!music.def || !actx) return;
+        if (!music.def || !actx || audioHeld) return;
+        // After a stall (busy page, throttled tab) drop the missed steps
+        // rather than playing them all at once.
+        if (music.next < actx.currentTime) {
+            var missed = Math.ceil((actx.currentTime - music.next) / music.spb);
+            music.step += missed; music.next += missed * music.spb;
+        }
         while (music.next < actx.currentTime + 0.15) {
             musicStep(music.step, music.next);
             music.step++;
@@ -496,9 +542,21 @@
         return e.ctrlKey || e.metaKey || e.altKey || /^F\d+$/.test(e.key);
     }
 
+    // Keys still held when the game quit. Their auto-repeat would otherwise
+    // reach the blog (a held arrow key would turn the page).
+    var lingering = {};
+
     function onKeyDown(e) {
-        if (!G.active || isBrowserShortcut(e)) return;
-        e.preventDefault(); e.stopImmediatePropagation();
+        if (!G.active) {
+            if (lingering[e.code] && e.repeat) { e.preventDefault(); e.stopImmediatePropagation(); }
+            else delete lingering[e.code];
+            return;
+        }
+        // The blog must never see a key while a game is open, modifiers or
+        // not; real browser shortcuts still keep their default action.
+        e.stopImmediatePropagation();
+        if (isBrowserShortcut(e)) return;
+        e.preventDefault();
         if (e.code === 'Escape') { G.quit(); return; }
         if (e.repeat || !cur) return;
         audio();
@@ -509,8 +567,11 @@
     }
 
     function onKeyUp(e) {
+        delete lingering[e.code];
         if (!G.active) return;
-        e.stopImmediatePropagation();
+        // preventDefault too: some browsers activate a focused button on the
+        // Space keyup alone.
+        e.preventDefault(); e.stopImmediatePropagation();
         setRaw(e.code, false);
     }
 
@@ -520,19 +581,28 @@
         G.mouse.y = G.clamp((e.clientY - r.top) / r.height * H, 0, H);
     }
 
+    // Button state comes from e.buttons, not from which event fired: with two
+    // buttons held, the second press and the first release arrive as
+    // pointermove, so tracking down/up events alone leaves buttons stuck.
+    function syncButtons(e) {
+        var left = !!(e.buttons & 1), right = !!(e.buttons & 2), m = G.mouse;
+        var leftHit = left && !m.down;
+        if (leftHit) m.hit = true;
+        if (right && !m.rdown) m.rhit = true;
+        m.down = left; m.rdown = right;
+        return leftHit;
+    }
+
     function onPointerDown(e) {
         e.preventDefault();
         audio();
         pointerPos(e);
-        if (e.button === 2) { G.mouse.rdown = true; G.mouse.rhit = true; return; }
-        G.mouse.down = true; G.mouse.hit = true;
-        if (cur && cur.screen !== 'play') menuClick();
+        if (syncButtons(e) && cur && cur.screen !== 'play') menuClick();
     }
 
-    function onPointerUp(e) {
-        if (e.button === 2) G.mouse.rdown = false;
-        else G.mouse.down = false;
-    }
+    function onPointerMove(e) { pointerPos(e); syncButtons(e); }
+
+    function onPointerUp(e) { syncButtons(e); }
 
     // On-screen pad for touch devices; each button simply holds a key.
     var PAD = [
@@ -547,7 +617,12 @@
         PAD.forEach(function (p) {
             var b = document.createElement('button');
             b.type = 'button'; b.className = 'sno-game-pad-' + p[2]; b.textContent = p[1];
-            b.addEventListener('pointerdown', function (e) { e.preventDefault(); audio(); setRaw(p[0], true); });
+            b.addEventListener('pointerdown', function (e) {
+                e.preventDefault(); audio(); setRaw(p[0], true);
+                // In menus the pad works like the keyboard: A confirms,
+                // left/right pick the level.
+                if (cur && cur.screen !== 'play') menuKey(p[0]);
+            });
             ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
                 b.addEventListener(ev, function () { setRaw(p[0], false); });
             });
@@ -660,6 +735,9 @@
 
     function setScreen(name, timer) {
         cur.screen = name; cur.timer = timer || 0; cur.age = 0;
+        // The key or click that confirmed a menu must not also count as the
+        // first press of the level (it would serve the ball, fire, bomb …).
+        if (name === 'play') endTick();
     }
 
     function maxLives() { return cur.def.lives == null ? 3 : cur.def.lives; }
@@ -699,14 +777,14 @@
         if (cur.level >= LEVELS) cur.save.won = 1;
         else if (cur.level + 1 > cur.save.unlocked) cur.save.unlocked = cur.level + 1;
         writeSave();
-        G.sfx('win');
+        engineSfx('win');
         setScreen(cur.level >= LEVELS ? 'victory' : 'clear', cur.level >= LEVELS ? 0 : 6);
     };
 
     function gameOver() {
         writeSave();
         musicStop();
-        G.sfx('over');
+        engineSfx('over');
         setScreen('over');
     }
 
@@ -714,8 +792,8 @@
     // (the game handles its own respawn). Returns the lives left.
     G.loseLife = function () {
         if (!cur || cur.screen !== 'play') return G.lives;
-        G.lives--;
-        G.sfx('hurt'); G.shake(8, 0.3);
+        G.lives = Math.floor(G.lives) - 1;
+        engineSfx('hurt'); G.shake(8, 0.3);
         if (G.lives <= 0) gameOver();
         return G.lives;
     };
@@ -726,7 +804,11 @@
         if (G.loseLife() > 0) setScreen('dead', 1.0);
     };
 
-    G.addScore = function (n) { G.score += n; };
+    // A bad value (undefined, NaN) is ignored so it cannot poison the score.
+    G.addScore = function (n) { if (isFinite(n)) G.score += n; };
+
+    // G.addLife(max) — one extra life, never above max (default 5).
+    G.addLife = function (max) { G.lives = Math.min(max || 5, Math.floor(G.lives) + 1); return G.lives; };
 
     function respawn() {
         var lives = G.lives;
@@ -744,15 +826,15 @@
     }
 
     function togglePause() {
-        if (cur.screen === 'play') { cur.screen = 'paused'; if (actx) actx.suspend().catch(noop); }
-        else if (cur.screen === 'paused') { cur.screen = 'play'; if (actx) actx.resume().catch(noop); }
+        if (cur.screen === 'play') { cur.screen = 'paused'; holdAudio(true); }
+        else if (cur.screen === 'paused') { cur.screen = 'play'; holdAudio(false); endTick(); }
     }
 
     function selectLevel(n) {
         n = G.clamp(n, 1, cur.save.unlocked);
         if (n === cur.sel) return;
         cur.sel = n;
-        G.sfx('blip');
+        engineSfx('blip');
         initState(n);
     }
 
@@ -830,7 +912,7 @@
         G.text('LV ' + cur.level + '/' + LEVELS + (name ? '  ' + name : ''), 12, 21, { size: 15, color: c.fg, max: 300 });
         G.text(pad6(G.score), W / 2, 21, { size: 16, color: c.accent, align: 'center', bold: true });
         var extra = cur.def.hud ? guard(function () { return cur.def.hud(cur.s, G); }) : '';
-        var lives = maxLives() > 0 ? new Array(Math.max(0, G.lives) + 1).join('♥') : '';
+        var lives = maxLives() > 0 ? new Array(Math.max(0, Math.floor(G.lives) || 0) + 1).join('♥') : '';
         // The right edge stays clear of the overlay's ESC button.
         G.text((extra ? extra + '   ' : '') + lives, W - 84, 21, { size: 15, color: c.fg, align: 'right', max: 380 });
     }
@@ -960,12 +1042,17 @@
         close.addEventListener('click', function () { G.quit(); });
         root.appendChild(canvas); root.appendChild(close);
         canvas.addEventListener('pointerdown', onPointerDown);
-        canvas.addEventListener('pointermove', pointerPos);
+        canvas.addEventListener('pointermove', onPointerMove);
+        canvas.addEventListener('pointercancel', onPointerUp);
         window.addEventListener('pointerup', onPointerUp);
         canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
         buildTouchPad(root);
+        root.tabIndex = -1;
         document.body.appendChild(root);
         document.body.classList.add('sno-game-on');
+        // Move focus into the dialog so a focused blog button cannot be
+        // activated from inside the game.
+        root.focus({ preventScroll: true });
         dom = { root: root, canvas: canvas, ctx: canvas.getContext('2d') };
         G.fontFamily = getComputedStyle(document.body).fontFamily || 'monospace';
         resize();
@@ -978,7 +1065,11 @@
     function loadGameScript(theme) {
         var s = document.createElement('script');
         s.src = 'themes/' + theme + '/game.js?b=' + encodeURIComponent(window.SNONUX_BUILD || '');
-        s.onerror = function () { if (cur && cur.theme === theme && !cur.def) fail('could not load ' + s.src); };
+        var stillWaiting = function () { return cur && cur.theme === theme && !cur.def && cur.screen === 'loading'; };
+        s.onerror = function () { if (stillWaiting()) fail('could not load ' + s.src); };
+        // A script with a syntax error loads "successfully" but never
+        // registers; do not leave LOADING up forever.
+        s.onload = function () { if (stillWaiting()) fail(s.src + ' did not register a game'); };
         document.head.appendChild(s);
     }
 
@@ -1010,6 +1101,7 @@
         clearInput(); clearFx();
         pauseAmbient();
         openOverlay();
+        holdAudio(false);
         audio();
         cur = { theme: theme, def: null, s: null, screen: 'loading', timer: 0, age: 0, level: 1, sel: 1, save: loadSave(theme) };
         if (defs[theme]) boot(theme); else loadGameScript(theme);
@@ -1025,7 +1117,9 @@
         cancelAnimationFrame(raf);
         if (cur && cur.def) writeSave();
         musicStop();
-        if (actx && actx.state === 'suspended') actx.resume().catch(noop);
+        // Silence anything already scheduled (jingles, music lookahead).
+        holdAudio(true);
+        lingering = rawDown;
         clearInput();
         window.removeEventListener('pointerup', onPointerUp);
         if (dom && dom.root.parentNode) dom.root.parentNode.removeChild(dom.root);
@@ -1042,8 +1136,12 @@
     window.addEventListener('keyup', onKeyUp, true);
     window.addEventListener('resize', resize);
     window.addEventListener('blur', function () { if (G.active) clearInput(); });
+    // A hidden tab pauses play and silences every other screen too, so a
+    // throttled background tab never plays stuttering music.
     document.addEventListener('visibilitychange', function () {
-        if (G.active && document.hidden && cur && cur.screen === 'play') togglePause();
+        if (!G.active || !cur) return;
+        if (document.hidden && cur.screen === 'play') togglePause();
+        else if (cur.screen !== 'paused') holdAudio(document.hidden);
     });
 
     // ------------------------------------------------------------------
@@ -1120,7 +1218,9 @@
         if (inp.mouse) {
             if (inp.mouse.x != null) { G.mouse.x = inp.mouse.x; G.mouse.y = inp.mouse.y; }
             if (inp.mouse.down && !G.mouse.down) G.mouse.hit = true;
+            if (inp.mouse.rdown && !G.mouse.rdown) G.mouse.rhit = true;
             G.mouse.down = !!inp.mouse.down;
+            G.mouse.rdown = !!inp.mouse.rdown;
         }
     }
 
@@ -1142,11 +1242,13 @@
             if (!d) return null;
             return {
                 title: d.title || '', blurb: d.blurb || '', controls: (d.controls || []).length,
-                levelNames: (d.levelNames || []).length, music: !!(d.music && d.music.bpm), lives: maxLives()
+                levelNames: (d.levelNames || []).length, lives: maxLives(),
+                // A tune needs a tempo and at least one voice that plays.
+                music: !!(d.music && d.music.bpm && (d.music.lead || d.music.bass || d.music.arp) && /[^.\-]/.test([].concat(d.music.lead || '', d.music.bass || '', d.music.arp || '').join('')))
             };
         },
         audio: function () {
-            return { state: actx ? actx.state : 'none', tones: audioStats.tones, noises: audioStats.noises, musicSteps: audioStats.musicSteps, sfx: audioStats.sfx, muted: muted };
+            return { state: actx ? actx.state : 'none', tones: audioStats.tones, noises: audioStats.noises, musicSteps: audioStats.musicSteps, sfx: audioStats.sfx, engineSfx: audioStats.engineSfx, muted: muted };
         },
         // Jumps straight into play on the given level (no intro banner).
         start: function (level) { G.score = 0; beginLevel(level); if (cur.screen !== 'error') setScreen('play'); },

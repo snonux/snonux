@@ -145,7 +145,7 @@
     function applyPower(s, kind) {
         G.sfx('power');
         G.addScore(50);
-        if (kind === 'life') { G.lives = Math.min(5, G.lives + 1); return; }
+        if (kind === 'life') { G.addLife(5); return; }
         if (kind === 'multi') { splitBalls(s); return; }
         s.timers[kind] = 12;
     }
@@ -255,7 +255,10 @@
         drawPaddle(s, ctx);
         drawMoving(s, ctx);
         if (s.balls.length && s.balls[0].stuck) {
+            // The hint pulses so the screen is never completely still.
+            ctx.globalAlpha = 0.55 + 0.45 * Math.sin(G.t * 5);
             G.text('SPACE or click to serve', G.W / 2, 440, { size: 16, color: '#96958f', align: 'center' });
+            ctx.globalAlpha = 1;
         }
     }
 
