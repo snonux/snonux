@@ -60,7 +60,9 @@ export function launchChrome(work) {
         '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${join(work, 'chrome')}`,
         '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--no-sandbox',
         '--autoplay-policy=no-user-gesture-required', '--window-size=1280,800', 'about:blank',
-    ], { stdio: ['ignore', 'ignore', 'pipe'] });
+    // detached puts Chrome and all its helper processes in one process group,
+    // so the whole group can be killed at the end (see stopChrome).
+    ], { stdio: ['ignore', 'ignore', 'pipe'], detached: true });
     return new Promise((ok, fail) => {
         let buf = '';
         const timer = setTimeout(() => fail(new Error('Chrome did not start')), 20000);
@@ -71,6 +73,17 @@ export function launchChrome(work) {
         });
         proc.on('exit', () => fail(new Error(`Chrome exited early:\n${buf}`)));
     });
+}
+
+// Kills Chrome's whole process group and waits for it to go. Killing only the
+// main process leaves renderer and utility helpers alive for a moment; they
+// keep writing to the profile directory, which then cannot be removed and is
+// left behind in /tmp (about 40 MB per run).
+async function stopChrome(proc) {
+    const gone = new Promise((ok) => proc.once('exit', ok));
+    try { process.kill(-proc.pid, 'SIGKILL'); } catch { proc.kill('SIGKILL'); }
+    await Promise.race([gone, sleep(5000)]);
+    await sleep(300);
 }
 
 // Minimal DevTools-protocol client for one page.
@@ -170,13 +183,7 @@ export async function startSession() {
     let server, chrome;
     const close = async () => {
         if (server) server.close();
-        if (chrome) {
-            // Wait for Chrome to be gone before removing its profile; while
-            // it shuts down it still writes there.
-            const gone = new Promise((ok) => chrome.proc.once('exit', ok));
-            chrome.proc.kill();
-            await Promise.race([gone, sleep(5000)]);
-        }
+        if (chrome) await stopChrome(chrome.proc);
         // A leftover temp dir is not a test failure, so cleanup never throws.
         try {
             rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
