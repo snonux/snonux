@@ -39,26 +39,33 @@
     // An enemy is [kind, x, y] plus an optional patrol end point; kind 'z'
     // is a sentinel drone. Each further wave arrives when one enemy is left.
     var LEVELS = [
-        { // 1: four pistol agents, plenty of ammunition, slow reactions
+        { // 1: pistol agents only, plenty of ammunition, slow reactions
             start: [3, 9], ammo: 8, cache: [3, 15],
             walls: [[10, 4, 2, 5], [10, 12, 2, 3], [20, 7, 2, 6]],
-            waves: [[['a', 16, 4, 16, 14], ['a', 25, 14, 25, 4], ['a', 28, 15, 23, 15], ['a', 29, 3, 29, 10]]]
+            waves: [[['a', 16, 4, 16, 14], ['a', 25, 14, 25, 4], ['a', 28, 15, 23, 15], ['a', 29, 3, 29, 10]],
+                [['a', 30, 2], ['a', 30, 16], ['a', 16, 2]],
+                [['a', 30, 9], ['a', 1, 2], ['a', 16, 16], ['a', 30, 3]]]
         },
         { // 2: staggered baffles; agents now duck back into cover to reload
             start: [2, 9], ammo: 6, cache: [2, 12], guns: [[5, 12, 'pistol']],
             walls: [[1, 2, 30, 3], [1, 14, 30, 3], [8, 5, 1, 5], [14, 9, 1, 5], [20, 5, 1, 5], [26, 9, 1, 5]],
-            waves: [[['a', 11, 11, 11, 6], ['a', 17, 6, 17, 12], ['a', 23, 12, 23, 7], ['a', 29, 6, 29, 12]]]
+            waves: [[['a', 11, 11, 11, 6], ['a', 17, 6, 17, 12], ['a', 23, 12, 23, 7], ['a', 29, 6, 29, 12]],
+                [['a', 30, 5], ['a', 30, 13], ['a', 1, 5]],
+                [['a', 30, 9], ['a', 1, 13], ['a', 16, 5], ['a', 22, 13]]]
         },
         { // 3: no gun at all: sneak up behind the first agent to get one
-            start: [2, 9], ammo: 0, cache: [2, 15], trace: 12, drop: 20,
+            start: [2, 9], ammo: 0, cache: [2, 15], trace: 20, drop: 40,
             walls: [[9, 6, 2, 2], [9, 12, 2, 2], [20, 6, 2, 2], [20, 12, 2, 2], [15, 9, 1, 1]],
-            waves: [[['a', 6, 4, 27, 4], ['a', 6, 15, 27, 15], ['a', 17, 10, 28, 10], ['a', 24, 6, 24, 14]]]
+            waves: [[['a', 6, 4, 27, 4], ['a', 6, 15, 27, 15], ['a', 17, 10, 28, 10], ['a', 24, 6, 24, 14]],
+                [['a', 30, 2], ['a', 30, 16], ['a', 16, 2]],
+                [['a', 1, 2], ['a', 30, 9], ['a', 16, 16], ['a', 1, 16]]]
         },
-        { // 4: shotgun agents, short ranged but hard to sidestep up close; first reinforcements
+        { // 4: shotgun agents, short ranged but hard to sidestep up close
             start: [3, 14], ammo: 6, cache: [2, 16], guns: [[8, 15, 'shotgun']],
             walls: [[15, 2, 2, 5], [15, 12, 2, 5], [6, 9, 6, 1], [20, 9, 6, 1]],
             waves: [[['s', 4, 4, 12, 4], ['a', 20, 4, 28, 4], ['s', 27, 14, 19, 14], ['a', 28, 7, 28, 11], ['a', 12, 14, 12, 11]],
-                [['a', 30, 2], ['s', 30, 16], ['a', 1, 2]]]
+                [['a', 30, 2], ['s', 30, 16], ['a', 1, 2]],
+                [['a', 30, 9], ['s', 1, 2], ['a', 16, 9], ['a', 30, 16]]]
         },
         { // 5: server racks make a maze of aisles with an agent in each
             start: [2, 9], ammo: 6, cache: [2, 16], guns: [[4, 15, 'pistol']],
@@ -66,7 +73,8 @@
                 [6, 11, 1, 4], [10, 11, 1, 4], [14, 11, 1, 4], [18, 11, 1, 4], [22, 11, 1, 4], [26, 11, 1, 4]],
             waves: [[['a', 8, 3, 8, 7], ['a', 12, 15, 12, 11], ['s', 16, 3, 16, 7], ['a', 20, 15, 20, 11],
                 ['a', 24, 3, 24, 7], ['a', 29, 9, 29, 4], ['s', 28, 13, 28, 16]],
-                [['a', 30, 2], ['a', 30, 16], ['s', 30, 9], ['a', 16, 9]]]
+                [['a', 30, 2], ['a', 30, 16], ['s', 30, 9], ['a', 16, 9]],
+                [['a', 1, 2], ['s', 30, 2], ['a', 30, 16], ['a', 1, 16]]]
         },
         { // 6: dodgers sidestep the first bullet they see coming
             start: [2, 9], ammo: 6, cache: [2, 2], guns: [[3, 3, 'shotgun'], [3, 15, 'pistol']],
@@ -74,13 +82,15 @@
                 [20, 13, 5, 1], [24, 10, 1, 3], [14, 8, 4, 3]],
             waves: [[['d', 13, 3, 19, 3], ['d', 13, 15, 19, 15], ['d', 27, 9, 20, 9], ['a', 29, 3, 29, 7],
                 ['a', 29, 15, 29, 11], ['a', 10, 7, 10, 11]],
-                [['d', 30, 2], ['d', 30, 16], ['s', 16, 2]]]
+                [['d', 30, 2], ['d', 30, 16], ['s', 16, 2]],
+                [['d', 30, 9], ['a', 1, 16], ['s', 30, 2], ['a', 13, 9]]]
         },
         { // 7: the first sentinel: it keeps coming while everything else is frozen
             start: [2, 9], ammo: 8, cache: [2, 16], guns: [[3, 3, 'pistol'], [16, 9, 'shotgun']],
             walls: [[6, 6, 3, 1], [6, 12, 3, 1], [14, 4, 1, 4], [14, 11, 1, 4], [21, 6, 3, 1], [21, 12, 3, 1], [26, 8, 1, 3]],
             waves: [[['z', 29, 3], ['a', 11, 3, 11, 15], ['a', 18, 15, 18, 3], ['s', 24, 9, 19, 9], ['a', 28, 14, 28, 11], ['d', 23, 3, 29, 3]],
-                [['a', 30, 16], ['s', 30, 2], ['d', 16, 16]]]
+                [['a', 30, 16], ['s', 30, 2], ['d', 16, 16]],
+                [['a', 1, 2], ['a', 30, 9], ['s', 1, 16], ['d', 16, 2]]]
         },
         { // 8: glass offices: glass stops people but not eyes, and bullets shatter it
             start: [3, 9], ammo: 8, cache: [2, 16], guns: [[3, 15, 'pistol'], [18, 10, 'shotgun']],
@@ -88,21 +98,24 @@
             glass: [[10, 7, 1, 5], [21, 7, 1, 5], [5, 8, 1, 3], [14, 5, 4, 1], [14, 13, 4, 1], [25, 6, 1, 3]],
             waves: [[['a', 12, 3, 19, 3], ['s', 12, 15, 19, 15], ['d', 16, 9, 16, 7], ['a', 27, 3, 27, 8],
                 ['a', 28, 15, 23, 15], ['s', 29, 9, 29, 5], ['d', 24, 11, 29, 11]],
-                [['a', 30, 2], ['a', 30, 16], ['d', 16, 2], ['s', 16, 16]]]
+                [['a', 30, 2], ['a', 30, 16], ['d', 16, 2], ['s', 16, 16]],
+                [['a', 30, 9], ['d', 1, 2], ['s', 30, 2], ['a', 11, 9]]]
         },
         { // 9: rooftop: agents lead their shots, and the second wave brings a second sentinel
             start: [2, 9], ammo: 8, cache: [2, 16], guns: [[3, 3, 'shotgun'], [14, 9, 'pistol']],
             walls: [[5, 5, 2, 2], [12, 3, 2, 2], [10, 11, 2, 2], [17, 7, 2, 3], [23, 4, 2, 2], [22, 12, 3, 2], [28, 8, 1, 2], [6, 13, 2, 1]],
             waves: [[['z', 29, 2], ['a', 9, 3, 9, 9], ['a', 15, 14, 15, 5], ['s', 20, 3, 20, 15], ['d', 27, 14, 27, 3]],
-                [['z', 30, 16], ['a', 30, 2], ['d', 16, 2], ['s', 16, 16], ['a', 1, 2]]]
+                [['z', 30, 16], ['a', 30, 2], ['d', 16, 2], ['s', 16, 16], ['a', 1, 2]],
+                [['a', 30, 9], ['s', 1, 16], ['d', 16, 9], ['a', 30, 2]]]
         },
-        { // 10: the lobby: rows of pillars and three waves of everything
+        { // 10: the lobby: rows of pillars and four waves of everything
             start: [2, 9], ammo: 8, cache: [2, 16], guns: [[3, 3, 'pistol'], [3, 15, 'shotgun']],
             walls: [[5, 5, 2, 2], [10, 5, 2, 2], [15, 5, 2, 2], [20, 5, 2, 2], [25, 5, 2, 2],
                 [5, 12, 2, 2], [10, 12, 2, 2], [15, 12, 2, 2], [20, 12, 2, 2], [25, 12, 2, 2], [28, 8, 1, 3]],
             waves: [[['a', 8, 3, 8, 15], ['a', 13, 15, 13, 3], ['s', 18, 3, 18, 15], ['d', 23, 15, 23, 3], ['a', 29, 4, 29, 6], ['s', 29, 14, 29, 12]],
                 [['a', 30, 2], ['a', 30, 16], ['d', 17, 2], ['d', 17, 16], ['s', 30, 9]],
-                [['z', 30, 2], ['z', 30, 16], ['a', 1, 2], ['a', 1, 16], ['s', 30, 7]]]
+                [['z', 30, 2], ['z', 30, 16], ['a', 1, 2], ['a', 1, 16], ['s', 30, 7]],
+                [['d', 30, 2], ['s', 30, 16], ['a', 16, 9]]]
         }
     ];
 
@@ -185,14 +198,14 @@
     function tune(level, lv) {
         return {
             wind: 1.5 - level * 0.07, shot: 270 + level * 11, lead: level >= 9 ? 0.55 : 0,
-            cover: level >= 2, drone: 92 + level * 2, trace: lv.trace || 3, drop: lv.drop || 3
+            cover: level >= 2, drone: 92 + level * 2, trace: lv.trace || 8, drop: lv.drop || 3
         };
     }
 
     function spawn(s, spec, late) {
         var x = mid(spec[1]), y = mid(spec[2]);
         if (spec[0] === 'z') {
-            s.drones.push({ x: x, y: y, vx: 0, vy: 0, r: 13, hp: 3, wake: late ? 1.5 : 2.5, ping: 0, swim: 0 });
+            s.drones.push({ x: x, y: y, vx: 0, vy: 0, r: 13, hp: 3, wake: late ? 1.5 : 2.5, ping: 0, swim: s.rnd() * TAU });
             return;
         }
         var px = spec.length > 3 ? mid(spec[3]) : x, py = spec.length > 3 ? mid(spec[4]) : y;
@@ -215,16 +228,24 @@
             aim: 0, mouse: false, mx: G.mouse.x, my: G.mouse.y,
             gun: 'pistol', ammo: { pistol: lv.ammo, shotgun: 0 }, fireT: 0, shootT: 0,
             agents: [], drones: [], bullets: [], pickups: [], wave: 0,
-            ts: CRAWL, clock: 0, anim: 0, alert: false, slow: true, cueT: 0, beatT: 0, tickT: 0,
+            ts: CRAWL, clock: 0, anim: 0, alert: false, slow: true, cueT: 0, beatT: 0, tickT: 0, grazeT: 0, still: 0,
             dropT: 0, doneT: 0, dead: false, msg: '', msgT: 0
         };
         (lv.guns || []).forEach(function (g) { s.pickups.push({ x: mid(g[0]), y: mid(g[1]), kind: g[2], n: GUNS[g[2]].drop + 2 }); });
         lv.waves[0].forEach(function (spec) { spawn(s, spec, false); });
+        if (!lv.ammo) say(s, 'UNARMED — TAKE A GUN FROM BEHIND');
         computeFlow(s);
         return s;
     }
 
     function say(s, text) { s.msg = text; s.msgT = 2.2; }
+
+    // Floating text, kept clear of the canvas edges and of the HUD it rises
+    // toward, so a kill next to a wall still shows its whole label.
+    function pop(x, y, text, color) {
+        var half = text.length * 5 + 8;
+        G.popup(G.clamp(x, half, G.W - half), Math.max(y, G.HUD + 46), text, color);
+    }
 
     // ------------------------------------------------------------------
     // Sounds
@@ -266,9 +287,13 @@
         // A little inertia: the coat takes a moment to get going and to stop.
         p.vx += (ix / len * RUN - p.vx) * k;
         p.vy += (iy / len * RUN - p.vy) * k;
+        var ox = p.x, oy = p.y;
         slide(s, p, dt);
         if (ix || iy) p.face = Math.atan2(iy, ix);
-        return !!(ix || iy);
+        // Moving means a held key and real displacement. Pushing against a
+        // wall only turns the player, and the short glide after letting go
+        // must not keep time running, or stopping would not stop the clock.
+        return !!(ix || iy) && G.dist(ox, oy, p.x, p.y) > RUN * dt * 0.1;
     }
 
     // Keyboard players can only face eight ways, so the gun snaps to the
@@ -345,19 +370,19 @@
             if (!s.ammo[s.gun]) s.gun = g.kind;
             G.tone(700, 0.05, { type: 'triangle', vol: 0.16 });
             G.tone(1050, 0.08, { type: 'triangle', vol: 0.16, delay: 0.06 });
-            G.popup(g.x, g.y - 14, '+' + g.n + ' ' + g.kind.toUpperCase(), PALE);
+            pop(g.x, g.y - 14, '+' + g.n + ' ' + g.kind.toUpperCase(), PALE);
             return false;
         });
     }
 
-    // Running into an agent's back deletes it without a shot, and without
-    // alerting the rest of the room.
+    // Running into an agent anywhere in its rear half deletes it without a
+    // shot. The takedown makes no noise, so it does not raise the alarm.
     function takedowns(s) {
         var p = s.p;
         s.agents.forEach(function (a) {
             if (a.dead || G.dist(p.x, p.y, a.x, a.y) > p.r + a.r + 3) return;
             var side = Math.cos(angDiff(a.face, Math.atan2(p.y - a.y, p.x - a.x)));
-            if (side < -0.25) killAgent(s, a, 'takedown');
+            if (side < 0) killAgent(s, a, 'takedown');
         });
     }
 
@@ -367,7 +392,7 @@
 
     function raiseAlert(s) {
         s.alert = true;
-        s.agents.forEach(function (a) { a.react = 0.25 + G.rnd(0, 0.5); G.popup(a.x, a.y - 18, '!', RED); });
+        s.agents.forEach(function (a) { a.react = 0.25 + G.rnd(0, 0.5); pop(a.x, a.y - 18, '!', RED); });
         G.sfx('alarm');
         say(s, 'TRACE COMPLETE — AGENTS INBOUND');
     }
@@ -377,8 +402,11 @@
     function canSee(s, a, dist) {
         var p = s.p;
         if (!los(s, a.x, a.y, p.x, p.y)) return false;
-        if (s.alert || dist < 70) return true;
-        return dist < 420 && Math.abs(angDiff(a.face, Math.atan2(p.y - a.y, p.x - a.x))) < 1.0;
+        if (s.alert) return true;
+        // Nothing behind the shoulders is noticed at any distance: that blind
+        // rear half is what makes a silent takedown possible.
+        var off = Math.abs(angDiff(a.face, Math.atan2(p.y - a.y, p.x - a.x)));
+        return off < 1.0 ? dist < 420 : (off < Math.PI / 2 && dist < 70);
     }
 
     // Heads for a point; neighbours push back so a group does not stack up
@@ -485,10 +513,11 @@
         });
     }
 
-    function agentFire(s, a, aim) {
-        shoot(s, a, aim, a.k.gun, s.tune.shot);
+    // The shot goes exactly where the laser sight is drawn: along a.face.
+    function agentFire(s, a) {
+        shoot(s, a, a.face, a.k.gun, s.tune.shot);
         a.cool = a.k.cool; a.wind = 0; a.flash = 0.1;
-        if (!s.tune.cover || Math.random() > 0.7) return;
+        if (!s.tune.cover || G.rnd(0, 1) > 0.7) return;
         a.cover = findCover(s, a);
         if (a.cover) a.cool += 0.6;             // time to get there and back
     }
@@ -503,7 +532,7 @@
         if (Math.abs(angDiff(a.face, aim)) > 0.25) return;
         if (a.wind === 0) G.tone(900, 0.06, { type: 'sine', slide: 1500, vol: 0.07 });
         a.wind += wdt;
-        if (a.wind >= a.k.wind * s.tune.wind) agentFire(s, a, aim);
+        if (a.wind >= a.k.wind * s.tune.wind) agentFire(s, a);
     }
 
     function updateAgent(s, a, wdt) {
@@ -517,7 +546,9 @@
             raiseAlert(s);
         }
         if (dodge(s, a, wdt)) return;
-        if (a.react > 0) { a.react -= wdt; turn(a, Math.atan2(s.p.y - a.y, s.p.x - a.x), 4 * wdt); return; }
+        // A startled agent is frozen for its reaction time; it does not even
+        // turn, so one caught from behind can still be taken down.
+        if (a.react > 0) { a.react -= wdt; return; }
         if (a.cover) { takeCover(s, a, wdt); return; }
         if (sees && dist < a.k.range) engage(s, a, wdt, dist);
         else { a.wind = 0; chase(s, a, wdt, true); }
@@ -529,7 +560,7 @@
         s.pickups.push({ x: a.x, y: a.y, kind: a.k.gun, n: GUNS[a.k.gun].drop });
         G.addScore((a.k.score + bonus) * G.level);
         G.burst(a.x, a.y, { n: 26, color: a.k.color, speed: 240, life: 0.7, drag: 3, size: 4 });
-        G.popup(a.x, a.y - 16, how === 'takedown' ? 'TAKEDOWN' : (how === 'friendly' ? 'CROSSFIRE' : 'DELETED'), how === 'shot' ? GREEN : PALE);
+        pop(a.x, a.y - 16, how === 'takedown' ? 'TAKEDOWN' : (how === 'friendly' ? 'CROSSFIRE' : 'DELETED'), how === 'shot' ? GREEN : PALE);
         derezSound();
         if (how === 'takedown') G.tone(90, 0.18, { type: 'sine', slide: 40, vol: 0.4 });
         G.shake(4, 0.12);
@@ -546,6 +577,7 @@
         d.swim += dt * 8;
         if (d.wake > 0) { d.wake -= dt; return; }
         d.vx += (p.x - d.x) / dist * 300 * dt; d.vy += (p.y - d.y) / dist * 300 * dt;
+        spreadDrone(s, d, dt);
         var sp = Math.hypot(d.vx, d.vy);
         // Above cruising speed (after a hit knocked it back) it brakes hard.
         if (sp > max) { var k = Math.max(max / sp, 1 - 4 * dt); d.vx *= k; d.vy *= k; }
@@ -558,6 +590,18 @@
         if (dist < d.r + p.r - 2) killPlayer(s);
     }
 
+    // Two sentinels chasing one player would merge into what looks like a
+    // single drone, so each is pushed away from any other within 50 px.
+    function spreadDrone(s, d, dt) {
+        s.drones.forEach(function (o) {
+            var gap = G.dist(d.x, d.y, o.x, o.y);
+            if (o === d || gap > 50) return;
+            // Exactly on top of each other: split along each one's own phase.
+            var ux = gap ? (d.x - o.x) / gap : Math.cos(d.swim), uy = gap ? (d.y - o.y) / gap : Math.sin(d.swim);
+            d.vx += ux * 700 * dt; d.vy += uy * 700 * dt;
+        });
+    }
+
     function hitDrone(s, d, b) {
         var sp = Math.hypot(b.vx, b.vy) || 1;
         d.hp--;
@@ -567,7 +611,7 @@
         if (d.hp > 0) return;
         G.addScore(400 * G.level);
         G.burst(d.x, d.y, { n: 40, color: RED, speed: 320, life: 0.8, drag: 2 });
-        G.popup(d.x, d.y - 18, 'SENTINEL DOWN', PALE);
+        pop(d.x, d.y - 18, 'SENTINEL DOWN', PALE);
         G.sfx('bigboom');
         G.shake(8, 0.3);
     }
@@ -599,7 +643,9 @@
         if (d < 28 && !b.grazed) {
             b.grazed = true;
             G.addScore(10 * G.level);
-            G.popup(p.x, p.y - 16, 'DODGE', MID);
+            if (s.grazeT > 0) return false;       // a shotgun blast is one whoosh, not six
+            s.grazeT = 0.2;
+            pop(p.x, p.y - 16, 'DODGE', MID);
             G.noise(0.18, { filter: 'bandpass', freq: 1800, slide: 500, q: 3, vol: 0.14 });
         }
         return false;
@@ -636,9 +682,13 @@
     // The heart of the game: world time eases toward full speed while the
     // player acts and toward a crawl when they stop. Returns the world's dt.
     function advanceTime(s, dt, acting) {
-        s.ts += ((acting ? 1 : CRAWL) - s.ts) * Math.min(1, dt * (acting ? 14 : 7));
+        // Bullet time cannot be held for ever: after eight idle seconds it
+        // starts to leak, so a player who never acts is still hunted down.
+        s.still = acting ? 0 : s.still + dt;
+        var rest = CRAWL + G.clamp((s.still - 8) / 8, 0, 1) * 0.25;
+        s.ts += ((acting ? 1 : rest) - s.ts) * Math.min(1, dt * (acting ? 14 : 7));
         s.anim += dt * (0.45 + 0.55 * s.ts);
-        s.cueT -= dt; s.beatT -= dt; s.tickT -= dt; s.msgT -= dt;
+        s.cueT -= dt; s.beatT -= dt; s.tickT -= dt; s.grazeT -= dt; s.msgT -= dt;
         var slow = s.ts < 0.5;
         if (slow !== s.slow && s.cueT <= 0) {     // tape-stop down, spin-up back
             s.slow = slow; s.cueT = 0.35;
@@ -649,7 +699,7 @@
             G.tone(58, 0.12, { type: 'sine', vol: 0.3 });
             G.tone(50, 0.14, { type: 'sine', vol: 0.22, delay: 0.16 });
         }
-        s.clock += dt * s.ts;
+        s.clock += dt;                            // the trace counts real seconds
         return dt * s.ts;
     }
 
@@ -662,8 +712,7 @@
             spawn(s, spec, true);
             G.burst(mid(spec[1]), mid(spec[2]), { n: 16, color: GREEN, speed: 120, life: 0.6 });
         });
-        if (!s.alert) raiseAlert(s);
-        G.sfx('alarm');
+        if (!s.alert) raiseAlert(s); else G.sfx('alarm');
         say(s, 'REINFORCEMENTS');
     }
 
@@ -765,6 +814,19 @@
             if (i % COLS > 0 && s.grid[i - 1] !== WALL) ctx.fillRect(x, y, 2, T);
             if (i % COLS < COLS - 1 && s.grid[i + 1] !== WALL) ctx.fillRect(x + T - 2, y, 2, T);
         }
+    }
+
+    // The operator's drop point: always marked, and it fills up while a
+    // dead drop is on its way so the wait is visible.
+    function drawCache(s, ctx) {
+        var x = mid(s.lv.cache[0]), y = mid(s.lv.cache[1]), k = G.clamp(s.dropT / s.tune.drop, 0, 1);
+        ctx.strokeStyle = k > 0 ? PALE : MID; ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.strokeRect(x - 12, y - 12, 24, 24);
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(216,255,224,0.3)';
+        ctx.fillRect(x - 12, y + 12 - 24 * k, 24, 24 * k);
+        G.text('DROP', x, y + 4, { size: 11, color: k > 0 ? PALE : MID, align: 'center' });
     }
 
     function drawPickups(s, ctx) {
@@ -904,6 +966,7 @@
         ctx.fillRect(0, 0, G.W, G.H);
         drawRain(s, ctx);
         drawWalls(s, ctx);
+        drawCache(s, ctx);
         drawPickups(s, ctx);
         drawAgents(s, ctx);
         drawBullets(s, ctx);
