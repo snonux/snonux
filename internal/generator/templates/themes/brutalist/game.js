@@ -882,7 +882,7 @@
         blurb: 'Swing the ball, knock out the support, bring the concrete down before time runs out.',
         controls: [
             '← → drive the crane: the ball swings by its own momentum',
-            '↑ ↓ reel the chain in / out · SPACE hard brake (whips the ball forward)',
+            '↑ ↓ reel the chain in / out · SPACE (touch: A) hard brake, whips the ball forward',
             'Red-barred rebar needs a fast hit · TNT blows 1.6 s after it is struck',
             'Stay out from under falling slabs and flying debris'
         ],
