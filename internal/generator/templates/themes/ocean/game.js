@@ -27,18 +27,20 @@
 
     // One entry per level. `mix` is what a slot of the trench may hold (a
     // feature listed twice is twice as likely); currents and dark are numbers
-    // of zones; swarm adds jellyfish to each field.
+    // of zones; swarm adds jellyfish to each field; crates: N puts a repair
+    // crate in every Nth slot on top of its feature, because the tight late
+    // caves cost hull even when flown well.
     var LEVELS = [
         { len: 6400, speed: 105, gap: 300, slot: 560, mix: ['jelly', 'crate', 'rest', 'jelly'] },
-        { len: 7400, speed: 112, gap: 270, slot: 500, swarm: 3, mix: ['jelly', 'jelly', 'jelly', 'crate', 'rest'] },
+        { len: 7400, speed: 112, gap: 270, slot: 500, swarm: 2, mix: ['curtain', 'curtain', 'jelly', 'jelly', 'crate', 'rest'] },
         { len: 8000, speed: 118, gap: 250, slot: 480, mix: ['mine', 'mine', 'mine', 'jelly', 'crate', 'rest'] },
         { len: 8600, speed: 122, gap: 235, slot: 470, mix: ['angler', 'angler', 'angler', 'jelly', 'mine', 'crate', 'rest'] },
         { len: 9200, speed: 126, gap: 222, slot: 460, currents: 6, mix: ['jelly', 'mine', 'angler', 'crate', 'rest', 'mine'] },
         { len: 9600, speed: 130, gap: 210, slot: 450, currents: 1, mix: ['esub', 'esub', 'mine', 'jelly', 'angler', 'crate', 'rest'] },
         { len: 10000, speed: 134, gap: 200, slot: 440, dark: 3, mix: ['angler', 'angler', 'jelly', 'jelly', 'mine', 'esub', 'crate'] },
-        { len: 10400, speed: 138, gap: 190, slot: 430, dark: 1, currents: 2, mix: ['vent', 'vent', 'vent', 'mine', 'angler', 'esub', 'jelly', 'crate'] },
-        { len: 10800, speed: 142, gap: 165, slot: 420, dark: 2, currents: 2, mix: ['stal', 'stal', 'stal', 'vent', 'mine', 'angler', 'jelly', 'esub', 'crate'] },
-        { len: 9600, speed: 146, gap: 175, slot: 420, dark: 2, currents: 2, boss: true, mix: ['stal', 'vent', 'mine', 'angler', 'jelly', 'esub', 'crate', 'mine'] }
+        { len: 10400, speed: 138, gap: 208, slot: 430, crates: 4, dark: 1, currents: 2, mix: ['vent', 'vent', 'vent', 'mine', 'angler', 'esub', 'jelly', 'crate'] },
+        { len: 10800, speed: 142, gap: 192, slot: 420, crates: 3, dark: 2, currents: 2, mix: ['stal', 'stal', 'stal', 'vent', 'mine', 'angler', 'jelly', 'esub', 'crate'] },
+        { len: 9600, speed: 146, gap: 200, slot: 420, crates: 3, dark: 2, currents: 2, boss: true, mix: ['stal', 'vent', 'mine', 'angler', 'jelly', 'esub', 'crate', 'mine'] }
     ];
     // Force of the three kinds of current: up-welling, down-draught, head-on.
     var FLOWS = [{ x: 0, y: -300 }, { x: 0, y: 300 }, { x: -330, y: 0 }];
@@ -110,8 +112,9 @@
             var gap = G.lerp(cfg.gap * (1 + 0.18 * Math.sin(x / 410 + p3)), 440, open);
             var amp = Math.min(150, Math.max(0, (FLOOR_MAX - CEIL_MIN - gap) / 2)) * (1 - open);
             var mid = MID + amp * (0.62 * Math.sin(x / 300 + p1) + 0.38 * Math.sin(x / 130 + p2));
-            s.top.push(mid - gap / 2 + (rnd() - 0.5) * 14);
-            s.bot.push(mid + gap / 2 + (rnd() - 0.5) * 14);
+            // The roughness is clamped too, so CEIL_MIN / FLOOR_MAX are hard limits.
+            s.top.push(Math.max(CEIL_MIN, mid - gap / 2 + (rnd() - 0.5) * 14));
+            s.bot.push(Math.min(FLOOR_MAX, mid + gap / 2 + (rnd() - 0.5) * 14));
         }
     }
 
@@ -128,7 +131,16 @@
             var n = 3 + Math.floor(rnd() * 3) + (s.cfg.swarm || 0);
             for (var i = 0; i < n; i++) {
                 var jx = x + rnd() * w * 0.8, y = G.lerp(topAt(s, jx) + 34, botAt(s, jx) - 34, rnd());
-                out.push(ent('jelly', jx, y, { y0: y, ph: rnd() * TAU, amp: 14 + rnd() * 26 }));
+                out.push(ent('jelly', jx, y, { y0: y, ph: rnd() * TAU, amp: 14 + rnd() * 26, drift: 12 }));
+            }
+        },
+        // A wall of jellyfish from floor to ceiling, pulsing as one and
+        // drifting toward the boat: there is no way round, a hole has to be
+        // torpedoed into it.
+        curtain: function (s, x, w, rnd, out) {
+            var cx = x + w * (0.3 + rnd() * 0.4), ph = rnd() * TAU;
+            for (var y = topAt(s, cx) + 22; y < botAt(s, cx) - 16; y += 29) {
+                out.push(ent('jelly', cx, y, { y0: y, ph: ph, amp: 7, drift: 34 }));
             }
         },
         // Two mines, one hanging and one floating, make a slalom.
@@ -153,8 +165,9 @@
             }
         },
         stal: function (s, x, w, rnd, out) {
-            for (var i = 0; i < 4; i++) {
-                var sx = x + 40 + i * 84 + rnd() * 30;
+            // Spaced so that each one can be dodged on its own.
+            for (var i = 0; i < 3; i++) {
+                var sx = x + 40 + i * 120 + rnd() * 30;
                 out.push(ent('stal', sx, topAt(s, sx) + 18, { state: 'hang', timer: 0, vy: 0 }));
             }
         },
@@ -167,9 +180,10 @@
     // Fills the trench slot by slot. The first and last stretch stay empty:
     // room to find the controls, and room for the exit (or the kraken).
     function populate(s, rnd) {
-        var cfg = s.cfg, out = [];
+        var cfg = s.cfg, out = [], i = 0;
         for (var x = 900; x < cfg.len - 500; x += cfg.slot) {
             FEATURES[cfg.mix[Math.floor(rnd() * cfg.mix.length)]](s, x, cfg.slot, rnd, out);
+            if (cfg.crates && ++i % cfg.crates === 0) FEATURES.crate(s, x, cfg.slot, rnd, out);
         }
         return out.sort(function (a, b) { return a.x - b.x; });
     }
@@ -179,7 +193,9 @@
     function buildColumns(s, level) {
         var cols = [], step = 1100 + level * 60;
         for (var x = 700; x < s.cfg.len - 200; x += step) cols.push({ x: x });
-        if (s.cfg.boss) cols.push({ x: s.cfg.len + 330 });      // air for the boss fight, within reach of the arms
+        // Air for the boss fight stands inside the arms' reach, so it is a
+        // dash (best while the arms recoil), never a place to camp.
+        if (s.cfg.boss) cols.push({ x: s.cfg.len + 505, hint: true });
         return cols;
     }
 
@@ -334,7 +350,7 @@
     // ------------------------------------------------------------------
 
     function updateJelly(s, e, dt) {
-        e.x -= 12 * dt;
+        e.x -= e.drift * dt;
         e.y = G.clamp(e.y0 + Math.sin(e.t * 1.6 + e.ph) * e.amp, topAt(s, e.x) + 18, botAt(s, e.x) - 18);
     }
 
@@ -397,10 +413,13 @@
         if (e.on && Math.abs(b.x - e.x) < 40 && b.y > e.y - e.h) hurt(s, 15);
     }
 
-    // A stalactite shakes loose as the boat comes near and then falls.
+    // A stalactite shakes loose as the boat comes near and then falls. The
+    // trigger distance is what the boat covers during the shake and the drop
+    // to mid-channel, so a boat that just carries on is hit: trim back (or
+    // shoot it) to let it fall ahead.
     function updateStal(s, e, dt) {
         var dx = e.x - s.sub.x;
-        if (e.state === 'hang' && dx < 150 + s.scroll * 0.3 && dx > -20) { e.state = 'shake'; e.timer = 0.4; SND.crack(); }
+        if (e.state === 'hang' && dx < 60 + s.scroll * 0.55 && dx > -20) { e.state = 'shake'; e.timer = 0.5; SND.crack(); }
         else if (e.state === 'shake') { e.timer -= dt; if (e.timer <= 0) e.state = 'fall'; }
         else if (e.state === 'fall') {
             e.vy += 620 * dt; e.y += e.vy * dt;
@@ -421,7 +440,7 @@
     // on contact, 'bite' survives it. dmg: hull lost on contact.
     var KINDS = {
         jelly: { r: 14, hp: 1, dmg: 15, score: 40, touch: 'burst', color: C.jelly, update: updateJelly, draw: drawJelly, die: SND.zap },
-        mine: { r: 13, hp: 1, dmg: 0, score: 60, touch: 'burst', color: C.coral, update: updateMine, draw: drawMine, die: function (s, e) { blast(s, e.x, e.y, 80, true); } },
+        mine: { r: 13, hp: 1, dmg: 0, score: 60, touch: 'burst', color: C.coral, update: updateMine, draw: drawMine, die: function (s, e, rammed) { blast(s, e.x, e.y, 80, rammed); } },
         angler: { r: 18, hp: 2, dmg: 25, score: 150, touch: 'bite', color: C.amber, update: updateAngler, draw: drawAngler, die: SND.pop },
         esub: { r: 20, hp: 3, dmg: 25, score: 250, touch: 'bite', color: C.coral, update: updateEsub, draw: drawEsub, die: SND.blast },
         vent: { r: 0, hp: 1, dmg: 0, score: 80, color: C.amber, update: updateVent, draw: drawVent, die: SND.pop },
@@ -429,14 +448,18 @@
         crate: { r: 12, hp: 1, dmg: 0, score: 150, color: C.amber, update: function () {}, draw: drawCrate, die: repair }
     };
 
-    function kill(s, e) {
+    // `rammed` means the boat ran into it: that earns no points, and it is
+    // the only way a mine's blast is turned against the boat.
+    function kill(s, e, rammed) {
         var k = KINDS[e.kind];
         if (e.dead) return;
         e.dead = true;              // set first: a mine's blast must not kill it twice
-        G.addScore(k.score);
-        G.popup(e.x, e.y - 16, k.score, C.foam);
+        if (!rammed) {
+            G.addScore(k.score);
+            G.popup(e.x, e.y - 16, k.score, C.foam);
+        }
         G.burst(e.x, e.y, { n: 14, color: k.color, speed: 170, life: 0.7, drag: 2 });
-        k.die(s, e);
+        k.die(s, e, rammed);
     }
 
     function damage(s, e, n) {
@@ -445,7 +468,8 @@
     }
 
     // An explosion hurts everything in reach, so mines set each other off.
-    // Only hostile blasts (mines) hurt the player; depth charges are friendly.
+    // Only a hostile blast (a mine the boat ran into) hurts the player: depth
+    // charges, and mines set off by the boat's own weapons, are friendly.
     function blast(s, x, y, r, hostile) {
         G.burst(x, y, { n: 26, color: C.foam, speed: 240, life: 0.7, drag: 2.5 });
         G.burst(x, y, { n: 10, color: C.amber, speed: 120, life: 0.4 });
@@ -462,7 +486,7 @@
     function touchSub(s, e) {
         var k = KINDS[e.kind];
         if (e.dead || !k.touch || !subHits(s, e.x, e.y, k.r)) return;
-        if (k.touch === 'burst') kill(s, e);
+        if (k.touch === 'burst') kill(s, e, true);
         hurt(s, k.dmg);
     }
 
@@ -471,6 +495,7 @@
     function updateEnts(s, dt) {
         while (s.next < s.pending.length && s.pending[s.next].x < s.cam + G.W + 80) s.ents.push(s.pending[s.next++]);
         s.ents.forEach(function (e) {
+            if (e.dead) return;         // killed earlier this tick: must not act again
             e.t += dt;
             KINDS[e.kind].update(s, e, dt);
             touchSub(s, e);
@@ -739,6 +764,7 @@
             var top = topAt(s, c.x), bot = botAt(s, c.x), h = bot - top;
             ctx.fillStyle = 'rgba(202,240,248,0.08)';
             ctx.fillRect(c.x - COL_W / 2, top, COL_W, h);
+            if (c.hint) G.text('AIR', c.x, top + 26, { size: 15, bold: true, align: 'center', color: s.o2 < 50 && Math.sin(s.t * 10) > 0 ? C.coral : C.foam });
             ctx.strokeStyle = 'rgba(202,240,248,0.85)';
             ctx.lineWidth = 1.5;
             for (var i = 0; i < 12; i++) {
@@ -918,7 +944,12 @@
         var g = ctx.createLinearGradient(cx + 150, 0, far, 0);
         g.addColorStop(0, 'rgba(1,4,20,0)'); g.addColorStop(1, dark);
         ctx.fillStyle = g;
+        ctx.save();                 // clipped to the beam, or the fade shows as a box
+        ctx.beginPath();
+        ctx.moveTo(cx, y); ctx.lineTo(far, y - 105); ctx.lineTo(far, y + 105);
+        ctx.clip();
         ctx.fillRect(cx + 150, y - 105, 210, 210);
+        ctx.restore();
     }
 
     // In the dark every creature still gives itself away by a small light.
@@ -1011,7 +1042,7 @@
         controls: [
             '↑ ↓ ballast · ← → trim speed (the boat is heavy: it sinks if left alone)',
             'SPACE torpedoes ahead · X depth charges below (crates repair the hull)',
-            'Linger in bubble columns for air · a hit arm makes the kraken recoil'
+            'Linger in bubble columns for air · a hit arm recoils: then dash for the kraken\'s air'
         ],
         levelNames: ['Sunlit Shelf', 'Jelly Bloom', 'Chain Mines', 'Angler Hollow', 'Rip Current',
             'Wolf Pack', 'The Blackout', 'Vent Garden', 'Falling Teeth', 'Kraken\'s Maw'],
