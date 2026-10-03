@@ -6,8 +6,10 @@
  * sticks under the lowest block of its column. A row without gaps clears, the
  * rows above drop into its place and the blast knocks the whole wall back up.
  * A block fired at a column that has no gap to fill hangs below the wall as a
- * "stub" and brings the wall one cell closer; stubs fall off when the row they
- * hang from clears. The wall reaching the launcher line costs a life.
+ * "stub" and brings the wall one cell closer. There is only ever one row of
+ * stubs (a miss with no room in it just shatters), stubs never count as a
+ * line, and they fall off when the row they hang from clears. The wall
+ * reaching the launcher line costs a life.
  *
  * Later levels add wide gaps, two-row wells, steel plates that need two hits
  * before they count as filled, bombs that take the neighbouring rows with
@@ -18,8 +20,10 @@
     var G = window.SnoGame;
     var COLS = 12, CELL = 36, BW = COLS * CELL, OX = (G.W - BW) / 2, TOP = 40, LINE = TOP + 12 * CELL;
     var START_Y = TOP + 5 * CELL;      // where the wall's bottom edge starts (and returns to after a breach)
-    var MIN_Y = TOP + 3 * CELL;        // the wall is never knocked back further than this: three rows stay in view
-    var SHOT_SPEED = 1500, KICK = 40;  // KICK: pixels the wall is knocked back per cleared line
+    var MIN_Y = TOP + 4 * CELL;        // the wall is never knocked back further than this: four rows stay in view
+    // KICK: pixels the wall is knocked back per cleared line. It is less than a
+    // cell, so a player has to out-clear the descent to gain ground at all.
+    var SHOT_SPEED = 1500, KICK = 28;
     var COLORS = ['#36c5f0', '#4361ee', '#ff922b', '#ffd43b', '#51cf66', '#b197fc', '#ff5c5c'];
     var INK = '#f4f7fb', MUTED = '#929cad', PANEL = '#101520', GRID = '#252b38', RED = '#ff5c5c', YELLOW = '#ffd43b';
 
@@ -27,17 +31,19 @@
     // wide: chance a group is 2-3 cells · well: chance a gap continues into the row above
     // armour: chance per plate slot · plates: slots per row · bomb: chance per row
     // shift: chance a row slides sideways every `every` seconds · surge: seconds between slams
+    // The descent gets faster on every level; what a row asks of the player is
+    // tuned so the shots per second needed to hold the wall rise steadily too.
     var LEVELS = [
-        { speed: 15, quota: 40, gmin: 1, gmax: 2, wide: 0, well: 0, armour: 0, plates: 0, bomb: 0, shift: 0, every: 0, surge: 0 },
-        { speed: 17, quota: 40, gmin: 2, gmax: 2, wide: 0, well: 0, armour: 0, plates: 0, bomb: 0, shift: 0, every: 0, surge: 0 },
-        { speed: 17, quota: 40, gmin: 1, gmax: 2, wide: 0.55, well: 0, armour: 0, plates: 0, bomb: 0, shift: 0, every: 0, surge: 0 },
-        { speed: 17, quota: 42, gmin: 1, gmax: 2, wide: 0.25, well: 0.5, armour: 0, plates: 0, bomb: 0, shift: 0, every: 0, surge: 0 },
-        { speed: 19, quota: 44, gmin: 1, gmax: 2, wide: 0.2, well: 0.2, armour: 0.45, plates: 1, bomb: 0, shift: 0, every: 0, surge: 0 },
-        { speed: 22, quota: 48, gmin: 1, gmax: 2, wide: 0.3, well: 0.25, armour: 0.2, plates: 1, bomb: 0.24, shift: 0, every: 0, surge: 0 },
-        { speed: 20, quota: 46, gmin: 1, gmax: 2, wide: 0.3, well: 0.1, armour: 0, plates: 0, bomb: 0.08, shift: 0.45, every: 1.6, surge: 0 },
-        { speed: 19, quota: 50, gmin: 1, gmax: 2, wide: 0.3, well: 0.25, armour: 0.3, plates: 1, bomb: 0.15, shift: 0, every: 0, surge: 10 },
-        { speed: 17, quota: 54, gmin: 1, gmax: 2, wide: 0.3, well: 0.2, armour: 0.3, plates: 2, bomb: 0.1, shift: 0.35, every: 1.4, surge: 0 },
-        { speed: 17.5, quota: 60, gmin: 1, gmax: 2, wide: 0.35, well: 0.25, armour: 0.3, plates: 2, bomb: 0.2, shift: 0.35, every: 1.3, surge: 9 }
+        { speed: 13, quota: 40, gmin: 1, gmax: 2, wide: 0, well: 0, armour: 0, plates: 0, bomb: 0, shift: 0, every: 0, surge: 0 },
+        { speed: 14.5, quota: 40, gmin: 2, gmax: 2, wide: 0, well: 0, armour: 0, plates: 0, bomb: 0, shift: 0, every: 0, surge: 0 },
+        { speed: 16, quota: 40, gmin: 1, gmax: 1, wide: 0.9, well: 0, armour: 0, plates: 0, bomb: 0, shift: 0, every: 0, surge: 0 },
+        { speed: 17, quota: 42, gmin: 1, gmax: 1, wide: 0.5, well: 0.65, armour: 0, plates: 0, bomb: 0, shift: 0, every: 0, surge: 0 },
+        { speed: 18, quota: 44, gmin: 1, gmax: 1, wide: 0.25, well: 0.1, armour: 0.5, plates: 1, bomb: 0, shift: 0, every: 0, surge: 0 },
+        { speed: 19, quota: 48, gmin: 2, gmax: 2, wide: 0.2, well: 0.1, armour: 0.15, plates: 1, bomb: 0.24, shift: 0, every: 0, surge: 0 },
+        { speed: 20, quota: 46, gmin: 2, gmax: 2, wide: 0.15, well: 0, armour: 0, plates: 0, bomb: 0.1, shift: 0.45, every: 1.6, surge: 0 },
+        { speed: 21, quota: 52, gmin: 1, gmax: 1, wide: 0.3, well: 0.25, armour: 0.25, plates: 1, bomb: 0.15, shift: 0, every: 0, surge: 12 },
+        { speed: 22, quota: 56, gmin: 1, gmax: 1, wide: 0.4, well: 0.2, armour: 0.15, plates: 2, bomb: 0.1, shift: 0.3, every: 1.5, surge: 0 },
+        { speed: 23, quota: 64, gmin: 1, gmax: 2, wide: 0.3, well: 0.2, armour: 0.15, plates: 2, bomb: 0.2, shift: 0.3, every: 1.4, surge: 12 }
     ];
     // Tetromino outlines for the silhouettes that drift down the side panels.
     var SHAPES = [
@@ -46,7 +52,9 @@
     ];
 
     function block(color) { return { color: color, kind: 'n', hp: 0, glow: 0 }; }
-    function newRow(cells, stub) { return { cells: cells, stub: stub, shift: 0, dy: 0, vy: 0, sx: 0 }; }
+    // gone: set when the row leaves the wall, so a shot in flight can tell that
+    // the row it was aimed at no longer exists.
+    function newRow(cells, stub) { return { cells: cells, stub: stub, shift: 0, dy: 0, vy: 0, sx: 0, gone: false }; }
     function rowTop(s, i) { return s.y - (i + 1) * CELL; }
     function colX(c) { return OX + c * CELL + CELL / 2; }
 
@@ -60,22 +68,34 @@
         return cells;
     }
 
+    // True when column c is already open in the two newest rows. A third open
+    // cell would start a shaft in which a shot finds no block to stick under.
+    function shaft(s, c) {
+        var n = s.rows.length;
+        return n >= 2 && !s.rows[n - 1].cells[c] && !s.rows[n - 2].cells[c];
+    }
+
     // Cuts the gaps the player has to fill. Gaps the previous row asked to
     // continue (wells) come first; at most six cells of a row are ever open, so
     // a row never needs more shots than a player can deliver before it lands.
     function carveGaps(s, cells) {
         var cfg = s.cfg, rnd = s.rnd, next = [], left = 6 - s.carry.length;
-        s.carry.forEach(function (c) { cells[c] = null; });
+        s.carry.forEach(function (c) { if (!shaft(s, c)) cells[c] = null; });
         var groups = cfg.gmin + Math.floor(rnd() * (cfg.gmax - cfg.gmin + 1));
         for (var g = 0; g < groups; g++) {
             var w = rnd() < cfg.wide ? 2 + (rnd() < 0.35 ? 1 : 0) : 1;
             var start = Math.floor(rnd() * (COLS - w + 1));
             for (var c = start; c < start + w; c++) {
                 var deep = rnd() < cfg.well;
-                if (!cells[c] || left-- <= 0) continue;
+                if (!cells[c] || shaft(s, c) || left-- <= 0) continue;
                 cells[c] = null;
                 if (deep) next.push(c);
             }
+        }
+        // The shaft rule may have refused every gap, and a row without one
+        // would clear for free: open the first column that is allowed.
+        for (var k = Math.floor(rnd() * COLS), tries = 0; cells.every(Boolean) && tries < COLS; k = (k + 1) % COLS, tries++) {
+            if (!shaft(s, k)) cells[k] = null;
         }
         s.carry = next;
     }
@@ -145,13 +165,22 @@
         s.lx += (colX(s.col) - s.lx) * Math.min(1, dt * 28);
     }
 
+    // What a block is aimed at as it leaves the launcher: the row it will stick
+    // into, or the row of the steel plate it will hit; null when it is a miss.
+    function aimRow(s, c) {
+        var low = lowestIn(s, c);
+        if (low < 0) return null;
+        if (s.rows[low].cells[c].kind === 'armour') return s.rows[low];
+        return low > 0 ? s.rows[low - 1] : null;
+    }
+
     function fire(s, dt) {
         s.cool -= dt;
         s.recoil = Math.max(0, s.recoil - dt * 7);
         if (!G.hit.a || s.cool > 0) return;
         s.cool = 0.08;
         s.recoil = 1;
-        s.shots.push({ c: s.col, y: LINE, color: s.nextColor });
+        s.shots.push({ c: s.col, y: LINE, color: s.nextColor, target: aimRow(s, s.col) });
         s.nextColor = G.pick(COLORS);
         G.tone(520, 0.07, { type: 'square', vol: 0.09, slide: 1040 });
     }
@@ -172,7 +201,8 @@
         return row.cells.some(function (cell) { return cell && cell.kind === 'bomb'; });
     }
 
-    // `↓` pulls the wall down five times faster and pays for the risk.
+    // `↓` pulls the wall down five times faster and pays for the risk: two
+    // points for every six pixels the wall really came closer.
     function payRush(s, px, dt) {
         s.rushPay += px;
         while (s.rushPay >= 6) { s.rushPay -= 6; G.addScore(2); }
@@ -183,13 +213,15 @@
     // The steady descent (a little faster as the quota fills), plus the two
     // impulses: the knock-back of a line clear and the slam of a surge.
     function descend(s, dt) {
-        var v = s.cfg.speed * (1 + 0.2 * Math.min(1, s.lines / s.cfg.quota));
-        if (G.key.down) { v *= 5; payRush(s, v * dt, dt); }
+        var v = s.cfg.speed * (1 + 0.15 * Math.min(1, s.lines / s.cfg.quota)), before = s.y;
+        if (G.key.down) v *= 5;
         var up = Math.min(s.kick, 420 * dt), down = Math.min(s.slam, 300 * dt);
         s.kick -= up;
         s.slam -= down;
         s.y += v * dt - up + down;
         if (s.y < MIN_Y) { s.y = MIN_Y; s.kick = 0; }
+        // No bonus while a knock-back or the top stop cancels the rush.
+        if (G.key.down && s.y > before) payRush(s, s.y - before, dt);
     }
 
     // Marked rows rotate one column at a time, all on the same beat, so the
@@ -237,25 +269,44 @@
         G.addScore(20);
     }
 
-    // No gap to fill in this column: the block hangs under the wall as a new
-    // bottom row, which brings the wall a whole cell closer to the launcher.
     function hangStub(s, sh) {
         var cells = [];
         for (var c = 0; c < COLS; c++) cells.push(c === sh.c ? block(sh.color) : null);
         s.rows.unshift(newRow(cells, true));
         s.y += CELL;
+    }
+
+    // A block that found no gap of the wall to fill. `stubRow` is the stub row
+    // it flew into, if any. Three outcomes:
+    // - the row it was aimed at was cleared while it was in flight (a bomb, or
+    //   an earlier shot): the aim was right, so it fizzles without a penalty;
+    // - there is room in the single stub row (or no stub row yet): it hangs
+    //   there, and a new stub row brings the wall a whole cell closer;
+    // - its place in the stub row is taken: it shatters. One row of stubs is
+    //   the whole penalty, however often the player misses.
+    function miss(s, sh, stubRow) {
+        var x = colX(sh.c);
+        if (sh.target && sh.target.gone) {
+            G.burst(x, s.y, { n: 6, color: sh.color, speed: 120, life: 0.3 });
+            return;
+        }
         s.combo = 0;
         G.tone(140, 0.16, { type: 'sawtooth', vol: 0.13, slide: 90 });
-        G.popup(colX(sh.c), s.y - CELL, 'MISS', RED);
+        if (!stubRow && s.rows[0].stub) {
+            G.burst(x, s.y, { n: 8, color: sh.color, speed: 150, gravity: 800, size: 4 });
+            return;
+        }
+        if (stubRow) stubRow.cells[sh.c] = block(sh.color); else hangStub(s, sh);
+        G.popup(x, s.y - CELL, 'MISS', RED);
     }
 
     function land(s, sh, low) {
-        var cell = s.rows[low].cells[sh.c];
+        var cell = s.rows[low].cells[sh.c], into = low > 0 ? s.rows[low - 1] : null;
         if (cell.kind === 'armour') { crack(s, cell, sh, low); checkLines(s); return; }
-        if (low === 0) { hangStub(s, sh); return; }
+        if (!into || into.stub) { miss(s, sh, into); return; }
         var b = block(sh.color);
         b.glow = 1;
-        s.rows[low - 1].cells[sh.c] = b;
+        into.cells[sh.c] = b;
         G.addScore(5);
         G.tone(330 + sh.c * 18, 0.06, { type: 'triangle', vol: 0.16 });
         checkLines(s);
@@ -265,8 +316,13 @@
         s.shots = s.shots.filter(function (sh) {
             sh.y -= SHOT_SPEED * dt;
             var low = lowestIn(s, sh.c);
-            // A column that is open all the way up: the block flies off the top.
-            if (low < 0) return sh.y > TOP - CELL;
+            // A column that is open all the way up (the ghost marks it with a
+            // cross): the block flies off the top, with a buzz so it is noticed.
+            if (low < 0) {
+                if (sh.y > TOP - CELL) return true;
+                G.tone(140, 0.1, { type: 'sawtooth', vol: 0.08, slide: 90 });
+                return false;
+            }
             if (sh.y > s.y - low * CELL) return true;
             land(s, sh, low);
             return false;
@@ -276,13 +332,15 @@
     // ---- line clears -------------------------------------------------------
 
     // Full rows clear; a bomb in a clearing row takes the rows directly above
-    // and below with it, and bombs in those rows chain on.
+    // and below with it, and bombs in those rows chain on. Stub rows are never
+    // lines: they neither clear when full nor count when a bomb reaches them
+    // (they simply fall off with the row above, see dropStubs).
     function checkLines(s) {
         var hit = {}, queue = [], n = 0;
-        s.rows.forEach(function (row, i) { if (isFull(row)) queue.push(i); });
+        s.rows.forEach(function (row, i) { if (!row.stub && isFull(row)) queue.push(i); });
         while (queue.length) {
             var i = queue.pop();
-            if (hit[i] || i < 0 || i >= s.rows.length) continue;
+            if (hit[i] || i < 0 || i >= s.rows.length || s.rows[i].stub) continue;
             hit[i] = true;
             n++;
             if (hasBomb(s.rows[i])) queue.push(i - 1, i + 1);
@@ -305,6 +363,7 @@
             s.rows[at - 1].cells.forEach(function (cell, c) {
                 if (cell) G.burst(colX(c), top + CELL / 2, { n: 5, color: cell.color, speed: 90, gravity: 900, size: 6, life: 0.8 });
             });
+            s.rows[at - 1].gone = true;
             s.rows.splice(at - 1, 1);
             s.y -= CELL;
             at--;
@@ -317,6 +376,7 @@
             if (!hit[i]) continue;
             popRow(s, s.rows[i], rowTop(s, i));
             bombed = bombed || hasBomb(s.rows[i]);
+            s.rows[i].gone = true;
             s.rows.splice(i, 1);
             // Everything above falls into the hole: dy is the height still to fall.
             for (var j = i; j < s.rows.length; j++) s.rows[j].dy += CELL;
@@ -352,6 +412,7 @@
         if (G.loseLife() <= 0) return;
         while (s.y > START_Y && s.rows.length) {
             var row = s.rows.shift(), top = s.y - CELL;
+            row.gone = true;
             row.cells.forEach(function (cell, c) {
                 if (cell) G.burst(colX(c), top + CELL / 2, { n: 3, color: cell.color, speed: 300, gravity: 600, size: 5 });
             });
@@ -506,13 +567,31 @@
         ctx.globalAlpha = 1;
     }
 
+    // The column is open all the way up, so a block fired here is lost: a red
+    // beam and a cross at the top say so.
+    function drawNoTarget(s, ctx, x) {
+        ctx.globalAlpha = 0.09;
+        ctx.fillStyle = RED;
+        ctx.fillRect(x, TOP, CELL, LINE - TOP);
+        ctx.globalAlpha = 0.55 + 0.3 * Math.sin(s.time * 8);
+        ctx.strokeStyle = RED;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x + 8, TOP + 8); ctx.lineTo(x + CELL - 8, TOP + CELL - 8);
+        ctx.moveTo(x + CELL - 8, TOP + 8); ctx.lineTo(x + 8, TOP + CELL - 8);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+    }
+
     // Where the next block will go: a beam up the column and an outline on the
-    // target cell — red when the shot would only hang a stub under the wall.
+    // target cell — red when the shot would be a miss (a stub, or shattered).
     function drawGhost(s, ctx) {
         var low = lowestIn(s, s.col), x = OX + s.col * CELL;
-        if (low < 0) return;
+        if (low < 0) { drawNoTarget(s, ctx, x); return; }
         var cell = s.rows[low].cells[s.col], bottom = s.y - low * CELL, plate = cell.kind === 'armour';
-        var color = plate ? YELLOW : (low === 0 ? RED : INK);
+        // A miss: nothing to stick under but the wall's own bottom, or only the stub row.
+        var lost = low === 0 || s.rows[low - 1].stub;
+        var color = plate ? YELLOW : (lost ? RED : INK);
         ctx.globalAlpha = 0.09;
         ctx.fillStyle = color;
         ctx.fillRect(x, bottom, CELL, Math.max(0, LINE - bottom));
@@ -556,18 +635,20 @@
         s.rows.forEach(function (row, i) {
             var mid = rowTop(s, i) - row.dy + CELL / 2;
             if (!row.shift || mid < TOP + 12 || mid > G.H) return;
-            var mark = row.shift > 0 ? '»' : '«', o = { size: 22, bold: true, color: soon ? INK : YELLOW, align: 'center', baseline: 'middle' };
-            G.text(mark, OX - 24, mid, o);
-            G.text(mark, OX + BW + 24, mid, o);
+            var mark = row.shift > 0 ? '»' : '«', o = { size: 20, bold: true, color: soon ? INK : YELLOW, align: 'center', baseline: 'middle' };
+            G.text(mark, OX - 21, mid, o);
+            G.text(mark, OX + BW + 21, mid, o);
         });
     }
 
     // Left panel: what this level's special blocks do, drawn with real blocks.
+    // It keeps to the far left so the shift arrows beside the board frame are
+    // not read as part of it.
     function drawLegend(s, ctx) {
-        var cfg = s.cfg, y = 70, o = { size: 14, color: MUTED, max: 150 };
+        var cfg = s.cfg, y = 70, o = { size: 14, color: MUTED, max: 140 };
         function entry(label, paint) {
-            paint(40, y);
-            G.text(label, 88, y + 23, o);
+            paint(16, y);
+            G.text(label, 62, y + 23, o);
             y += 50;
         }
         if (cfg.armour) entry('STEEL: HIT TWICE', function (x, yy) { drawArmour(ctx, { hp: 2 }, x, yy); });
@@ -575,7 +656,7 @@
         if (cfg.shift) entry('ROW SLIDES', function (x, yy) { G.text('« »', x + 18, yy + 25, { size: 22, bold: true, color: YELLOW, align: 'center' }); });
         if (cfg.surge) {
             var warn = s.surgeT < 1.2;
-            G.text(warn ? 'SURGE!' : 'SURGE IN ' + Math.ceil(s.surgeT), 40, y + 23, { size: warn ? 22 : 14, bold: warn, color: warn ? RED : MUTED });
+            G.text(warn ? 'SURGE!' : 'SURGE IN ' + Math.ceil(s.surgeT), 16, y + 23, { size: warn ? 22 : 14, bold: warn, color: warn ? RED : MUTED });
         }
     }
 
