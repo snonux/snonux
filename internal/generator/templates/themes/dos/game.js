@@ -25,7 +25,7 @@
     var NESTS = [{ c: 19, r: 0 }, { c: 0, r: 0 }];
     var RUN_SPEED = 4.8, DIG_SPEED = 3.4, SHOT_SPEED = 13;      // cells per second
     var BAG_G = 34, BAG_VMAX = 12;                              // cells per second (squared)
-    var REFILL_AGE = 14, FAR = 999;
+    var REFILL_AGE = 8, FAR = 999;
     var GEM_NOTES = [523, 587, 659, 698, 784, 880, 988, 1047];  // a rising scale for emerald streaks
 
     function abs(v) { return Math.abs(v); }
@@ -43,13 +43,13 @@
         { tunnels: [[19, 0, 19, 2], [19, 2, 0, 2], [10, 2, 10, 9], [3, 2, 3, 7], [16, 2, 16, 7]], bags: 6, rocks: 14, max: 3, spawn: 4.5, kinds: 'n', nests: 1, cherry: true,
             gems: function (c, r) { return (c + r) % 2 === 0 && r >= 4 && r <= 7; } },
         { tunnels: [[19, 0, 12, 0], [12, 0, 12, 4], [12, 4, 7, 4], [7, 4, 7, 9], [7, 9, 10, 9]], bags: 6, rocks: 0, max: 3, spawn: 4.5, kinds: 'nnh', nests: 1, cherry: true,
-            gems: function (c, r) { return c % 4 === 1 && r >= 1 && r <= 8; } },
+            gems: function (c, r) { return c % 2 === 1 && r >= 2 && r <= 8; } },
         { tunnels: [[19, 0, 19, 8], [19, 8, 1, 8], [10, 8, 10, 9], [1, 8, 1, 1], [1, 1, 16, 1]], bags: 14, stack: true, rocks: 6, max: 3, spawn: 4, kinds: 'nnh', nests: 1, cherry: true,
-            gems: function (c, r) { return (r === 4 || r === 6) && c >= 3 && c <= 17; } },
+            gems: function (c, r) { return (r === 3 || r === 4 || r === 6) && c >= 3 && c <= 17; } },
         { tunnels: [[0, 0, 19, 0], [10, 0, 10, 9], [4, 0, 4, 5], [15, 0, 15, 5]], bags: 7, rocks: 0, max: 4, spawn: 4, kinds: 'nhn', nests: 2, cherry: true,
             gems: function (c, r) { return (c + r * 2) % 8 < 2 && r >= 2; } },
         { tunnels: [[19, 0, 19, 3], [19, 3, 13, 3], [13, 3, 13, 6], [13, 6, 7, 6], [7, 6, 7, 9], [7, 9, 10, 9]], bags: 7, rocks: 0, max: 4, spawn: 4, kinds: 'nnh', nests: 1, cherry: true, refill: true,
-            gems: function (c, r) { return ((r === 1 || r === 8) && c >= 2 && c <= 17) || ((c === 2 || c === 17) && r >= 2 && r <= 7); } },
+            gems: function (c, r) { return ((r === 1 || r === 8) && c >= 2 && c <= 17) || ((c === 2 || c === 17) && r >= 2 && r <= 7) || ((r === 4 || r === 5) && c >= 5 && c <= 11); } },
         { tunnels: [[19, 0, 10, 0], [10, 0, 10, 9], [2, 5, 17, 5]], bags: 8, rocks: 8, max: 4, spawn: 4, kinds: 'nhng', nests: 1, cherry: true,
             gems: function (c, r, rnd) { return rnd() < 0.27; } },
         { tunnels: [[0, 0, 0, 4], [19, 0, 19, 4], [0, 4, 19, 4], [10, 4, 10, 9], [5, 4, 5, 8], [14, 4, 14, 8]], bags: 10, rocks: 12, max: 5, spawn: 3.5, kinds: 'nhnhg', nests: 2, cherry: true, refill: true,
@@ -204,15 +204,37 @@
         DIR_NAMES.forEach(function (n) { if (!s.dir && G.key[n]) s.dir = n; });
     }
 
-    // Bags only slide sideways, and never onto a rock, another bag or an
-    // emerald (which would hide it).
+    // An emerald that ends up under a bag would be out of reach (bags cannot
+    // be entered from above or below), so the bag grinds it to dust instead.
+    function crushGem(s, c, r) {
+        var i = idx(c, r);
+        if (!s.gem[i]) return;
+        s.gem[i] = false; s.left--;
+        G.burst(cellX(c), cellY(r), { n: 8, color: CYAN });
+        beep(1200, 0.08, 300, 0, 0.08);
+    }
+
+    // A monster standing in (or stepping into) a cell holds a pushed bag
+    // back. The ghost does not count: it passes through bags anyway.
+    function monsterIn(s, c, r) {
+        return s.enemies.some(function (e) {
+            return e.kind !== 'g' && ((e.c === c && e.r === r) || (e.c + e.dc === c && e.r + e.dr === r));
+        });
+    }
+
+    // Bags only slide sideways, and never onto a rock, another bag or a
+    // monster. Sliding one over an emerald is allowed but costs the emerald.
     function pushBag(s, bag, d) {
         var c = bag.c + d[0];
-        if (d[1] || !inside(c, bag.r) || s.rock[idx(c, bag.r)] || s.gem[idx(c, bag.r)] || bagAt(s, c, bag.r)) return false;
+        if (d[1] || !inside(c, bag.r) || s.rock[idx(c, bag.r)] || bagAt(s, c, bag.r) || monsterIn(s, c, bag.r)) return false;
         bag.c = c; bag.slide = -d[0]; bag.pushed = true; bag.state = 'rest';
+        crushGem(s, c, bag.r);
         beep(110, 0.08, 80);
         return true;
     }
+
+    // The cherry is a turbo for the digger as well as a fright for monsters.
+    function playerSpeed(s, dig) { return (dig ? DIG_SPEED : RUN_SPEED) * (s.power > 0 ? 1.25 : 1); }
 
     function playerStart(s, pl) {
         if (!s.dir) return;
@@ -224,7 +246,7 @@
         if (bag && !pushBag(s, bag, d)) return;
         pl.dig = digCell(s, c, r);
         pl.dc = d[0]; pl.dr = d[1];
-        pl.speed = pl.dig ? DIG_SPEED : RUN_SPEED;
+        pl.speed = playerSpeed(s, pl.dig);
     }
 
     // Emeralds picked up in quick succession climb a scale; a full octave
@@ -245,17 +267,19 @@
         }
     }
 
-    function reverse(pl, name) {
+    // Backing out of a half-dug cell runs through tunnel that is already
+    // open, so it is no longer a dig: full speed, no drill noise.
+    function reverse(s, pl, name) {
         pl.c += pl.dc; pl.r += pl.dr;
         pl.dc = -pl.dc; pl.dr = -pl.dr; pl.p = 1 - pl.p;
-        pl.face = name;
+        pl.face = name; pl.dig = false; pl.speed = playerSpeed(s, false);
     }
 
     function updatePlayer(s, dt) {
         var pl = s.pl, d = s.dir && DIRS[s.dir];
         // Turning back mid-hop is instant; every other turn waits for the
         // next cell centre.
-        if (d && (pl.dc || pl.dr) && d[0] === -pl.dc && d[1] === -pl.dr) reverse(pl, s.dir);
+        if (d && (pl.dc || pl.dr) && d[0] === -pl.dc && d[1] === -pl.dr) reverse(s, pl, s.dir);
         stepMover(s, pl, dt, playerStart, collectGem);
         if ((pl.dc || pl.dr) && s.digT <= 0) {
             s.digT = pl.dig ? 0.09 : 0.16;
@@ -307,13 +331,25 @@
         say(s, NAMES[e.kind] + ' terminated');
     }
 
-    // The bolt flies down the tunnel and fizzles on the first dirt, rock or bag.
+    // A burst bag leaves a pile of gold where it was.
+    function spillGold(s, b) {
+        b.gone = true;
+        s.golds.push({ c: b.c, r: b.r, t: 10 });
+        G.burst(cellX(b.c), cellY(b.r), { n: 16, color: CYAN, speed: 200, life: 0.6, gravity: 500 });
+        [784, 988, 1175, 1568].forEach(function (f, k) { beep(f, 0.06, 0, k * 0.05); });
+        say(s, 'GOLD.DAT spilled - grab it');
+    }
+
+    // The bolt flies down the tunnel and fizzles on the first dirt or rock.
+    // A bag in its way bursts into gold, so no bag can ever wall the digger
+    // or an emerald in for good.
     function updateShot(s, dt) {
         var sh = s.shot;
         if (!sh) return;
         sh.x += sh.dc * SHOT_SPEED * T * dt; sh.y += sh.dr * SHOT_SPEED * T * dt;
-        var c = Math.floor(sh.x / T), r = Math.floor((sh.y - OY) / T);
-        if (!open(s, c, r) || bagAt(s, c, r)) {
+        var c = Math.floor(sh.x / T), r = Math.floor((sh.y - OY) / T), bag = inside(c, r) && bagAt(s, c, r);
+        if (bag) { spillGold(s, bag); s.shot = null; return; }
+        if (!open(s, c, r)) {
             G.burst(sh.x, sh.y, { n: 8, color: WHITE, speed: 140, life: 0.3 });
             beep(160, 0.06, 90);
             s.shot = null;
@@ -348,22 +384,13 @@
     }
 
     function landBag(s, b) {
-        var i = idx(b.c, b.r), x = cellX(b.c), y = cellY(b.r);
         b.y = b.r; b.vy = 0;
         G.shake(4, 0.15);
         // A long drop splits the bag open; a short one leaves it intact.
-        if (b.r - b.r0 >= 2) {
-            b.gone = true;
-            s.golds.push({ c: b.c, r: b.r, t: 10 });
-            G.burst(x, y, { n: 16, color: CYAN, speed: 200, life: 0.6, gravity: 500 });
-            [784, 988, 1175, 1568].forEach(function (f, k) { beep(f, 0.06, 0, k * 0.05); });
-            say(s, 'GOLD.DAT spilled - grab it');
-            return;
-        }
+        if (b.r - b.r0 >= 2) { spillGold(s, b); return; }
         b.state = 'rest';
         beep(70, 0.12, 40, 0, 0.16);
-        // An emerald under a landed bag would be out of reach, so it breaks.
-        if (s.gem[i]) { s.gem[i] = false; s.left--; G.burst(x, y, { n: 8, color: CYAN }); }
+        crushGem(s, b.c, b.r);
     }
 
     function fallBag(s, b, dt) {
@@ -489,7 +516,7 @@
         if (kind === 'g' && s.enemies.some(function (e) { return e.kind === 'g'; })) kind = 'n';
         var base = kind === 'g' ? 1.4 + s.level * 0.06 : (2.2 + s.level * 0.17) * (kind === 'h' ? 0.9 : 1);
         s.spawned++;
-        s.enemies.push({ kind: kind, c: nest.c, r: nest.r, dc: 0, dr: 0, ldc: 0, ldr: 0, p: 0, base: base, speed: base, born: 0.8, gone: false });
+        s.enemies.push({ kind: kind, c: nest.c, r: nest.r, dc: 0, dr: 0, ldc: 0, ldr: 0, p: 0, base: base, speed: base, born: 0.8, lost: 0, gone: false });
         beep(220, 0.1, 440, 0, 0.08); beep(330, 0.1, 660, 0.1, 0.08);
         if (s.spawned <= cfg.kinds.length) say(s, 'Loading ' + NAMES[kind] + '...');
     }
@@ -502,6 +529,18 @@
         if (s.spawnT > 0) return;
         s.spawnT = s.cfg.spawn;
         spawnEnemy(s);
+    }
+
+    // Where tunnels silt up, a nobbin can lose every route to the digger. It
+    // would idle in its pocket for the rest of the level and still hold a
+    // spawn slot, so after a few seconds it turns hobbin and digs itself out.
+    function mutateLost(s, e, dt) {
+        if (!s.cfg.refill || e.kind !== 'n') return;
+        e.lost = s.dist[idx(e.c, e.r)] >= FAR ? e.lost + dt : 0;
+        if (e.lost < 3) return;
+        e.kind = 'h'; e.base *= 0.9;
+        beep(180, 0.2, 90, 0, 0.1);
+        say(s, 'NOBBIN.EXE mutated: ' + NAMES.h);
     }
 
     function touchPlayer(s, e) {
@@ -521,6 +560,7 @@
             if (e.gone) return;
             // A freshly spawned monster materialises first: harmless and still.
             if (e.born > 0) { e.born -= dt; return; }
+            mutateLost(s, e, dt);
             stepMover(s, e, dt, enemyStart, null);
             touchPlayer(s, e);
         });
@@ -568,8 +608,10 @@
 
     // Whether anything is in (or heading for) a cell, so it must stay open.
     function occupied(s, c, r) {
-        function at(e) { return (e.c === c && e.r === r) || (e.c + e.dc === c && e.r + e.dr === r); }
-        if (abs(s.pl.c - c) + abs(s.pl.r - r) <= 1 || at(s.pl) || s.enemies.some(at)) return true;
+        // Movers also keep the cells next to them open, so soil never walls
+        // one in where it stands.
+        function near(e) { return abs(e.c - c) + abs(e.r - r) <= 1 || (e.c + e.dc === c && e.r + e.dr === r); }
+        if (near(s.pl) || s.enemies.some(near)) return true;
         if (s.cherry && s.cherry.c === c && s.cherry.r === r) return true;
         if (s.golds.some(function (g) { return g.c === c && g.r === r; })) return true;
         return s.bags.some(function (b) { return b.c === c && (b.r === r || (b.state === 'fall' && b.r + 1 === r)); });
@@ -884,7 +926,7 @@
         blurb: 'Dig out every emerald. Drop gold bags on whatever crawls out of the nest.',
         controls: [
             'ARROWS dig and drive · push gold bags sideways',
-            'SPACE fire the laser down the tunnel (slow recharge)',
+            'SPACE fire the laser down the tunnel (slow recharge) · it bursts a bag too',
             'Undermined bags wobble, then fall: they crush monsters - and you',
             'A long fall bursts a bag into gold · the cherry makes monsters edible'
         ],
