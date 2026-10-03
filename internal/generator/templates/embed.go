@@ -20,6 +20,8 @@ import (
 //   theme.js            — required, always present
 //   meta.json           — required, always present
 //   sounds.json         — required, always present
+//   game.js             — the theme's arcade game; registers itself with
+//                         shared/games.js and is fetched on first play
 //   ambient.ogg         — optional, background music loop
 //   <Family-Weight>.woff2 — optional, one or more self-hosted web fonts
 //   <Family-Weight>.woff  — optional, fallback / non-woff2 web fonts
@@ -35,7 +37,7 @@ import (
 // match at least one file. When you introduce a new font extension
 // that no other theme uses yet, append the matching glob here.
 //
-//go:embed shell.tmpl shared/*.tmpl shared/shared.css shared/shared.js themes/*/theme.css themes/*/theme.js themes/*/meta.json themes/*/sounds.json themes/*/*.ogg themes/*/*.woff themes/*/*.woff2 themes/*/FONT_LICENSE.txt themes/*/MUSIC_LICENSE.txt
+//go:embed shell.tmpl shared/*.tmpl shared/shared.css shared/shared.js shared/games.js themes/*/theme.css themes/*/theme.js themes/*/game.js themes/*/meta.json themes/*/sounds.json themes/*/*.ogg themes/*/*.woff themes/*/*.woff2 themes/*/FONT_LICENSE.txt themes/*/MUSIC_LICENSE.txt
 var FS embed.FS
 
 // themeStandardFiles lists the per-theme files that have dedicated
@@ -120,6 +122,13 @@ func SharedCSS() ([]byte, error) {
 // Used by the generator to write dist/shared.js.
 func SharedJS() ([]byte, error) {
 	return FS.ReadFile("shared/shared.js")
+}
+
+// SharedGamesJS returns the arcade engine every page references via games.js.
+// Used by the generator to write dist/games.js; the per-theme game.js files
+// it loads travel with each theme through ThemeExtraFiles.
+func SharedGamesJS() ([]byte, error) {
+	return FS.ReadFile("shared/games.js")
 }
 
 // ThemeCSS returns the per-theme stylesheet bytes for the named theme.

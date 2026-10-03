@@ -274,23 +274,27 @@ func jsonStringOrNull(s string) template.JS {
 	return template.JS(strings.TrimSpace(string(b))) //nolint:gosec // filename is tool-generated
 }
 
-// writeSharedAssets dumps shared.css and shared.js to the output dir. They are
-// linked from every page and cached by browsers across navigations.
+// writeSharedAssets dumps shared.css, shared.js and games.js (the arcade
+// engine) to the output dir. They are linked from every page and cached by
+// browsers across navigations.
 func writeSharedAssets(outputDir string) error {
-	css, err := templates.SharedCSS()
-	if err != nil {
-		return fmt.Errorf("read shared.css: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(outputDir, "shared.css"), css, 0o644); err != nil {
-		return fmt.Errorf("write shared.css: %w", err)
+	assets := []struct {
+		name string
+		read func() ([]byte, error)
+	}{
+		{"shared.css", templates.SharedCSS},
+		{"shared.js", templates.SharedJS},
+		{"games.js", templates.SharedGamesJS},
 	}
 
-	js, err := templates.SharedJS()
-	if err != nil {
-		return fmt.Errorf("read shared.js: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(outputDir, "shared.js"), js, 0o644); err != nil {
-		return fmt.Errorf("write shared.js: %w", err)
+	for _, a := range assets {
+		data, err := a.read()
+		if err != nil {
+			return fmt.Errorf("read %s: %w", a.name, err)
+		}
+		if err := os.WriteFile(filepath.Join(outputDir, a.name), data, 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", a.name, err)
+		}
 	}
 
 	return nil

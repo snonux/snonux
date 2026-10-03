@@ -1,0 +1,232 @@
+#!/usr/bin/env node
+// End-to-end test for the theme games, driven through real Chrome.
+//
+//   node integrationtests/games/e2e.mjs                 # every theme
+//   node integrationtests/games/e2e.mjs breakout neon   # just these
+//   node integrationtests/games/e2e.mjs --shots=/tmp/shots breakout
+//
+// It builds the site into a temp dir, serves it over HTTP (cookies do not
+// work on file://), starts headless Chrome and talks to it over the DevTools
+// protocol (see lib.mjs). To poke at a single game by hand, use play.mjs.
+//
+// For every theme it checks that the game launches from the splash button,
+// the header button and the 'a' key; that Esc quits; that real key presses
+// reach the game and not the blog; that the canvas draws and animates; that
+// music and sound effects play; that all ten levels survive a random-input
+// bot without errors; that winning unlocks the next level in the cookie and
+// that the cookie survives a reload.
+
+import { mkdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { sleep, startSession, themesWithGames } from './lib.mjs';
+
+const LEVELS = 10;
+const BOT_TICKS = 900; // 15 seconds of game time per level
+
+function parseArgs(argv) {
+    const opts = { themes: [], shots: '' };
+    for (const a of argv) {
+        if (a.startsWith('--shots=')) opts.shots = resolve(a.slice(8));
+        else if (a.startsWith('--')) throw new Error(`unknown option ${a}`);
+        else opts.themes.push(a);
+    }
+    return opts;
+}
+
+// --- expressions evaluated inside the page -------------------------------
+
+const STATE = 'SnoGame.debug.state()';
+
+// Summarises the canvas: how many distinct colours a coarse grid of samples
+// holds, plus a hash that changes whenever the picture does.
+const CANVAS_STATS = `(function(){var c=document.querySelector('#sno-game canvas');if(!c)return null;
+  var d=c.getContext('2d').getImageData(0,0,c.width,c.height).data,seen={},n=0,h=0;
+  for(var y=8;y<c.height;y+=16)for(var x=8;x<c.width;x+=16){var i=(y*c.width+x)*4,k=(d[i]>>3)+','+(d[i+1]>>3)+','+(d[i+2]>>3);
+    if(!seen[k]){seen[k]=1;n++;}h=(h*31+d[i]+d[i+1]*7+d[i+2]*13)>>>0;}
+  return {colors:n,hash:h};})()`;
+
+// A seeded bot that holds random buttons for random stretches. It is not
+// trying to win; it is trying to reach as much game code as possible.
+const botSource = (seed) => `(function(){var r=SnoGame.rng(${seed}),cur={},until=0;return function(i){
+  if(i>=until){until=i+4+Math.floor(r()*40);
+    cur={left:r()<.35,right:r()<.35,up:r()<.3,down:r()<.2,a:r()<.6,b:r()<.2,mouse:{x:r()*960,y:r()*540,down:r()<.5}};
+    var c={};if(cur.left)c.ArrowLeft=c.KeyA=true;if(cur.right)c.ArrowRight=c.KeyD=true;
+    if(cur.up)c.ArrowUp=c.KeyW=true;if(cur.down)c.ArrowDown=c.KeyS=true;if(cur.a)c.Space=true;if(cur.b)c.KeyX=true;
+    cur.codes=c;}
+  return cur;};})()`;
+
+function check(cond, message) { if (!cond) throw new Error(message); }
+
+async function cookieSave(page, theme) {
+    const raw = await page.eval('document.cookie');
+    const m = raw.match(new RegExp(`(?:^|; )snog_${theme}=([^;]*)`));
+    return m ? decodeURIComponent(m[1]) : null;
+}
+
+// --- per-theme checks ----------------------------------------------------
+
+// Switches the page to the theme and opens its game from the splash button.
+async function launchFromSplash(page, base, theme) {
+    await page.goto(`${base}/index.html`);
+    await page.eval(`snonuxSwitchTheme(${JSON.stringify(theme)})`);
+    const title = await page.eval(`SnoGame.titles[${JSON.stringify(theme)}]`);
+    check(title, `no title for ${theme} in the games.js manifest`);
+    await page.waitFor(`(document.querySelector('#splash-overlay .splash-game-btn')||{}).textContent && document.querySelector('#splash-overlay .splash-game-btn').textContent.indexOf(${JSON.stringify(title)})>=0 && document.querySelector('header .header-game-btn')`,
+        'splash "Play" button for this theme');
+    await page.click('#splash-overlay .splash-game-btn');
+    await page.waitFor(`SnoGame.active && ${STATE} && ${STATE}.screen==='title'`, 'title screen after splash launch');
+    const st = await page.eval(STATE);
+    check(st.theme === theme, `launched ${st.theme}, wanted ${theme}`);
+    check(await page.eval(`!document.getElementById('splash-overlay').classList.contains('splash--dismissed')`), 'launching from the splash must not dismiss it');
+}
+
+async function checkDefinition(page) {
+    const d = await page.eval('SnoGame.debug.def()');
+    check(d.title && d.blurb, 'game needs a title and a blurb');
+    check(d.controls >= 1, 'game needs at least one controls line');
+    check(d.levelNames === LEVELS, `game needs ${LEVELS} level names, has ${d.levelNames}`);
+    check(d.music, 'game needs a music definition');
+}
+
+// Plays level 1 with real key events: this is the only part that exercises
+// the browser's actual keyboard path and the requestAnimationFrame loop.
+async function playForReal(page, theme, shots) {
+    if (shots) await page.screenshot(join(shots, `${theme}-title.jpg`));
+    await page.press('Enter');
+    await page.waitFor(`${STATE}.screen==='play'`, 'play screen after Enter');
+    await page.key('keyDown', 'ArrowRight');
+    await page.key('keyDown', 'Space');
+    await sleep(120);
+    check(await page.eval('SnoGame.key.right && SnoGame.key.a'), 'held keys did not reach SnoGame.key');
+    const before = await page.eval(CANVAS_STATS);
+    await page.press('KeyW'); // 'w' toggles wild mode on the blog; it must not leak through
+    await sleep(500);
+    const after = await page.eval(CANVAS_STATS);
+    await page.key('keyUp', 'ArrowRight');
+    await page.key('keyUp', 'Space');
+    check(after.colors >= 4, `canvas looks blank (${after.colors} colours)`);
+    check(before.hash !== after.hash, 'canvas did not change over half a second of play');
+    check(!(await page.eval('!!window._snoWildActive')), 'a key press leaked through to the blog');
+    const audio = await page.eval('SnoGame.debug.audio()');
+    check(audio.state === 'running', `audio context is ${audio.state}`);
+    check(audio.musicSteps > 0, 'no music steps were scheduled');
+}
+
+// Runs the bot on one level, then forces a win and checks the save.
+async function runLevel(page, theme, level, shots) {
+    await page.eval(`SnoGame.debug.start(${level})`);
+    let st = await page.eval(STATE);
+    check(st.screen === 'play' && st.level === level, `level ${level} did not start (screen ${st.screen})`);
+    for (let chunk = 0; chunk < 3 && st.screen === 'play'; chunk++) {
+        st = await page.eval(`SnoGame.debug.step(${BOT_TICKS / 3}, ${botSource(level * 100 + chunk)})`);
+        await sleep(40); // let a real frame render so draw() runs on this state
+        const errs = await page.eval('SnoGame.debug.errors.slice()');
+        check(!errs.length, `level ${level}: ${errs[0]}`);
+    }
+    check(['play', 'over', 'clear', 'victory', 'dead', 'intro'].includes(st.screen), `level ${level}: unexpected screen ${st.screen}`);
+    if (shots && [1, 5, 10].includes(level)) await page.screenshot(join(shots, `${theme}-L${level}.jpg`));
+    if (st.screen !== 'clear' && st.screen !== 'victory') {
+        await page.eval(`SnoGame.debug.start(${level}); SnoGame.debug.win()`);
+        st = await page.eval(STATE);
+    }
+    check(st.screen === (level === LEVELS ? 'victory' : 'clear'), `level ${level}: win led to ${st.screen}`);
+    const save = (await cookieSave(page, theme)) || '';
+    const want = Math.min(LEVELS, level + 1);
+    check(Number(save.split('.')[0]) >= want, `level ${level}: cookie "${save}" did not unlock level ${want}`);
+    return st.screen;
+}
+
+async function checkGameOver(page) {
+    await page.eval('SnoGame.debug.start(1); SnoGame.debug.lose()');
+    check((await page.eval(STATE)).screen === 'over', 'losing every life must lead to game over');
+    await sleep(700);
+    await page.press('Enter');
+    await page.waitFor(`${STATE}.screen==='intro' || ${STATE}.screen==='play'`, 'retry after game over');
+}
+
+async function quitWithEsc(page, what) {
+    await page.press('Escape');
+    await page.waitFor(`!SnoGame.active && !document.getElementById('sno-game')`, `Esc to quit (${what})`);
+}
+
+// After a reload the cookie must still unlock everything, and the game must
+// also open from the header button and the 'a' key.
+async function checkPersistenceAndLaunchers(page, base, theme) {
+    await page.goto(`${base}/index.html`);
+    await page.eval(`snonuxSwitchTheme(${JSON.stringify(theme)})`);
+    await page.waitFor(`document.querySelector('header .header-game-btn') && document.title.length`, 'header button');
+    await page.press('Enter'); // dismiss the splash
+    await page.waitFor(`document.getElementById('splash-overlay').classList.contains('splash--dismissed')`, 'splash dismissal');
+    await sleep(700); // the splash fades out before it stops covering the header
+    await page.click('header .header-game-btn');
+    await page.waitFor(`SnoGame.active && ${STATE}.screen==='title'`, 'title screen after header launch');
+    const st = await page.eval(STATE);
+    check(st.unlocked === LEVELS && st.won === 1, `progress lost on reload: unlocked ${st.unlocked}, won ${st.won}`);
+    await quitWithEsc(page, 'header launch');
+    await page.press('KeyA');
+    await page.waitFor(`SnoGame.active && ${STATE} && ${STATE}.theme===${JSON.stringify(theme)}`, "launch with the 'a' key");
+    await quitWithEsc(page, "'a' launch");
+}
+
+async function testTheme(page, base, theme, shots) {
+    page.problems.length = 0;
+    await page.send('Network.clearBrowserCookies');
+    await launchFromSplash(page, base, theme);
+    await checkDefinition(page);
+    await playForReal(page, theme, shots);
+    const sfxBefore = (await page.eval('SnoGame.debug.audio()')).sfx;
+    await checkGameOver(page);
+    let botWins = 0;
+    for (let level = 1; level <= LEVELS; level++) {
+        const end = await runLevel(page, theme, level, shots);
+        if (end) botWins++;
+    }
+    const audio = await page.eval('SnoGame.debug.audio()');
+    check(audio.sfx > sfxBefore, 'no sound effects were played during ten levels of bot play');
+    await quitWithEsc(page, 'splash launch');
+    await checkPersistenceAndLaunchers(page, base, theme);
+    check(!page.problems.length, `page errors: ${page.problems.slice(0, 3).join(' | ')}`);
+}
+
+// Engine-level negative tests: bad saves must never be trusted.
+async function testSaveParsing(page, base) {
+    await page.goto(`${base}/index.html`);
+    const cases = [['', [1, 0, 1, 0]], ['garbage', [1, 0, 1, 0]], ['99.-5.42.7', [1, 0, 1, 0]], ['4.1200.9.1', [4, 1200, 4, 1]], ['10.50.10.1', [10, 50, 10, 1]]];
+    for (const [raw, want] of cases) {
+        const s = await page.eval(`SnoGame.debug.parseSave(${JSON.stringify(raw)})`);
+        const got = [s.unlocked, s.hi, s.last, s.won];
+        check(JSON.stringify(got) === JSON.stringify(want), `parseSave(${JSON.stringify(raw)}) = ${got}, want ${want}`);
+    }
+    check((await page.eval(`SnoGame.launch('no-such-theme')`)) === false, 'launching an unknown theme must be refused');
+    check(!(await page.eval('SnoGame.active')), 'unknown theme must not open the overlay');
+}
+
+async function main() {
+    const opts = parseArgs(process.argv.slice(2));
+    const themes = opts.themes.length ? opts.themes : themesWithGames();
+    if (opts.shots) mkdirSync(opts.shots, { recursive: true });
+    const { page, base, close } = await startSession();
+    let failed = 0;
+    try {
+        await testSaveParsing(page, base);
+        console.log('ok   save parsing and unknown-theme guard');
+        for (const theme of themes) {
+            const t0 = Date.now();
+            try {
+                await testTheme(page, base, theme, opts.shots);
+                console.log(`ok   ${theme} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+            } catch (err) {
+                failed++;
+                console.log(`FAIL ${theme}: ${err.message}`);
+                if (opts.shots) await page.screenshot(join(opts.shots, `${theme}-FAIL.jpg`)).catch(() => {});
+                await page.eval('window.SnoGame && SnoGame.quit()').catch(() => {});
+            }
+        }
+    } finally {
+        await close();
+    }
+    console.log(failed ? `${failed} of ${themes.length} games failed` : `all ${themes.length} games passed`);
+    process.exit(failed ? 1 : 0);
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });

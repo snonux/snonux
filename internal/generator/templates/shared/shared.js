@@ -1151,6 +1151,9 @@
             show();
         }
         function bindHeaderTriggers() {
+            // The header markup may just have been swapped by a theme switch,
+            // so let games.js (re)insert its launch button first.
+            if (window.snonuxGameDecorate) window.snonuxGameDecorate();
             var triggers = document.querySelectorAll('.logo-mark, .logo-title h1, #sn-logo');
             triggers.forEach(function(trigger) {
                 trigger.addEventListener('click', openSplashFromHeader);
@@ -1868,6 +1871,7 @@
             ambient: toggleAmbientMode,
             flash: triggerFlashEffect,
             scatter: triggerScatterEffect,
+            game: launchThemeGame,
             theme: function() {
                 var pick = snonuxRandomTheme();
                 if (pick) snonuxSwitchTheme(pick);
@@ -1935,6 +1939,7 @@
                         '<button type="button" role="menuitem" data-sno-fx="ghost" aria-label="Toggle ghost mode"><i class="fas fa-ghost" aria-hidden="true"></i></button>' +
                         '<button type="button" role="menuitem" data-sno-fx="blank" aria-label="Toggle blank mode"><i class="fas fa-eye-slash" aria-hidden="true"></i></button>' +
                         '<button type="button" role="menuitem" data-sno-fx="theme" aria-label="Random theme"><i class="fas fa-palette" aria-hidden="true"></i></button>' +
+                        '<button type="button" role="menuitem" data-sno-fx="game" aria-label="Play the game"><i class="fas fa-gamepad" aria-hidden="true"></i></button>' +
                         '</span>';
         document.body.appendChild(btn);
 
@@ -1946,6 +1951,7 @@
             ambient: toggleAmbientMode,
             flash: triggerFlashEffect,
             scatter: triggerScatterEffect,
+            game: launchThemeGame,
             theme: function() {
                 var pick = snonuxRandomTheme();
                 if (pick) snonuxSwitchTheme(pick);
@@ -1992,7 +1998,7 @@
         if (!hint || document.querySelector('#splash-overlay .splash-controls')) return;
         var extra = document.createElement('div');
         extra.className = 'splash-controls';
-        extra.innerHTML = '<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> drift \u2022 <kbd>w</kbd> wild \u2022 <kbd>p</kbd> music \u2022 <kbd>Enter</kbd> open';
+        extra.innerHTML = '<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> drift \u2022 <kbd>w</kbd> wild \u2022 <kbd>p</kbd> music \u2022 <kbd>a</kbd> game \u2022 <kbd>Enter</kbd> open';
         hint.appendChild(extra);
     })();
 
@@ -2012,7 +2018,10 @@
         var overlay = document.getElementById('splash-overlay');
         var inner = overlay && overlay.querySelector('.splash-inner');
         // Nothing to attach to (unexpected theme markup), or already injected.
-        if (!inner || inner.querySelector('.splash-music-choice')) return;
+        if (!inner || inner.querySelector('.splash-music-choice')) {
+            snonuxDecorateGameButtons();
+            return;
+        }
         var choice = document.createElement('div');
         choice.className = 'splash-music-choice';
         choice.innerHTML =
@@ -2039,6 +2048,19 @@
             if (window._snonuxDismissSplash) window._snonuxDismissSplash();
             syncFxButtonStates();
         });
+        snonuxDecorateGameButtons();
+    }
+    // The splash markup is replaced wholesale on a theme switch, which also
+    // removes the "Play <game>" button games.js added. Re-adding it from here
+    // keeps it below the music choice in every code path.
+    function snonuxDecorateGameButtons() {
+        if (window.snonuxGameDecorate) window.snonuxGameDecorate();
+    }
+    // Opens the active theme's arcade game (games.js). Shared by the fx-row
+    // button, the mobile menu and the 'a' shortcut.
+    function launchThemeGame() {
+        pulseFxButton('game');
+        if (window.snonuxGameLaunch) window.snonuxGameLaunch();
     }
     snonuxRenderSplashMusicChoice();
 
@@ -2147,7 +2169,7 @@
             // dismiss-without-choice branch below, which would silently
             // strand keyboard-only visitors: they'd never be able to
             // actually pick "with" or "without" music via the keyboard.
-            if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('.splash-music-btn')) {
+            if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('.splash-music-btn, .sno-game-launch')) {
                 return;
             }
             if (e.key === 'Enter' || e.key === ' ') {
@@ -2179,6 +2201,9 @@
                 e.preventDefault();
                 var pick = snonuxRandomTheme();
                 if (pick) snonuxSwitchTheme(pick);
+            } else if (e.key === 'a' && !e.repeat) {
+                e.preventDefault();
+                launchThemeGame();
             } else if (splashDrift.keyPush(e)) {
                 playNavSound();
             }
@@ -2265,6 +2290,9 @@
                 if (pick) snonuxSwitchTheme(pick);
                 e.preventDefault(); break;
             }
+            case 'a':
+                if (!e.repeat) launchThemeGame();
+                e.preventDefault(); break;
         }
     });
 

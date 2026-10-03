@@ -61,6 +61,17 @@ func IntegrationTest() error {
 	return cmd.Run()
 }
 
+// GamesE2E plays every theme's arcade game in headless Chrome: launchers,
+// input, audio, all ten levels and the save cookie. Needs node 22+ and
+// Chrome or Chromium; see docs/games.md.
+func GamesE2E() error {
+	fmt.Println("Running theme game browser tests...")
+	cmd := exec.Command("node", "integrationtests/games/e2e.mjs")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 // Vet runs go vet on all packages to catch common mistakes.
 func Vet() error {
 	fmt.Println("Vetting...")

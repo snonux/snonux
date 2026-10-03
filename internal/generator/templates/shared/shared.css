@@ -1044,3 +1044,41 @@ body[data-sno-theme="dos"] .post-text img { animation:sno-matrix-decode 0.8s eas
   /* Swipe hint for first-time mobile visitors */
   #sno-swipe-hint { display:flex; }
 }
+
+/* === Theme games (games.js) ===
+   Launch buttons plus the fullscreen overlay the game canvas lives in. The
+   overlay sits above every other layer (wild-mode effects top out at 9999). */
+.splash-game-choice { margin-top:0.6rem; display:flex; justify-content:center; }
+.header-game-btn {
+  font:inherit; font-size:0.8rem; letter-spacing:0.04em; white-space:nowrap; cursor:pointer;
+  color:inherit; background:transparent; border:1px solid currentColor; border-radius:3px;
+  padding:0.25rem 0.6rem; opacity:0.82;
+}
+.header-game-btn:hover { opacity:1; }
+.header-game-btn:focus-visible { outline:1px solid currentColor; outline-offset:3px; }
+body.sno-game-on { overflow:hidden; }
+#sno-game {
+  position:fixed; inset:0; z-index:10000; background:#000; display:flex;
+  align-items:center; justify-content:center; touch-action:none; user-select:none;
+}
+#sno-game canvas { display:block; background:#000; }
+.sno-game-close {
+  position:absolute; top:8px; right:10px; font:600 12px monospace; letter-spacing:0.1em;
+  color:#fff; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.4);
+  border-radius:3px; padding:5px 9px; cursor:pointer; opacity:0.55;
+}
+.sno-game-close:hover { opacity:1; }
+/* Touch pad: only built on coarse-pointer devices. Direction keys bottom-left,
+   action buttons bottom-right. */
+.sno-game-pad { position:absolute; inset:auto 0 12px 0; height:150px; pointer-events:none; }
+.sno-game-pad button {
+  position:absolute; width:56px; height:56px; border-radius:50%; pointer-events:auto;
+  font:700 18px sans-serif; color:#fff; background:rgba(255,255,255,0.14);
+  border:1px solid rgba(255,255,255,0.4); touch-action:none;
+}
+.sno-game-pad-l { left:12px; bottom:40px; }
+.sno-game-pad-r { left:124px; bottom:40px; }
+.sno-game-pad-u { left:68px; bottom:92px; }
+.sno-game-pad-d { left:68px; bottom:0; }
+.sno-game-pad-a { right:76px; bottom:20px; }
+.sno-game-pad-b { right:12px; bottom:70px; }

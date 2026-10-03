@@ -1,0 +1,190 @@
+// Shared plumbing for the theme-game browser tools (e2e.mjs and play.mjs):
+// building and serving the site, starting headless Chrome, and a minimal
+// DevTools-protocol client. Node 22's built-in WebSocket is enough, so there
+// is nothing to npm-install.
+
+import { spawn, spawnSync } from 'node:child_process';
+import { createServer } from 'node:http';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+export const THEMES_DIR = join(ROOT, 'internal', 'generator', 'templates', 'themes');
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export const KEYS = {
+    Enter: { key: 'Enter', vk: 13, text: '\r' }, Escape: { key: 'Escape', vk: 27 },
+    Space: { key: ' ', vk: 32, text: ' ' }, ArrowLeft: { key: 'ArrowLeft', vk: 37 },
+    ArrowUp: { key: 'ArrowUp', vk: 38 }, ArrowRight: { key: 'ArrowRight', vk: 39 },
+    ArrowDown: { key: 'ArrowDown', vk: 40 }, KeyA: { key: 'a', vk: 65, text: 'a' },
+    KeyW: { key: 'w', vk: 87, text: 'w' },
+};
+
+// Builds the site with one post so index.html exists.
+export function buildSite(work) {
+    const input = join(work, 'inbox'), output = join(work, 'dist');
+    mkdirSync(input); mkdirSync(output);
+    writeFileSync(join(input, 'hello.txt'), 'games e2e test post');
+    const res = spawnSync('go', ['run', './cmd/snonux', '--input', input, '--output', output, '--theme', 'neon'],
+        { cwd: ROOT, encoding: 'utf8' });
+    if (res.status !== 0) throw new Error(`site build failed:\n${res.stdout}${res.stderr}`);
+    return output;
+}
+
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.ogg': 'audio/ogg', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ico': 'image/x-icon' };
+
+export function serve(dir) {
+    const server = createServer((req, res) => {
+        const rel = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+        const file = join(dir, rel === '/' || rel === '\\' ? 'index.html' : rel);
+        if (!file.startsWith(dir) || !existsSync(file)) { res.writeHead(404); res.end('not found'); return; }
+        res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+        res.end(readFileSync(file));
+    });
+    return new Promise((ok) => server.listen(0, '127.0.0.1', () => ok(server)));
+}
+
+function findChrome() {
+    const cands = [process.env.CHROME, '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium'];
+    const found = cands.find((c) => c && existsSync(c));
+    if (!found) throw new Error('no Chrome/Chromium found; set CHROME=/path/to/chrome');
+    return found;
+}
+
+// Starts headless Chrome and resolves with the DevTools HTTP endpoint.
+export function launchChrome(work) {
+    const proc = spawn(findChrome(), [
+        '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${join(work, 'chrome')}`,
+        '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--no-sandbox',
+        '--autoplay-policy=no-user-gesture-required', '--window-size=1280,800', 'about:blank',
+    ], { stdio: ['ignore', 'ignore', 'pipe'] });
+    return new Promise((ok, fail) => {
+        let buf = '';
+        const timer = setTimeout(() => fail(new Error('Chrome did not start')), 20000);
+        proc.stderr.on('data', (d) => {
+            buf += d;
+            const m = buf.match(/DevTools listening on ws:\/\/([^/]+)\//);
+            if (m) { clearTimeout(timer); ok({ proc, http: `http://${m[1]}` }); }
+        });
+        proc.on('exit', () => fail(new Error(`Chrome exited early:\n${buf}`)));
+    });
+}
+
+// Minimal DevTools-protocol client for one page.
+export class Page {
+    constructor(ws) {
+        this.ws = ws; this.id = 0; this.pending = new Map(); this.problems = [];
+        ws.addEventListener('message', (ev) => this.onMessage(JSON.parse(ev.data)));
+    }
+
+    static async open(httpBase) {
+        const targets = await (await fetch(`${httpBase}/json/list`)).json();
+        const target = targets.find((t) => t.type === 'page');
+        const ws = new WebSocket(target.webSocketDebuggerUrl);
+        await new Promise((ok, fail) => { ws.addEventListener('open', ok); ws.addEventListener('error', fail); });
+        const page = new Page(ws);
+        await page.send('Page.enable');
+        await page.send('Runtime.enable');
+        await page.send('Network.enable');
+        // A fixed 16:9 viewport: the game canvas then fills it exactly, and
+        // screenshots are not clipped by the headless window's own chrome.
+        await page.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+        // The CDN assets (three.js, Font Awesome) are irrelevant here; blocking
+        // them keeps the test hermetic and fast.
+        await page.send('Network.setBlockedURLs', { urls: ['*cdnjs.cloudflare.com*'] });
+        return page;
+    }
+
+    onMessage(msg) {
+        if (msg.id && this.pending.has(msg.id)) {
+            const { ok, fail } = this.pending.get(msg.id);
+            this.pending.delete(msg.id);
+            if (msg.error) fail(new Error(msg.error.message)); else ok(msg.result);
+        } else if (msg.method === 'Runtime.exceptionThrown') {
+            const d = msg.params.exceptionDetails;
+            const text = d.exception?.description || d.text;
+            // theme.js needs three.js, which this test blocks along with the
+            // rest of the CDN; that one error is expected and not about games.
+            if (!/THREE is not defined/.test(text)) this.problems.push(`uncaught: ${text}`);
+        } else if (msg.method === 'Runtime.consoleAPICalled' && msg.params.type === 'error') {
+            this.problems.push(`console.error: ${msg.params.args.map((a) => a.value ?? a.description).join(' ')}`);
+        }
+    }
+
+    send(method, params = {}) {
+        const id = ++this.id;
+        this.ws.send(JSON.stringify({ id, method, params }));
+        return new Promise((ok, fail) => this.pending.set(id, { ok, fail }));
+    }
+
+    async eval(expression) {
+        const r = await this.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+        if (r.exceptionDetails) throw new Error(`eval failed: ${r.exceptionDetails.exception?.description || r.exceptionDetails.text}\n  in: ${expression.slice(0, 200)}`);
+        return r.result.value;
+    }
+
+    async waitFor(expression, what, timeout = 8000) {
+        const end = Date.now() + timeout;
+        while (Date.now() < end) {
+            if (await this.eval(`!!(${expression})`)) return;
+            await sleep(40);
+        }
+        throw new Error(`timed out waiting for ${what}`);
+    }
+
+    async goto(url) {
+        await this.send('Page.navigate', { url });
+        await this.waitFor('document.readyState === "complete" && window.SnoGame', 'page load');
+    }
+
+    async key(type, code) {
+        const k = KEYS[code];
+        const params = { type, code, key: k.key, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk };
+        if (type === 'keyDown' && k.text) params.text = k.text;
+        await this.send('Input.dispatchKeyEvent', params);
+    }
+
+    async press(code) { await this.key('keyDown', code); await this.key('keyUp', code); }
+
+    async click(selector) {
+        const r = await this.eval(`(function(){var e=document.querySelector(${JSON.stringify(selector)});if(!e)return null;e.scrollIntoView({block:'center'});var b=e.getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2,w:b.width};})()`);
+        if (!r || !r.w) throw new Error(`cannot click ${selector}: not found or not visible`);
+        for (const type of ['mousePressed', 'mouseReleased']) {
+            await this.send('Input.dispatchMouseEvent', { type, x: r.x, y: r.y, button: 'left', clickCount: 1 });
+        }
+    }
+
+    async screenshot(file) {
+        const r = await this.send('Page.captureScreenshot', { format: 'jpeg', quality: 70 });
+        writeFileSync(file, Buffer.from(r.data, 'base64'));
+    }
+}
+
+// Builds and serves the site and opens one Chrome page on it. Returns the
+// page, the base URL and a close() that tears everything down again.
+export async function startSession() {
+    const work = mkdtempSync(join(tmpdir(), 'snonux-games-'));
+    let server, chrome;
+    const close = async () => {
+        if (chrome) chrome.proc.kill();
+        if (server) server.close();
+        await sleep(200);
+        rmSync(work, { recursive: true, force: true });
+    };
+    try {
+        server = await serve(buildSite(work));
+        const base = `http://127.0.0.1:${server.address().port}`;
+        chrome = await launchChrome(work);
+        return { page: await Page.open(chrome.http), base, close };
+    } catch (err) {
+        await close();
+        throw err;
+    }
+}
+
+// Themes that ship a game, sorted.
+export function themesWithGames() {
+    return readdirSync(THEMES_DIR).filter((t) => existsSync(join(THEMES_DIR, t, 'game.js'))).sort();
+}

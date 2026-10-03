@@ -93,6 +93,18 @@ All source files are removed from the input directory once they have been succes
 
 Each run can use a different visual theme. Use `--list-themes` to see all available themes, or `--theme random` (the default) to pick one at random.
 
+## Games
+
+Every theme comes with its own small arcade game — ten levels, sound and
+music, progress saved in a cookie. Start it from the **Play** button on the
+splash screen, the button in the header, the `game` button in the fx row, or
+with the `a` key; `Esc` quits.
+
+The shared engine is `internal/generator/templates/shared/games.js`; each
+game lives in `internal/generator/templates/themes/<name>/game.js`. See
+[docs/games.md](docs/games.md) for the engine API and how to write and test a
+game. `mage gamesE2E` plays all of them in headless Chrome.
+
 ## Output structure
 
 ```
