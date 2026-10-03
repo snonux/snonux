@@ -13,7 +13,11 @@
     'use strict';
     var G = window.SnoGame;
     var FIRE_Y = 506, LEDGE_H = 16, GRAV = 720, DEMON_GRAV = 520, MAX_VX = 280;
-    var ORB_FLOOR = FIRE_Y - 40;                // orbs hover here on the fire's updraft
+    // Orbs hover on the fire's updraft, high enough that one drifting over the
+    // altar comes to rest on top of it instead of in the gap underneath.
+    var ORB_FLOOR = FIRE_Y - 70;
+    var PLAYER_ROOF = 24;                       // the gargoyle's ceiling is this much lower than the demons'
+    var HOLD_FLAP = 0.51, COMBO_T = 4, COMBO_MAX = 5, PORTAL_GRACE = 0.5;
     var CRUMBLE_T = 0.9, REGROW_T = 6;
     var GEYSER_WARN = 1.2, GEYSER_BURN = 0.9, GEYSER_H = 300;
     var SPAWNS = [150, 810, 370, 590], SPAWN_Y = 60;
@@ -24,21 +28,23 @@
 
     // Demon tiers: how fast they fly, how often they may flap, how hard a
     // flap lifts, how likely each decision is to go for the gargoyle, and
-    // `top`, the highest they dare to aim. Lesser demons shun the vault, so
-    // the high ground belongs to the gargoyle — until the Fallen arrive.
+    // `top`, the highest they dare to aim. Every tier can rise above the
+    // gargoyle's own ceiling, so the vault is never a safe perch; the lesser
+    // ones only get there less often.
     // `lag` is the longest a demon takes to change its mind: the Fallen are
     // relentless but slow to re-aim, which is the opening to climb past them.
     var TIERS = [
-        { name: 'IMP', body: '#c0506c', wing: '#7a2f45', eye: COL.bright, horn: '#3a1622', speed: 85, flap: 0.34, lift: 200, hunt: 0.3, top: 130, lag: 1.5, score: 100 },
-        { name: 'FIEND', body: '#9a78e0', wing: '#5a3f9a', eye: COL.bright, horn: '#2a1c4a', speed: 125, flap: 0.28, lift: 215, hunt: 0.55, top: 130, lag: 1.5, score: 200 },
-        { name: 'WRAITH', body: '#7bc2ff', wing: '#3f6f9e', eye: '#ffffff', horn: '#1c3550', speed: 165, flap: 0.23, lift: 230, hunt: 0.8, top: 115, lag: 1.3, score: 300 },
-        { name: 'FALLEN', body: '#f0e8d9', wing: '#a89f8c', eye: '#ff5a6e', horn: COL.ruby, speed: 195, flap: 0.2, lift: 240, hunt: 1, top: 70, lag: 1.7, score: 500 }
+        { name: 'IMP', body: '#c0506c', wing: '#7a2f45', eye: COL.bright, horn: '#3a1622', speed: 85, flap: 0.34, lift: 200, hunt: 0.3, top: 62, lag: 1.5, score: 100 },
+        { name: 'FIEND', body: '#9a78e0', wing: '#5a3f9a', eye: COL.bright, horn: '#2a1c4a', speed: 125, flap: 0.28, lift: 215, hunt: 0.55, top: 60, lag: 1.5, score: 200 },
+        { name: 'WRAITH', body: '#7bc2ff', wing: '#3f6f9e', eye: '#ffffff', horn: '#1c3550', speed: 165, flap: 0.23, lift: 230, hunt: 0.8, top: 57, lag: 1.3, score: 300 },
+        { name: 'FALLEN', body: '#f0e8d9', wing: '#a89f8c', eye: '#ff5a6e', horn: COL.ruby, speed: 195, flap: 0.2, lift: 240, hunt: 1, top: 54, lag: 1.7, score: 500 }
     ];
-    // The archdemon gets faster with every strike it takes (index = strikes).
+    // The archdemon gets faster and flies higher with every strike it takes
+    // (index = strikes).
     var BOSS = [
-        { speed: 105, flap: 0.3, lift: 215, hunt: 1, top: 120, lag: 1.6 },
-        { speed: 140, flap: 0.26, lift: 225, hunt: 1, top: 110, lag: 1.4 },
-        { speed: 175, flap: 0.22, lift: 235, hunt: 1, top: 100, lag: 1.2 }
+        { speed: 105, flap: 0.3, lift: 215, hunt: 1, top: 76, lag: 1.6 },
+        { speed: 140, flap: 0.26, lift: 225, hunt: 1, top: 70, lag: 1.4 },
+        { speed: 175, flap: 0.22, lift: 235, hunt: 1, top: 58, lag: 1.2 }
     ];
     var BOSS_LOOK = { body: '#a8324f', wing: '#5c1a2c', eye: COL.bright, horn: COL.gold, k: 2.1, tail: true };
 
@@ -59,16 +65,16 @@
     // them. censers: [pivot x, chain length, start angle]. hatch: seconds an
     // orb waits before it re-hatches.
     var LEVELS = [
-        { layout: 'nave', waves: [[0, 0, 0], [0, 0, 0, 0]], hatch: 9, hint: 'STRIKE FROM ABOVE' },
-        { layout: 'nave', waves: [[0, 0, 1], [0, 1, 1], [0, 0, 1, 1]], hatch: 8.5, hint: 'FIENDS HUNT YOU' },
-        { layout: 'aisles', waves: [[0, 0, 1, 1], [1, 1, 1, 0]], bats: 8, hatch: 8, hint: 'BATS IN THE BELFRY' },
-        { layout: 'stairs', waves: [[0, 1, 1], [1, 1, 1, 0], [1, 1, 2]], crumble: [1, 2, 3, 4, 5, 6, 7], hatch: 8, hint: 'THE STONE CRUMBLES' },
-        { layout: 'hall', waves: [[0, 1, 1], [1, 1, 2], [1, 2, 2, 0]], censers: [[480, 230, 0.9]], hatch: 7.5, hint: 'BEWARE THE CENSER' },
-        { layout: 'sparse', waves: [[1, 1, 2], [2, 2, 1], [2, 2, 1, 1]], bats: 11, hatch: 7, hint: 'WRAITHS RISE HIGH' },
-        { layout: 'nave', waves: [[1, 2, 2], [1, 1, 2, 2], [2, 2, 2, 1]], geysers: 4.5, hatch: 7, hint: 'HOLY FIRE ERUPTS' },
-        { layout: 'twin', waves: [[1, 2, 2], [2, 2, 3], [2, 2, 1, 1, 3]], censers: [[240, 200, 0.75], [720, 200, -0.75]], crumble: [1, 2, 3], bats: 10, hatch: 6.5, hint: 'TWIN THURIBLES' },
-        { layout: 'stairs', waves: [[2, 2, 1], [2, 3, 1, 1], [3, 3, 2, 2]], crumble: [2, 5, 7], geysers: 7, dark: true, hatch: 6.5, hint: 'THE CANDLES GO OUT' },
-        { layout: 'sanctum', waves: [[1, 2, 2], [2, 2, 3], ['B', 1, 1]], censers: [[480, 170, 0.8]], bats: 12, geysers: 8, hatch: 6.5, hint: 'THE LAST VIGIL' }
+        { layout: 'nave', waves: [[0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], hatch: 9, hint: 'STRIKE FROM ABOVE' },
+        { layout: 'nave', waves: [[0, 0, 1], [0, 1, 1], [0, 0, 1, 1], [1, 1, 1, 0]], hatch: 8.5, hint: 'FIENDS HUNT YOU' },
+        { layout: 'aisles', waves: [[0, 0, 1, 1], [1, 1, 1, 0], [1, 1, 1, 1], [1, 1, 1, 0, 0]], bats: 8, hatch: 8, hint: 'BATS IN THE BELFRY' },
+        { layout: 'stairs', waves: [[0, 1, 1], [1, 1, 1, 0], [1, 1, 2], [1, 1, 2, 2]], crumble: [1, 2, 3, 4, 5, 6, 7], hatch: 8, hint: 'THE STONE CRUMBLES' },
+        { layout: 'hall', waves: [[0, 1, 1], [1, 1, 2], [1, 2, 2, 0], [1, 1, 2, 2]], censers: [[480, 230, 0.9]], hatch: 7.5, hint: 'BEWARE THE CENSER' },
+        { layout: 'sparse', waves: [[1, 1, 2], [2, 2, 1], [2, 2, 1, 1], [2, 2, 2, 1, 1]], bats: 11, hatch: 7, hint: 'WRAITHS RISE HIGH' },
+        { layout: 'nave', waves: [[1, 2, 2], [1, 1, 2, 2], [2, 2, 2, 1], [2, 2, 2, 1, 1]], geysers: 4.5, hatch: 7, hint: 'HOLY FIRE ERUPTS' },
+        { layout: 'twin', waves: [[1, 2, 2], [2, 2, 3], [2, 2, 1, 1, 3], [2, 2, 2, 3, 1]], censers: [[240, 200, 0.75], [720, 200, -0.75]], crumble: [1, 2, 3], bats: 10, hatch: 6.5, hint: 'TWIN THURIBLES' },
+        { layout: 'stairs', waves: [[2, 2, 1], [2, 3, 1, 1], [3, 3, 2, 2], [2, 2, 3, 3, 1]], crumble: [2, 5, 7], geysers: 7, dark: true, hatch: 6.5, hint: 'THE CANDLES GO OUT' },
+        { layout: 'sanctum', waves: [[1, 2, 2], [2, 2, 3], [2, 3, 3, 2, 1], ['B', 2, 2]], censers: [[480, 170, 0.8]], bats: 12, geysers: 8, hatch: 6.5, hint: 'THE LAST VIGIL' }
     ];
 
     // ------------------------------------------------------------------
@@ -107,9 +113,17 @@
         });
     }
 
+    // The bowl hangs at the end of the chain; computed here as well as on
+    // every tick so the title screen shows the censer where play starts it.
+    function placeBowl(c) {
+        c.bx = c.px + Math.sin(c.ang) * c.len;
+        c.by = G.HUD - 4 + Math.cos(c.ang) * c.len;
+        return c;
+    }
+
     function buildCensers(cfg) {
         return (cfg.censers || []).map(function (c) {
-            return { px: c[0], len: c[1], ang: c[2], av: 0, bx: c[0], by: G.HUD + c[1], smoke: 0 };
+            return placeBowl({ px: c[0], len: c[1], ang: c[2], av: 0, bx: 0, by: 0, smoke: 0 });
         });
     }
 
@@ -117,7 +131,7 @@
         var home = s.ledges[0];
         return {
             x: home.x + home.w / 2, y: home.y - 14, vx: 0, vy: 0, hw: 13, hh: 14, face: 1,
-            wing: 0, flapCd: 0, hold: 0, inv: 2, batCd: 0, combo: 0, ground: null
+            wing: 0, flapCd: 0, hold: 0, inv: 2, batCd: 0, combo: 0, comboT: 0, roof: PLAYER_ROOF, ground: null
         };
     }
 
@@ -145,7 +159,7 @@
         return {
             x: x, y: y, vx: 0, vy: 0, hw: 13, hh: 13, tier: tier, boss: false, hp: 1,
             dir: x < G.W / 2 ? 1 : -1, face: 1, targetY: 200, think: 0, flapCd: 0, wing: 0,
-            spawn: delay, stun: 0, dead: false, ground: null
+            spawn: delay, grace: PORTAL_GRACE, stun: 0, dead: false, ground: null
         };
     }
 
@@ -155,13 +169,14 @@
         return d;
     }
 
-    // Demons shimmer into the nave one after another so a wave never lands
-    // on the gargoyle all at once.
+    // Demons shimmer into the nave one after another and at different
+    // heights, so a wave never lands on the gargoyle all at once and no single
+    // spot covers every portal.
     function spawnWave(s) {
         var list = s.cfg.waves[s.wave], first = s.wave === 0;
         list.forEach(function (tier, i) {
             if (tier === 'B') s.demons.push(newBoss());
-            else s.demons.push(newDemon(SPAWNS[(i + s.wave) % SPAWNS.length], SPAWN_Y, tier, 0.9 + i * 0.5));
+            else s.demons.push(newDemon(SPAWNS[(i + s.wave) % SPAWNS.length], SPAWN_Y + (i + s.wave) % 3 * 45, tier, 0.9 + i * 0.5));
         });
         var boss = list.indexOf('B') >= 0;
         s.banner.text = boss ? 'THE ARCHDEMON' : (first ? s.cfg.hint : 'WAVE ' + (s.wave + 1));
@@ -180,9 +195,10 @@
     }
 
     // Pushes a body out of every standing ledge along the axis it overlaps
-    // least, which is the side it came in through. Sets e.ground.
+    // least, which is the side it came in through. Sets e.ground, and
+    // e.blocked to the ledge whose end it ran into.
     function collideLedges(s, e) {
-        e.ground = null;
+        e.ground = null; e.blocked = null;
         for (var i = 0; i < s.ledges.length; i++) {
             var l = s.ledges[i];
             if (l.gone > 0) continue;
@@ -193,6 +209,7 @@
             var side = dx < 0 ? -1 : 1;
             e.x = wrapX(e.x + side * ox);
             e.vx = side * Math.abs(e.vx) * 0.5;
+            e.blocked = l;
         }
     }
 
@@ -200,8 +217,9 @@
         e.vy += grav * dt;
         e.x = wrapX(e.x + e.vx * dt);
         e.y += e.vy * dt;
-        // The vault pushes back, so hugging the ceiling is not a safe perch.
-        var top = G.HUD + e.hh;
+        // The vault pushes back. The gargoyle's `roof` keeps it a little
+        // lower than demons can fly, so it can always be attacked from above.
+        var top = G.HUD + e.hh + (e.roof || 0);
         if (e.y < top) { e.y = top; e.vy = Math.abs(e.vy) * 0.4 + 30; }
         collideLedges(s, e);
     }
@@ -217,13 +235,13 @@
         p.vx = G.clamp(p.vx, -MAX_VX, MAX_VX);
     }
 
-    // Each press is one wing beat; holding the key repeats at a slower rate
-    // so touch players and tired thumbs can still stay airborne.
+    // Each press is one wing beat; holding the key repeats at the rate that
+    // just cancels gravity, so a held key hovers and only tapping climbs.
     function flapPlayer(p, dt) {
         var held = G.key.a || G.key.up;
         p.flapCd -= dt;
         p.hold = held ? p.hold + dt : 0;
-        var want = G.hit.a || G.hit.up || p.hold > 0.24;
+        var want = G.hit.a || G.hit.up || p.hold > HOLD_FLAP;
         if (!want || p.flapCd > 0) return;
         p.hold = 0;
         p.vy = Math.max(Math.min(p.vy, 60) - 250, -360);
@@ -238,7 +256,7 @@
         G.noise(0.4, { freq: 500, slide: 80, vol: 0.3 });
         p.inv = 2.5;
         if (G.loseLife() <= 0) return;
-        p.x = home.x + home.w / 2; p.y = home.y - p.hh; p.vx = 0; p.vy = 0; p.combo = 0;
+        p.x = home.x + home.w / 2; p.y = home.y - p.hh; p.vx = 0; p.vy = 0; p.combo = 0; p.comboT = 0;
     }
 
     function updatePlayer(s, dt) {
@@ -246,6 +264,9 @@
         if (p.inv > 0) p.inv -= dt;
         if (p.batCd > 0) p.batCd -= dt;
         if (p.wing > 0) p.wing -= dt;
+        // A combo lapses a few seconds after the last strike, so staying
+        // airborne alone cannot keep the multiplier alive.
+        if (p.comboT > 0) { p.comboT -= dt; if (p.comboT <= 0) p.combo = 0; }
         steerPlayer(p, dt);
         flapPlayer(p, dt);
         moveBody(s, p, dt, GRAV);
@@ -268,6 +289,8 @@
 
     // Crumbling ledges wear out while the gargoyle stands on them and grow
     // back later, so no perch is safe for long but none is lost for good.
+    // Wear heals while nobody stands there: brief landings must not add up
+    // to a ledge that drops at the first touch.
     function wearLedges(s, dt) {
         var under = s.p.ground;
         if (under && under.crumble) {
@@ -275,6 +298,7 @@
             if (under.wear > CRUMBLE_T) crumble(under);
         }
         s.ledges.forEach(function (l) {
+            if (l !== under && l.wear > 0) l.wear = Math.max(0, l.wear - dt * 0.5);
             if (l.gone <= 0) return;
             l.gone -= dt;
             if (l.gone <= 0) { l.wear = 0; G.tone(330, 0.12, { type: 'triangle', vol: 0.1 }); }
@@ -328,6 +352,7 @@
     function updateDemon(s, d, dt) {
         if (d.spawn > 0) { d.spawn -= dt; return; }
         var T = statsOf(d);
+        if (d.grace > 0) d.grace -= dt;
         if (d.stun > 0) d.stun -= dt;
         if (d.wing > 0) d.wing -= dt;
         d.think -= dt; d.flapCd -= dt;
@@ -340,13 +365,16 @@
             d.flapCd = T.flap; d.wing = 0.16;
         }
         moveBody(s, d, dt, DEMON_GRAV);
+        // A demon that flew into the end of a ledge goes round it on the
+        // gargoyle's side, so stone is never a shield to hide behind.
+        if (d.blocked) { d.targetY = s.p.y > d.blocked.y ? d.blocked.y + LEDGE_H + 30 : d.blocked.y - 34; d.think = 0.7; }
         if (d.y + d.hh <= FIRE_Y) return;
         if (d.boss) { d.y = FIRE_Y - d.hh; d.vy = -300; }
         else smite(s, d);
     }
 
     function summon(s, tier) {
-        s.demons.push(newDemon(SPAWNS[0], SPAWN_Y, tier, 1.2), newDemon(SPAWNS[1], SPAWN_Y, tier, 1.7));
+        s.demons.push(newDemon(SPAWNS[0], SPAWN_Y, tier, 1.2), newDemon(SPAWNS[1], SPAWN_Y + 45, tier, 1.7));
     }
 
     function slayBoss(s, d) {
@@ -383,8 +411,10 @@
         var p = s.p, T = TIERS[d.tier];
         p.vy = -230;
         if (d.boss) { strikeBoss(s, d); return; }
-        // Strikes without touching stone in between multiply the reward.
-        p.combo++;
+        // Strikes in quick succession without touching stone multiply the
+        // reward, up to a cap.
+        p.combo = Math.min(COMBO_MAX, p.combo + 1);
+        p.comboT = COMBO_T;
         d.dead = true;
         s.orbs.push(newOrb(s, d, true));
         G.addScore(T.score * p.combo);
@@ -408,10 +438,12 @@
     }
 
     // The joust rule: whoever is clearly higher at the moment of contact
-    // wins. The archdemon is bigger, so the dive has to be cleaner.
+    // wins. The archdemon is bigger, so the dive has to be cleaner. A demon
+    // fresh out of its portal cannot be touched yet, which rules out waiting
+    // above a portal for a free strike.
     function joust(s, d) {
         var p = s.p;
-        if (d.spawn > 0 || d.dead) return;
+        if (d.spawn > 0 || d.grace > 0 || d.dead) return;
         if (Math.abs(wrapDx(p.x, d.x)) > p.hw + d.hw || Math.abs(p.y - d.y) > p.hh + d.hh) return;
         var edge = d.boss ? 12 : 7;
         if (p.y < d.y - edge) strike(s, d);
@@ -468,8 +500,7 @@
         var before = c.ang, p = s.p;
         c.av -= 900 / c.len * Math.sin(c.ang) * dt;
         c.ang += c.av * dt;
-        c.bx = c.px + Math.sin(c.ang) * c.len;
-        c.by = G.HUD - 4 + Math.cos(c.ang) * c.len;
+        placeBowl(c);
         if (before * c.ang <= 0) G.noise(0.3, { filter: 'bandpass', freq: 300, slide: 900, vol: 0.09 });
         c.smoke -= dt;
         if (c.smoke <= 0) {
@@ -750,13 +781,14 @@
         if (d.spawn > 0) { drawPortal(s, ctx, d, look); return; }
         // A reeling archdemon flickers: it cannot be hurt, nor hurt, for now.
         if (d.stun > 0 && Math.floor(s.t * 14) % 2) ctx.globalAlpha = 0.35;
+        else if (d.grace > 0) ctx.globalAlpha = 0.55;        // not solid yet
         wrapped(d.x, function (x) { drawCreature(ctx, d, x, look, s.t); });
         ctx.globalAlpha = 1;
         if (!d.boss) return;
-        for (var i = 0; i < d.hp; i++) {
-            ctx.fillStyle = COL.gold;
-            ctx.fillRect(d.x - 20 + i * 15, d.y - 62, 10, 5);
-        }
+        ctx.fillStyle = COL.gold;
+        wrapped(d.x, function (x) {
+            for (var i = 0; i < d.hp; i++) ctx.fillRect(x - 20 + i * 15, d.y - 62, 10, 5);
+        });
     }
 
     function drawPlayer(s, ctx) {
@@ -834,17 +866,25 @@
     }
 
     // Tenebrae: only a pool of light around the gargoyle remains; demons
-    // betray themselves by their eyes.
+    // betray themselves by their eyes. The nave wraps, so the light does too:
+    // the screen is split at the point opposite the gargoyle and each side is
+    // lit from whichever image of it (x or x ± W) is nearer.
     function drawDarkness(s, ctx) {
-        var p = s.p, g = ctx.createRadialGradient(p.x, p.y, 50, p.x, p.y, 230);
-        g.addColorStop(0, 'rgba(6,5,10,0)'); g.addColorStop(1, 'rgba(6,5,10,0.95)');
-        ctx.fillStyle = g;
-        ctx.fillRect(0, G.HUD, G.W, FIRE_Y - 24 - G.HUD);
+        var p = s.p, left = p.x < G.W / 2, seam = wrapX(p.x + G.W / 2);
+        var parts = [[0, seam, left ? p.x : p.x - G.W], [seam, G.W, left ? p.x + G.W : p.x]];
+        parts.forEach(function (part) {
+            var g = ctx.createRadialGradient(part[2], p.y, 50, part[2], p.y, 230);
+            g.addColorStop(0, 'rgba(6,5,10,0)'); g.addColorStop(1, 'rgba(6,5,10,0.95)');
+            ctx.fillStyle = g;
+            ctx.fillRect(part[0], G.HUD, part[1] - part[0], FIRE_Y - 24 - G.HUD);
+        });
         ctx.fillStyle = '#ff5a6e';
         s.demons.forEach(function (d) {
             if (d.spawn > 0) return;
-            ctx.fillRect(d.x + d.face * 2 - 1, d.y - 11, 3, 3);
-            ctx.fillRect(d.x + d.face * 8 - 1, d.y - 11, 3, 3);
+            wrapped(d.x, function (x) {
+                ctx.fillRect(x + d.face * 2 - 1, d.y - 11, 3, 3);
+                ctx.fillRect(x + d.face * 8 - 1, d.y - 11, 3, 3);
+            });
         });
     }
 
