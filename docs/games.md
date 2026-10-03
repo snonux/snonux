@@ -35,7 +35,8 @@ A game is one self-contained file that registers itself under its theme name.
         music: { /* see Music */ },
         init: init, update: update, draw: draw,
         hud: function (s) { return 'FUEL 80'; },       // optional, right side of the HUD
-        cursor: 'crosshair'                            // optional CSS cursor over the canvas
+        cursor: 'none'                                 // optional CSS cursor during a level
+                                                       // (menus always show the pointer)
     });
 })();
 ```

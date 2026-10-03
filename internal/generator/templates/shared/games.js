@@ -769,8 +769,18 @@
         try { return fn(); } catch (e) { fail(e); return null; }
     }
 
+    // A game's own cursor (def.cursor, e.g. 'none' when it draws a crosshair)
+    // applies only while its level is on screen; menus always get the normal
+    // pointer so the level boxes stay clickable.
+    function applyCursor() {
+        if (!dom || !cur) return;
+        var inLevel = cur.screen === 'play' || cur.screen === 'intro' || cur.screen === 'dead';
+        dom.canvas.style.cursor = (inLevel && cur.def && cur.def.cursor) || 'default';
+    }
+
     function setScreen(name, timer) {
         cur.screen = name; cur.timer = timer || 0; cur.age = 0;
+        applyCursor();
         // The key or click that confirmed a menu must not also count as the
         // first press of the level (it would serve the ball, fire, bomb …).
         if (name === 'play') endTick();
@@ -1117,7 +1127,6 @@
 
     function boot(theme) {
         cur.def = defs[theme];
-        dom.canvas.style.cursor = cur.def.cursor || 'default';
         musicStart(cur.def.music, 1);
         toTitle();
     }

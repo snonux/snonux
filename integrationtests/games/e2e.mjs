@@ -245,6 +245,10 @@ async function main() {
             } catch (err) {
                 failed++;
                 console.log(`FAIL ${theme}: ${err.message}`);
+                // What the engine itself recorded, so a crash can be told
+                // apart from a slow machine.
+                const engineErrors = await page.eval('window.SnoGame ? SnoGame.debug.errors.slice() : []').catch(() => []);
+                for (const e of engineErrors) console.log(`     engine error: ${String(e).split('\n')[0]}`);
                 if (opts.shots) await page.screenshot(join(opts.shots, `${theme}-FAIL.jpg`)).catch(() => {});
                 await page.eval('window.SnoGame && SnoGame.quit()').catch(() => {});
             }
