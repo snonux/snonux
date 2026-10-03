@@ -96,12 +96,14 @@ async function playForReal(page, theme, shots) {
     if (shots) await page.screenshot(join(shots, `${theme}-title.jpg`));
     await page.press('Enter');
     await page.waitFor(`${STATE}.screen==='play'`, 'play screen after Enter');
+    // Pause first: a harsh level may kill an idle player quickly, and P only
+    // works on the play screen.
+    await checkPause(page);
     // Rule 7 of docs/games.md: the picture keeps changing with no input.
     const idleA = await page.eval(CANVAS_STATS);
     await sleep(600);
     const idleB = await page.eval(CANVAS_STATS);
     check(idleA.hash !== idleB.hash, 'canvas did not change over 0.6s with no input');
-    await checkPause(page);
     await page.key('keyDown', 'ArrowRight');
     await page.key('keyDown', 'Space');
     await sleep(120);
@@ -158,7 +160,9 @@ async function runLevel(page, theme, level, shots) {
 async function checkGameOver(page) {
     await page.eval('SnoGame.debug.start(1); SnoGame.debug.lose()');
     check((await page.eval(STATE)).screen === 'over', 'losing every life must lead to game over');
-    await sleep(700);
+    // The game-over screen ignores Enter for its first half second of game
+    // time; wait on that clock, not the wall clock, so a slow machine passes.
+    await page.waitFor(`${STATE}.age > 0.6`, 'game-over screen to accept input');
     await page.press('Enter');
     await page.waitFor(`${STATE}.screen==='intro' || ${STATE}.screen==='play'`, 'retry after game over');
 }

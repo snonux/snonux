@@ -143,7 +143,9 @@
         moveAxis(b, b.vx * dt, 0, ts, solid);
         moveAxis(b, 0, b.vy * dt, ts, solid);
         if (!b.ground && b.vy >= 0) {
-            b.ground = hitsTiles({ x: b.x, y: b.y + b.h, w: b.w, h: 1 }, ts, solid);
+            // A hair-thin probe: only a body actually touching the tile
+            // below counts, not one still falling toward it.
+            b.ground = hitsTiles({ x: b.x, y: b.y + b.h, w: b.w, h: 0.01 }, ts, solid);
         }
     };
 
@@ -244,6 +246,15 @@
         audioHeld = on;
         if (!actx) return;
         if (on) actx.suspend().catch(noop); else actx.resume().catch(noop);
+    }
+
+    // Quitting closes the context outright. Suspending it would only freeze
+    // the clock, and notes already scheduled (a jingle, the music lookahead)
+    // would then play over the next game's title screen.
+    function closeAudio() {
+        if (actx) actx.close().catch(noop);
+        actx = null; master = null; musicBus = null; sfxBus = null; noiseBuf = null;
+        audioHeld = false;
     }
 
     function countSfx(o) {
@@ -529,6 +540,7 @@
     function clearInput() {
         rawDown = {}; rawHit = {}; G.hit = {};
         G.mouse.down = G.mouse.hit = G.mouse.rdown = G.mouse.rhit = false;
+        activePointer = null;
         refreshLogical();
     }
 
@@ -593,16 +605,32 @@
         return leftHit;
     }
 
+    // The pointer that pressed on the canvas owns the "mouse" until it lifts.
+    // Without this a second finger (on the touch pad, say) reports buttons=0
+    // on its own release and would fake a release and a fresh click.
+    var activePointer = null;
+
+    function foreignPointer(e) { return activePointer !== null && e.pointerId !== activePointer; }
+
     function onPointerDown(e) {
         e.preventDefault();
         audio();
+        if (foreignPointer(e)) return;
+        activePointer = e.pointerId;
         pointerPos(e);
         if (syncButtons(e) && cur && cur.screen !== 'play') menuClick();
     }
 
-    function onPointerMove(e) { pointerPos(e); syncButtons(e); }
+    function onPointerMove(e) {
+        if (foreignPointer(e)) return;
+        pointerPos(e); syncButtons(e);
+    }
 
-    function onPointerUp(e) { syncButtons(e); }
+    function onPointerUp(e) {
+        if (e.pointerId !== activePointer) return;
+        syncButtons(e);
+        if (!e.buttons) activePointer = null;
+    }
 
     // On-screen pad for touch devices; each button simply holds a key.
     var PAD = [
@@ -807,8 +835,14 @@
     // A bad value (undefined, NaN) is ignored so it cannot poison the score.
     G.addScore = function (n) { if (isFinite(n)) G.score += n; };
 
-    // G.addLife(max) — one extra life, never above max (default 5).
-    G.addLife = function (max) { G.lives = Math.min(max || 5, Math.floor(G.lives) + 1); return G.lives; };
+    // G.addLife(max) — one extra life unless that would exceed max (default
+    // 5, and never less than the game's starting lives). It never takes a
+    // life away, whatever max is.
+    G.addLife = function (max) {
+        var have = Math.floor(G.lives), cap = Math.max(max || 5, cur ? maxLives() : 0);
+        G.lives = Math.max(have, Math.min(cap, have + 1));
+        return G.lives;
+    };
 
     function respawn() {
         var lives = G.lives;
@@ -1117,9 +1151,11 @@
         cancelAnimationFrame(raf);
         if (cur && cur.def) writeSave();
         musicStop();
-        // Silence anything already scheduled (jingles, music lookahead).
-        holdAudio(true);
+        closeAudio();
+        // Esc itself is the key most likely still held; it never enters
+        // rawDown because it quits before being recorded.
         lingering = rawDown;
+        lingering.Escape = true;
         clearInput();
         window.removeEventListener('pointerup', onPointerUp);
         if (dom && dom.root.parentNode) dom.root.parentNode.removeChild(dom.root);
@@ -1232,7 +1268,7 @@
             return {
                 theme: cur.theme, screen: cur.screen, level: cur.level, sel: cur.sel, lives: G.lives,
                 score: G.score, unlocked: cur.save.unlocked, hi: cur.save.hi, won: cur.save.won,
-                registered: !!cur.def, t: G.t
+                registered: !!cur.def, t: G.t, age: cur.age
             };
         },
         s: function () { return cur && cur.s; },
@@ -1244,7 +1280,7 @@
                 title: d.title || '', blurb: d.blurb || '', controls: (d.controls || []).length,
                 levelNames: (d.levelNames || []).length, lives: maxLives(),
                 // A tune needs a tempo and at least one voice that plays.
-                music: !!(d.music && d.music.bpm && (d.music.lead || d.music.bass || d.music.arp) && /[^.\-]/.test([].concat(d.music.lead || '', d.music.bass || '', d.music.arp || '').join('')))
+                music: !!(d.music && d.music.bpm && /[0-9a-z]/i.test([].concat(d.music.lead || '', d.music.bass || '', d.music.arp || '').join('')))
             };
         },
         audio: function () {

@@ -81,7 +81,7 @@ State and flow:
 | `G.die()` | lose a life and restart the level from `init` (after a one-second freeze) |
 | `G.loseLife()` | lose a life but keep playing; returns lives left (0 means the engine already showed game over) |
 | `G.addScore(n)` | add to the score |
-| `G.addLife(max)` | one extra life, capped at `max` (default 5); do not write `G.lives` yourself |
+| `G.addLife(max)` | one extra life unless that would exceed `max` (default 5); never removes one; do not write `G.lives` yourself |
 
 Lives are reset to `def.lives` at the start of each level. Set `lives: 1` for
 one-hit games.
