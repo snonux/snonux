@@ -1114,14 +1114,26 @@
         return window.SNONUX_CURRENT_THEME || document.documentElement.getAttribute('data-sno-theme') || '';
     }
 
-    function loadGameScript(theme) {
+    // Fetches themes/<theme>/game.js. A failed fetch is retried a couple of
+    // times before the game is declared broken: one dropped request on a
+    // flaky connection (or a busy machine) should not cost the visitor the game.
+    var LOAD_TRIES = 3;
+
+    function loadGameScript(theme, attempt) {
+        attempt = attempt || 1;
         var s = document.createElement('script');
-        s.src = 'themes/' + theme + '/game.js?b=' + encodeURIComponent(window.SNONUX_BUILD || '');
-        var stillWaiting = function () { return cur && cur.theme === theme && !cur.def && cur.screen === 'loading'; };
-        s.onerror = function () { if (stillWaiting()) fail('could not load ' + s.src); };
+        var waiting = function () { return cur && cur.theme === theme && !cur.def && cur.screen === 'loading'; };
+        s.src = 'themes/' + theme + '/game.js?b=' + encodeURIComponent(window.SNONUX_BUILD || '') +
+            (attempt > 1 ? '&try=' + attempt : '');
+        s.onerror = function () {
+            s.remove();
+            if (!waiting()) return;
+            if (attempt >= LOAD_TRIES) { fail('could not load ' + s.src); return; }
+            setTimeout(function () { if (waiting()) loadGameScript(theme, attempt + 1); }, 400 * attempt);
+        };
         // A script with a syntax error loads "successfully" but never
         // registers; do not leave LOADING up forever.
-        s.onload = function () { if (stillWaiting()) fail(s.src + ' did not register a game'); };
+        s.onload = function () { if (waiting()) fail(s.src + ' did not register a game'); };
         document.head.appendChild(s);
     }
 
