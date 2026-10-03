@@ -13,8 +13,8 @@
     var G = window.SnoGame;
     var C = { bg: '#030706', mint: '#9fffd8', white: '#edfff8', dim: '#78988b', line: '#24473b', alert: '#ffcc70', deep: '#3b6e5c', soft: '#62c9a4' };
     var PX = 3, CW = 46, RH = 36, HALF_W = 16, HALF_H = 12;      // sprite pixel, slot spacing, invader half size
-    var PY = 496, LAND_Y = 470, GROUND_Y = 516, MARGIN = 26, DROP = 20;
-    var SHOT_V = 720, CHARGE = 1.0, BEAM = 0.4;
+    var PY = 496, LAND_Y = 470, GROUND_Y = 516, MARGIN = 26, DROP = 24;
+    var SHOT_V = 720, CHARGE = 1.0, BEAM = 0.4, FADE = 0.4;
     var BUNK = { cols: 14, rows: 7, cell: 6, y: 408 };
     var MARCH = [146.83, 130.81, 116.54, 110];                   // D C Bb A: the descending four-note march
     var CAPS = ['rapid', 'double', 'shield'];
@@ -59,21 +59,35 @@
         SPR[k] = [compile(ART[k][0].concat(ART[k][1])), compile(ART[k][0].concat(ART[k][2]))];
     });
 
-    // One entry per level. map: formation shape; split: first row of a second
-    // group that marches the other way; lo/hi: march speed full/thinned;
-    // bomb: seconds between bombs; dive: seconds between divers; zig: share of
-    // weaving bombs; lance: seconds between lancer beams.
+    // One entry per level:
+    //   map      formation shape, one KIND letter per slot ('.' = empty)
+    //   top      y of the first row (default 84; lower on boss levels)
+    //   split    first row of a second group that marches the other way
+    //   lo, hi   march speed in px/s with the formation full / almost gone;
+    //            lo is high enough that a player who never shoots is landed on
+    //   bomb     mean seconds between formation bombs
+    //   bombV    bomb fall speed in px/s
+    //   maxBombs bombs in the air above which the formation holds fire
+    //   bunkers  number of bunkers
+    //   caps     true when kills and the saucer may drop capsules
+    //   dive     mean seconds between divers; divers: how many may be out
+    //   zig      share of bombs that weave
+    //   cloak    true when a wave of invisibility sweeps the rows
+    //   lance    mean seconds between lancer beams
+    //   boss     mothership: hp, fan (seconds between bolt fans), n (bolts per
+    //            fan), minis (seconds between mini launches), lance (seconds
+    //            between its own beams once below half hp)
     var LV = [
-        { map: ['cccccccc', 'bbbbbbbb', 'bbbbbbbb', 'aaaaaaaa', 'aaaaaaaa'], lo: 22, hi: 120, bomb: 1.5, bombV: 165, maxBombs: 2, bunkers: 4 },
-        { map: ['cc.......cc', 'bbb.....bbb', '.aab...baa.', '..aabbbaa..', '....aaa....'], lo: 26, hi: 130, bomb: 1.3, bombV: 175, maxBombs: 3, bunkers: 4, caps: true },
-        { map: ['ccc.....ccc', 'bbbb...bbbb', 'aaaaa.aaaaa', 'aaaa...aaaa', 'aa.......aa'], lo: 26, hi: 135, bomb: 1.25, bombV: 180, maxBombs: 3, bunkers: 4, caps: true, dive: 4.5, divers: 1 },
-        { map: ['....ccc....', '..bbbbbbb..', '.aaaaaaaaa.', '..sasasas..', '....sss....'], lo: 28, hi: 140, bomb: 1.15, bombV: 190, maxBombs: 3, bunkers: 4, caps: true, dive: 4.2, divers: 1, zig: 0.25 },
-        { map: ['sbbbbbbbs', 'bbbbbbbbb', 'aaaaaaaaa', 'a.a.a.a.a'], top: 144, lo: 24, hi: 120, bomb: 1.4, bombV: 190, maxBombs: 3, bunkers: 3, caps: true, dive: 5, divers: 1, zig: 0.2, boss: { hp: 60, fan: 2.6, n: 3 } },
-        { map: ['..c.c.c.c..', '.xbxbxbxbx.', 'aaaaaaaaaaa', '.xaaxaxaax.'], lo: 30, hi: 145, bomb: 1.1, bombV: 195, maxBombs: 4, bunkers: 4, caps: true, dive: 4, divers: 2, zig: 0.25 },
-        { map: ['ccccccccc', 'bsbsbsbsb', 'axaaxaaxa', 'aaaaaaaaa', 'a.a.a.a.a'], split: 2, lo: 30, hi: 140, bomb: 1.0, bombV: 200, maxBombs: 4, bunkers: 4, caps: true, dive: 3.6, divers: 2, zig: 0.3 },
-        { map: ['c.c.c.c.c.c', 'bbbbbbbbbbb', '.s.s.s.s.s.', 'aaaaaaaaaaa', 'x.a.x.a.x.a'], cloak: true, lo: 32, hi: 150, bomb: 1.0, bombV: 205, maxBombs: 4, bunkers: 2, caps: true, dive: 3.4, divers: 2, zig: 0.3 },
-        { map: ['l...l.l...l', 'bbsbbbbbsbb', 'aaaaaaaaaaa', '.xaasasaax.', '..a.a.a.a..'], lo: 32, hi: 155, bomb: 0.95, bombV: 210, maxBombs: 4, bunkers: 3, caps: true, dive: 3.2, divers: 2, zig: 0.35, lance: 4.5 },
-        { map: ['l.s.l.s.l', 'bxbbbbbxb', 'aaaaaaaaa', '.a.a.a.a.'], top: 150, lo: 28, hi: 140, bomb: 1.1, bombV: 210, maxBombs: 4, bunkers: 2, caps: true, dive: 3.4, divers: 2, zig: 0.3, lance: 6, boss: { hp: 80, fan: 2.2, n: 5, minis: 7, lance: 5 } }
+        { map: ['cccccccc', 'bbbbbbbb', 'bbbbbbbb', 'aaaaaaaa', 'aaaaaaaa'], lo: 36, hi: 120, bomb: 1.5, bombV: 165, maxBombs: 2, bunkers: 4 },
+        { map: ['cc.......cc', 'bbbb...bbbb', 'abbbb.bbbba', '.aaabbbaaa.', '..aaaaaaa..', '....aaa....'], lo: 38, hi: 130, bomb: 1.3, bombV: 175, maxBombs: 3, bunkers: 4, caps: true },
+        { map: ['cccc...cccc', 'bbbbb.bbbbb', 'aaaaa.aaaaa', 'aaaaa.aaaaa', 'aaa.....aaa'], lo: 38, hi: 135, bomb: 1.25, bombV: 180, maxBombs: 3, bunkers: 4, caps: true, dive: 4.5, divers: 1 },
+        { map: ['...ccccc...', '.bbbbbbbbb.', 'aaaaaaaaaaa', '.asasasasa.', '...sssss...'], lo: 40, hi: 140, bomb: 1.15, bombV: 190, maxBombs: 3, bunkers: 4, caps: true, dive: 4.2, divers: 1, zig: 0.25 },
+        { map: ['sbbbbbbbs', 'bbbbbbbbb', 'aaaaaaaaa', 'a.a.a.a.a'], top: 144, lo: 36, hi: 120, bomb: 1.4, bombV: 190, maxBombs: 3, bunkers: 3, caps: true, dive: 5, divers: 1, zig: 0.2, boss: { hp: 60, fan: 2.6, n: 3 } },
+        { map: ['..c.c.c.c..', '.xbxbxbxbx.', 'bbbbbbbbbbb', 'aaaaaaaaaaa', '.xaaxaxaax.'], lo: 40, hi: 145, bomb: 1.1, bombV: 195, maxBombs: 4, bunkers: 4, caps: true, dive: 4, divers: 2, zig: 0.25 },
+        { map: ['ccccccccc', 'bsbsbsbsb', 'bbbbbbbbb', 'axaaxaaxa', 'aaaaaaaaa', 'a.a.a.a.a'], split: 3, lo: 36, hi: 140, bomb: 1.0, bombV: 200, maxBombs: 4, bunkers: 4, caps: true, dive: 3.6, divers: 2, zig: 0.3 },
+        { map: ['ccccccccccc', 'bbbbbbbbbbb', '.sbsbsbsbs.', 'aaaaaaaaaaa', 'x.a.x.a.x.a'], cloak: true, lo: 40, hi: 150, bomb: 1.0, bombV: 205, maxBombs: 4, bunkers: 2, caps: true, dive: 3.4, divers: 2, zig: 0.3 },
+        { map: ['l.c.l.l.c.l', 'bbsbbbbbsbb', 'aaaaaaaaaaa', '.xaasasaax.', '.aa.a.a.aa.'], lo: 42, hi: 155, bomb: 0.95, bombV: 210, maxBombs: 4, bunkers: 3, caps: true, dive: 3.2, divers: 2, zig: 0.35, lance: 4.5 },
+        { map: ['l.s.l.s.l', 'bxbbbbbxb', 'aaaaaaaaa', '.a.a.a.a.'], top: 144, lo: 38, hi: 140, bomb: 1.1, bombV: 210, maxBombs: 4, bunkers: 2, caps: true, dive: 3.4, divers: 2, zig: 0.3, lance: 6, boss: { hp: 80, fan: 2.2, n: 5, minis: 7, lance: 5 } }
     ];
 
     // ------------------------------------------------------------------
@@ -103,7 +117,7 @@
     }
 
     function newInvader(kind, col, row, g) {
-        return { kind: kind, col: col, row: row, g: g, hp: KIND[kind].hp, state: 'form', x: 0, y: 0, vx: 0, vy: 0, flash: 0, bombed: false };
+        return { kind: kind, col: col, row: row, g: g, hp: KIND[kind].hp, state: 'form', x: 0, y: 0, vx: 0, vy: 0, flash: 0, fade: 0, bombed: false, crunch: false, bounty: true };
     }
 
     function slotX(s, e) { return s.groups[e.g].x + e.col * CW; }
@@ -111,8 +125,8 @@
 
     function buildFormation(s) {
         var cfg = s.cfg, cols = cfg.map[0].length, x0 = (G.W - (cols - 1) * CW) / 2, y0 = cfg.top || 84;
-        s.groups = [{ x: x0, y: y0, dir: 1, drop: 0 }];
-        if (cfg.split) s.groups.push({ x: x0, y: y0, dir: -1, drop: 0 });
+        s.groups = [{ x: x0, y: y0, dir: 1 }];
+        if (cfg.split) s.groups.push({ x: x0, y: y0, dir: -1 });
         cfg.map.forEach(function (line, row) {
             for (var col = 0; col < cols; col++) {
                 var kind = line.charAt(col);
@@ -132,7 +146,7 @@
     function init(level) {
         var cfg = LV[level - 1], rnd = G.rng(level * 7919 + 13);
         var s = {
-            cfg: cfg, rnd: rnd, player: { x: G.W / 2, vx: 0 }, inv: [], groups: [], total: 0,
+            cfg: cfg, rnd: rnd, player: { x: G.W / 2, vx: 0 }, inv: [], groups: [], total: 0, drop: 0,
             shots: [], bombs: [], caps: [], beams: [], bunkers: buildBunkers(cfg.bunkers), stars: buildStars(rnd),
             boss: cfg.boss ? newBoss(cfg.boss) : null, saucer: null, saucerT: 9 + rnd() * 6, warble: 0,
             power: { rapid: 0, double: 0 }, shield: false, invuln: 0, cooldown: 0, wipe: false,
@@ -227,8 +241,10 @@
         }
         G.burst(p.x, PY, { n: 28, color: C.mint, speed: 260, life: 0.8, gravity: 300 });
         G.noise(0.5, { freq: 1100, slide: 70, vol: 0.35 });
-        // A respawn starts clean: no capsule powers, and no bombs in the air
-        // (wiped at the end of the tick, as this may run inside their loop).
+        // A hit costs the capsule powers and wipes the bombs in the air (at
+        // the end of the tick, as this may run inside their loop). Divers,
+        // minis and charging beams stay: the invulnerability below is what
+        // gives the player time to get clear of those.
         s.wipe = true; s.power.rapid = 0; s.power.double = 0;
         s.invuln = 2.2; p.vx = 0;
         G.loseLife();
@@ -242,11 +258,15 @@
 
     // The fewer invaders are left, the faster the rest march; squaring keeps
     // the rush for the last handful, like the original.
+    // Minis are loose and do not count: splitting an invader must not slow
+    // the march down again.
     function marchSpeed(s) {
-        var thin = 1 - Math.min(1, s.inv.length / s.total);
+        var left = s.inv.filter(function (e) { return e.kind !== 'm'; }).length;
+        var thin = 1 - Math.min(1, left / s.total);
         return s.cfg.lo + (s.cfg.hi - s.cfg.lo) * thin * thin;
     }
 
+    // Marches one group sideways. Returns true when it met a wall and turned.
     function marchGroup(s, g, gi, v, dt) {
         var min = 99, max = -1;
         s.inv.forEach(function (e) {
@@ -254,16 +274,24 @@
             if (e.col < min) min = e.col;
             if (e.col > max) max = e.col;
         });
-        if (max < 0) return;
-        if (g.drop > 0) {
-            var d = Math.min(g.drop, 80 * dt);
-            g.y += d; g.drop -= d;
-            return;
-        }
+        if (max < 0) return false;
         g.x += g.dir * v * dt;
         var hitRight = g.dir > 0 && g.x + max * CW + HALF_W > G.W - MARGIN;
         var hitLeft = g.dir < 0 && g.x + min * CW - HALF_W < MARGIN;
-        if (hitRight || hitLeft) { g.dir = -g.dir; g.drop = DROP; }
+        if (hitRight || hitLeft) g.dir = -g.dir;
+        return hitRight || hitLeft;
+    }
+
+    // Whichever group meets a wall, every group drops the same step, so
+    // counter-marching groups keep their rows aligned and never interleave.
+    function marchFormation(s, v, dt) {
+        if (s.drop > 0) {
+            var d = Math.min(s.drop, 80 * dt);
+            s.groups.forEach(function (g) { g.y += d; });
+            s.drop -= d;
+            return;
+        }
+        s.groups.forEach(function (g, gi) { if (marchGroup(s, g, gi, v, dt)) s.drop = DROP; });
     }
 
     // The march: four descending notes whose tempo follows the formation's
@@ -279,7 +307,9 @@
     }
 
     function wrapFlier(s, e) {
-        e.y = -20; e.vy = 60; e.bombed = false;
+        // Re-enter just below the HUD strip, fading in, rather than flying
+        // down through the score line.
+        e.y = G.HUD + 12; e.vy = 60; e.bombed = false; e.crunch = false; e.fade = FADE;
         // A diver flies home to its slot; a mini has no slot and dives again.
         if (e.kind === 'm') { e.vx = 0; e.x = 60 + s.rnd() * (G.W - 120); }
         else e.state = 'return';
@@ -289,6 +319,16 @@
         var tx = slotX(s, e), ty = slotY(s, e), d = G.dist(e.x, e.y, tx, ty), step = 300 * dt;
         if (d <= step) { e.state = 'form'; e.x = tx; e.y = ty; return; }
         e.x += (tx - e.x) / d * step; e.y += (ty - e.y) / d * step;
+    }
+
+    // A flier ploughs through bunker cells just as shots and bombs do, so a
+    // bunker never shelters a diver from the cannon underneath it.
+    function crunchBunker(s, e) {
+        if (e.y + 9 < BUNK.y || !clearCells(s, e.x - 10, e.y - 8, e.x + 10, e.y + 8, 1)) return;
+        G.burst(e.x, e.y + 8, { n: 3, color: C.deep, speed: 90, life: 0.3, gravity: 300 });
+        if (e.crunch) return;
+        e.crunch = true;
+        G.noise(0.18, { freq: 500, slide: 150, vol: 0.16 });
     }
 
     // Divers and minis fall with gravity and steer toward the cannon until
@@ -302,6 +342,7 @@
         e.y += e.vy * dt;
         if (!e.bombed && e.y > 250 && e.y < 380) { e.bombed = true; dropBomb(s, e.x, e.y + 10, 0, s.cfg.bombV, 'bolt'); }
         if (e.y > G.H + 24) { wrapFlier(s, e); return; }
+        crunchBunker(s, e);
         if (G.aabb({ x: e.x - 12, y: e.y - 9, w: 24, h: 18 }, playerBox(s)) && s.invuln <= 0) {
             e.hp = 0;
             G.burst(e.x, e.y, { n: 12, color: KIND[e.kind].color, speed: 200 });
@@ -313,10 +354,11 @@
     // has reached the landing line.
     function updateInvaders(s, dt) {
         var v = marchSpeed(s), landed = false;
-        s.groups.forEach(function (g, gi) { marchGroup(s, g, gi, v, dt); });
+        marchFormation(s, v, dt);
         if (s.inv.length) beat(s, v, dt);
         s.inv.forEach(function (e) {
             if (e.flash > 0) e.flash -= dt;
+            if (e.fade > 0) e.fade -= dt;
             if (e.state !== 'form') { updateFlier(s, e, dt); return; }
             e.x = slotX(s, e); e.y = slotY(s, e);
             if (e.y + HALF_H > BUNK.y) clearCells(s, e.x - HALF_W, e.y - HALF_H, e.x + HALF_W, e.y + HALF_H, 1);
@@ -365,8 +407,12 @@
         if (out >= s.cfg.divers || !form.length) return;
         s.diveT = s.cfg.dive * (0.7 + s.rnd() * 0.6);
         var e = form[Math.floor(s.rnd() * form.length)];
-        // It starts by pulling up and away, which reads as peeling off.
-        e.state = 'dive'; e.bombed = false; e.vy = -140; e.vx = (s.rnd() < 0.5 ? -1 : 1) * 120;
+        // It starts by pulling up and away, which reads as peeling off. The
+        // climb is cut short for top rows so it stays out of the saucer lane
+        // and clear of the mothership's hull.
+        var room = Math.max(0, e.y - (s.boss ? 122 : 76));
+        e.state = 'dive'; e.bombed = false; e.crunch = false;
+        e.vy = -Math.min(140, Math.sqrt(600 * room)); e.vx = (s.rnd() < 0.5 ? -1 : 1) * 120;
         G.tone(950, 0.4, { type: 'sawtooth', slide: 210, vol: 0.09 });
     }
 
@@ -429,9 +475,12 @@
         s.caps.push({ x: x, y: y, kind: CAPS[Math.floor(s.rnd() * CAPS.length)] });
     }
 
-    function splitInvader(s, e) {
+    // bounty is false for minis the mothership launches: it launches them
+    // for as long as it lives, so paying for them would be a score farm.
+    function splitInvader(s, e, bounty) {
         [-1, 1].forEach(function (side) {
             var m = newInvader('m', -1, -1, -1);
+            m.bounty = bounty;
             m.state = 'dive'; m.x = e.x + side * 10; m.y = e.y; m.vx = side * 130; m.vy = -90;
             s.inv.push(m);
         });
@@ -448,14 +497,14 @@
             return;
         }
         // Shooting an invader out of its dive is harder, so it pays double.
-        var pts = k.pts * (e.state === 'form' ? 1 : 2);
+        var pts = e.bounty ? k.pts * (e.state === 'form' ? 1 : 2) : 0;
         G.addScore(pts);
-        G.popup(e.x, e.y - 10, pts, k.color);
+        if (pts) G.popup(e.x, e.y - 10, pts, k.color);
         G.burst(e.x, e.y, { n: 12, color: k.color, speed: 190, life: 0.5 });
         G.noise(0.14, { freq: 1600, slide: 200, vol: 0.2 });
         G.tone(700 - e.row * 60, 0.09, { slide: 160, vol: 0.1 });
-        if (e.kind === 'x') splitInvader(s, e);
-        dropCapsule(s, e.x, e.y, false);
+        if (e.kind === 'x') splitInvader(s, e, true);
+        if (e.bounty) dropCapsule(s, e.x, e.y, false);
     }
 
     function applyCapsule(s, kind) {
@@ -525,7 +574,7 @@
     function bossMinis(s, b) {
         var loose = s.inv.filter(function (e) { return e.kind === 'm'; }).length;
         if (loose >= 4) return;
-        splitInvader(s, { x: b.x, y: b.y + 20 });
+        splitInvader(s, { x: b.x, y: b.y + 20 }, false);
     }
 
     // The mothership is pulled toward a wandering target by a damped spring,
@@ -688,6 +737,7 @@
 
     // On the cloak level a wave of invisibility sweeps through the rows.
     function invaderAlpha(s, e) {
+        if (e.fade > 0) return 1 - e.fade / FADE;
         if (!s.cfg.cloak || e.state !== 'form') return 1;
         return G.clamp(0.55 + Math.sin(G.t * 1.3 + e.row * 0.9 + e.col * 0.25) * 1.1, 0.07, 1);
     }
@@ -802,6 +852,9 @@
         drawPlayer(s, ctx);
     }
 
+    // HOSTILES is everything that still has to be destroyed to clear the
+    // level, so it includes loose minis and the mothership (and goes up by
+    // one when a splitter bursts into two).
     function hud(s) {
         var on = [];
         if (s.power.rapid > 0) on.push('RAPID');
