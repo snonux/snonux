@@ -1,0 +1,672 @@
+/*
+ * Light Cycles — the neon theme's game.
+ *
+ * A grid arena in which every cycle drags a solid wall of light behind it.
+ * Touching any wall, block or the arena edge derezzes the rider (and takes its
+ * wall with it). The player outlasts every AI rider to win a round and needs a
+ * number of round wins to clear the level; a lost round costs a life.
+ *
+ * SPACE boosts on a limited charge. The charge comes back slowly, faster from
+ * energy pods, and fastest by "grinding": riding right alongside another
+ * rider's wall — the risky way to stay quick.
+ */
+(function () {
+    'use strict';
+    var G = window.SnoGame;
+    var CELL = 12, COLS = 80, ROWS = 42, OY = 33, N = COLS * ROWS;
+    var DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];             // right, down, left, up
+    var KEYS = ['right', 'down', 'left', 'up'];             // logical button per direction
+    var WALL = 7;                                           // grid value of blocks; 1..6 are cycle ids
+    var MAX_RING = 15;                                      // the collapse stops here, leaving a 50x12 core
+    var BOOST = 1.75, COUNT_STEP = 0.6, LOCK_AT = 30;
+    var GRACE = 3;                                          // seconds of a round before riders hunt or boost
+    var C = { bg: '#0b001a', cyan: '#00f5ff', magenta: '#ff00cc', yellow: '#ffe700', fg: '#e0f8ff', dim: '#7d6aa8', block: '#8a4dff' };
+    var RIDER_COLORS = ['#ff00cc', '#ffe700', '#ff7a1a', '#5dff6e', '#b78cff'];
+    // Start cell and heading: the player first, then up to five riders. No two
+    // lanes face each other, so nobody is forced into a head-on at the start.
+    var SPAWNS = [[10, 21, 0], [69, 20, 2], [36, 5, 1], [43, 36, 3], [69, 7, 2], [69, 34, 2]];
+
+    // How a rider thinks. look: how far ahead it sees a wall; flood: how many
+    // cells of free room it counts before committing to a turn (0 = it never
+    // checks and so rides into dead ends); aggr: how hard it steers to cut off
+    // the nearest other cycle; wobble: chance per cell of a needless turn; miss: chance per
+    // cell of reacting late; boost: whether it uses its charge.
+    var SKILL = {
+        rookie: { look: 4, flood: 0, aggr: 0, wobble: 0.03, miss: 0.035, jitter: 6, boost: false },
+        scout: { look: 8, flood: 40, aggr: 0, wobble: 0.015, miss: 0.04, jitter: 5, boost: false },
+        hunter: { look: 10, flood: 150, aggr: 0.5, wobble: 0.005, miss: 0.02, jitter: 3, boost: true },
+        ace: { look: 12, flood: 500, aggr: 0.7, wobble: 0, miss: 0.008, jitter: 2, boost: true },
+        expert: { look: 14, flood: N, aggr: 1, wobble: 0, miss: 0, jitter: 1, boost: true }
+    };
+
+    // need: round wins to clear; speed: cells per second; decay: trail length
+    // in cells before the wall fades; shrink: seconds until the first ring
+    // collapses and between rings.
+    var LEVELS = [
+        { need: 2, speed: 13, riders: ['rookie'] },
+        { need: 2, speed: 14, riders: ['rookie', 'scout'] },
+        { need: 2, speed: 15, riders: ['scout', 'scout'], layout: 'pillars', blocks: 5 },
+        { need: 2, speed: 17, riders: ['scout', 'hunter', 'rookie'], pods: true },
+        { need: 2, speed: 17, riders: ['hunter', 'scout', 'rookie'], pods: true, decay: 70 },
+        { need: 3, speed: 18, riders: ['hunter', 'scout', 'scout', 'rookie'], pods: true, layout: 'bars', blocks: 6 },
+        { need: 3, speed: 19, riders: ['ace', 'hunter', 'scout', 'rookie'], pods: true, decay: 90, layout: 'pillars', blocks: 4 },
+        { need: 3, speed: 20, riders: ['hunter', 'hunter', 'scout'], pods: true, shrink: { start: 8, every: 4.5 } },
+        { need: 2, speed: 21, riders: ['hunter', 'hunter', 'scout', 'rookie', 'rookie'], pods: true, decay: 110, layout: 'bars', blocks: 4, shrink: { start: 10, every: 5 } },
+        { need: 3, speed: 23, riders: ['expert'], pods: true, layout: 'pillars', blocks: 2, shrink: { start: 6, every: 3.6 } }
+    ];
+
+    // ------------------------------------------------------------------
+    // Arena layout
+    // ------------------------------------------------------------------
+
+    // Blocks are mirrored into all four quadrants so no start lane is favoured.
+    function mirrorRect(base, x, y, w, h) {
+        for (var j = 0; j < h; j++) {
+            for (var i = 0; i < w; i++) {
+                var xs = [x + i, COLS - 1 - x - i], ys = [y + j, ROWS - 1 - y - j];
+                for (var k = 0; k < 4; k++) base[ys[k >> 1] * COLS + xs[k & 1]] = WALL;
+            }
+        }
+    }
+
+    // Every rider gets a clear lane ahead of its start cell, whatever the
+    // seeded layout put there, so a round never begins with a forced crash.
+    function carveSpawns(base) {
+        SPAWNS.forEach(function (sp) {
+            var px = DY[sp[2]], py = DX[sp[2]];             // unit vector across the lane
+            for (var k = -2; k <= 14; k++) {
+                for (var side = -1; side <= 1; side++) {
+                    var x = sp[0] + DX[sp[2]] * k + px * side, y = sp[1] + DY[sp[2]] * k + py * side;
+                    if (x >= 0 && y >= 0 && x < COLS && y < ROWS) base[y * COLS + x] = 0;
+                }
+            }
+        });
+    }
+
+    function buildLayout(level, cfg) {
+        var base = new Uint8Array(N), rnd = G.rng(level * 7919), w, h;
+        for (var i = 0; i < (cfg.blocks || 0); i++) {
+            if (cfg.layout === 'bars') {
+                var flat = rnd() < 0.5;
+                w = flat ? 6 + Math.floor(rnd() * 9) : 1;
+                h = flat ? 1 : 4 + Math.floor(rnd() * 6);
+            } else {
+                w = 2 + Math.floor(rnd() * 3); h = 2 + Math.floor(rnd() * 3);
+            }
+            mirrorRect(base, 5 + Math.floor(rnd() * (34 - w)), 3 + Math.floor(rnd() * (17 - h)), w, h);
+        }
+        carveSpawns(base);
+        return base;
+    }
+
+    function blockCells(base) {
+        var cells = [];
+        for (var i = 0; i < N; i++) if (base[i]) cells.push(i);
+        return cells;
+    }
+
+    // ------------------------------------------------------------------
+    // Rounds
+    // ------------------------------------------------------------------
+
+    function newCycle(s, n, skill) {
+        var sp = SPAWNS[n], i = sp[1] * COLS + sp[0];
+        s.grid[i] = n + 1;
+        return {
+            id: n + 1, x: sp[0], y: sp[1], dir: sp[2], prog: 0, alive: true, trail: [i], tail: 0,
+            queue: [], charge: 1, boosting: false, boostT: 0, stepTick: -1,
+            skill: skill, color: n ? RIDER_COLORS[n - 1] : C.cyan
+        };
+    }
+
+    // A round restarts everything except the wins: the arena, the collapse,
+    // the trails and every rider.
+    function startRound(s) {
+        s.grid.set(s.base);
+        s.cycles = [newCycle(s, 0, null)];
+        s.cfg.riders.forEach(function (name, i) { s.cycles.push(newCycle(s, i + 1, SKILL[name])); });
+        s.me = s.cycles[0];
+        s.phase = 'count'; s.timer = COUNT_STEP * 3; s.beeps = 4; s.msg = '';
+        s.roundT = 0; s.ring = 0; s.warned = false; s.locked = false;
+        s.shrinkT = s.cfg.shrink ? s.cfg.shrink.start : 0;
+        s.pod = null; s.podT = 3; s.boostSfx = 0; s.grindSfx = 0;
+        s.round++;
+    }
+
+    function init(level) {
+        var cfg = LEVELS[level - 1], base = buildLayout(level, cfg);
+        var s = {
+            cfg: cfg, base: base, blocks: blockCells(base), wins: 0, round: 0, time: 0, tick: 0,
+            grid: new Uint8Array(N), mark: new Uint16Array(N), queue: new Int16Array(N), stamp: 0,
+            note: { text: '', t: 0 }
+        };
+        startRound(s);
+        return s;
+    }
+
+    function setNote(s, text) { s.note.text = text; s.note.t = 2.2; }
+
+    function ridersAlive(s) {
+        return s.cycles.filter(function (c) { return c !== s.me && c.alive; }).length;
+    }
+
+    // ------------------------------------------------------------------
+    // Grid queries
+    // ------------------------------------------------------------------
+
+    function ringOf(x, y) { return Math.min(x, y, COLS - 1 - x, ROWS - 1 - y); }
+
+    // `virt` also counts the ring that collapses next as solid: riders plan
+    // with it so they are not standing there when it goes.
+    function solid(s, x, y, virt) {
+        if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return true;
+        if (s.grid[y * COLS + x]) return true;
+        return !!(virt && s.cfg.shrink && s.ring < MAX_RING && ringOf(x, y) <= s.ring);
+    }
+
+    function runLength(s, x, y, d, cap, virt) {
+        var n = 0;
+        while (n < cap && !solid(s, x + DX[d] * (n + 1), y + DY[d] * (n + 1), virt)) n++;
+        return n;
+    }
+
+    // Counts the free cells reachable from (x, y), up to `cap`. The stamp
+    // saves clearing the visited map for each of the many floods per second.
+    function flood(s, x, y, cap, virt) {
+        if (++s.stamp > 65000) { s.mark.fill(0); s.stamp = 1; }
+        var q = s.queue, mark = s.mark, st = s.stamp, head = 0, tail = 0, n = 0;
+        q[tail++] = y * COLS + x; mark[y * COLS + x] = st;
+        while (head < tail && n < cap) {
+            var i = q[head++], cx = i % COLS, cy = (i - cx) / COLS;
+            n++;
+            for (var d = 0; d < 4; d++) {
+                var nx = cx + DX[d], ny = cy + DY[d], j = ny * COLS + nx;
+                if (solid(s, nx, ny, virt) || mark[j] === st) continue;
+                mark[j] = st; q[tail++] = j;
+            }
+        }
+        return n;
+    }
+
+    // ------------------------------------------------------------------
+    // Rider AI
+    // ------------------------------------------------------------------
+
+    function options(s, c, virt) {
+        var out = [], rel = [0, 1, 3];                      // straight, right, left
+        for (var k = 0; k < 3; k++) {
+            var d = (c.dir + rel[k]) % 4, free = runLength(s, c.x, c.y, d, c.skill.look, virt);
+            if (free > 0) out.push({ d: d, free: free, straight: k === 0, area: 0 });
+        }
+        return out;
+    }
+
+    // Fills in the room behind each option and returns the largest, or 0 for
+    // riders that do not look that far.
+    function measure(s, c, opts, virt) {
+        var max = 0;
+        if (!c.skill.flood) return 0;
+        opts.forEach(function (o) {
+            o.area = flood(s, c.x + DX[o.d], c.y + DY[o.d], c.skill.flood, virt);
+            max = Math.max(max, o.area);
+        });
+        return max;
+    }
+
+    // Hunters go for whichever cycle is nearest, rider or player, so the pack
+    // fights among itself instead of ganging up. They aim at a point ahead of
+    // the prey to arrive in front of its nose, and hold off for the first
+    // seconds so nobody is ambushed straight off the start line.
+    function target(s, c) {
+        var prey = null, near = Infinity;
+        if (!c.skill.aggr || s.roundT < GRACE) return null;
+        s.cycles.forEach(function (o) {
+            var d = Math.abs(o.x - c.x) + Math.abs(o.y - c.y);
+            if (o !== c && o.alive && d < near) { near = d; prey = o; }
+        });
+        if (!prey) return null;
+        var lead = Math.min(10, Math.floor(near / 2));
+        return { x: prey.x + DX[prey.dir] * lead, y: prey.y + DY[prey.dir] * lead };
+    }
+
+    function rate(c, o, maxArea, tgt, wobble) {
+        var sk = c.skill, sc = o.free * 2 + G.rnd(0, sk.jitter);
+        if (o.straight) sc += wobble ? -6 : 6;              // going straight is the default
+        if (maxArea) sc += 80 * o.area / maxArea;           // never trade room for anything else
+        if (tgt) {
+            var now = Math.abs(c.x - tgt.x) + Math.abs(c.y - tgt.y);
+            var then = Math.abs(c.x + DX[o.d] - tgt.x) + Math.abs(c.y + DY[o.d] - tgt.y);
+            sc += sk.aggr * 8 * (now - then);
+        }
+        return sc;
+    }
+
+    function planBoost(s, c, best) {
+        var sk = c.skill;
+        if (sk.boost && s.roundT >= GRACE && c.boostT <= 0 && c.charge > 0.4 && best.free >= sk.look * 0.8 && Math.random() < 0.05) {
+            c.boostT = G.rnd(0.4, 1.1);
+        }
+    }
+
+    // Picks the heading for the next cell. A "miss" skips the decision, which
+    // is how weaker riders end up in a wall they could have avoided.
+    function think(s, c) {
+        var sk = c.skill, virt = true, best = null, bestSc = -Infinity;
+        if (Math.random() < sk.miss) return;
+        var opts = options(s, c, virt);
+        if (!opts.length) { virt = false; opts = options(s, c, virt); }
+        if (!opts.length) return;
+        var maxArea = measure(s, c, opts, virt), tgt = target(s, c), wobble = Math.random() < sk.wobble;
+        opts.forEach(function (o) {
+            var sc = rate(c, o, maxArea, tgt, wobble);
+            if (sc > bestSc) { bestSc = sc; best = o; }
+        });
+        c.dir = best.d;
+        planBoost(s, c, best);
+    }
+
+    // ------------------------------------------------------------------
+    // Cycles
+    // ------------------------------------------------------------------
+
+    function cellX(i) { return (i % COLS) * CELL + CELL / 2; }
+    function cellY(i) { return OY + Math.floor(i / COLS) * CELL + CELL / 2; }
+
+    function readTurns(s) {
+        var q = s.me.queue;
+        // Two buffered turns are enough for a quick U-turn without letting
+        // stale presses pile up.
+        for (var d = 0; d < 4; d++) if (G.hit[KEYS[d]] && q.length < 2) q.push(d);
+    }
+
+    function steerPlayer(c) {
+        while (c.queue.length) {
+            var d = c.queue.shift();
+            if (d === c.dir || d === (c.dir + 2) % 4) continue;   // no-op or a reversal into the own wall
+            c.dir = d;
+            G.tone(540, 0.03, { vol: 0.07 });
+            return;
+        }
+    }
+
+    // The wall goes down with its rider, which reopens the arena.
+    function derez(s, c) {
+        var px = cellX(c.y * COLS + c.x), py = cellY(c.y * COLS + c.x);
+        c.alive = false; c.boosting = false;
+        for (var k = c.tail; k < c.trail.length; k++) {
+            var i = c.trail[k];
+            if (s.grid[i] === c.id) s.grid[i] = 0;
+            if (k % 6 === 0) G.burst(cellX(i), cellY(i), { n: 2, color: c.color, speed: 60, life: 0.7, size: 3 });
+        }
+        c.trail = []; c.tail = 0;
+        G.burst(px, py, { n: 28, color: c.color, speed: 260, life: 0.8, size: 4, drag: 2 });
+        G.burst(px, py, { n: 10, color: C.fg, speed: 140, life: 0.5 });
+        G.sfx('boom');
+        G.tone(700, 0.4, { type: 'sawtooth', slide: 60, vol: 0.14 });
+        G.shake(5, 0.25);
+        if (c !== s.me && s.me.alive && s.phase === 'run') {
+            G.addScore(100 * G.level);
+            G.popup(px, py - 12, '+' + 100 * G.level, c.color);
+        }
+    }
+
+    // Two cycles meeting nose to nose in the same cell on the same tick take
+    // each other out. Anything else — including ramming a head from the side —
+    // only costs the one that ran into the wall.
+    function crash(s, c, nx, ny) {
+        var inside = nx >= 0 && ny >= 0 && nx < COLS && ny < ROWS;
+        var o = inside ? s.cycles[s.grid[ny * COLS + nx] - 1] : null;
+        var headOn = o && o !== c && o.alive && o.x === nx && o.y === ny && o.stepTick === s.tick && o.dir === (c.dir + 2) % 4;
+        if (headOn) derez(s, o);
+        derez(s, c);
+    }
+
+    function fade(s, c) {
+        if (!s.cfg.decay || s.locked) return;
+        while (c.trail.length - c.tail > s.cfg.decay) {
+            var i = c.trail[c.tail++];
+            if (s.grid[i] === c.id) s.grid[i] = 0;
+        }
+        // Drop the faded prefix now and then so the list stays short.
+        if (c.tail > 400) { c.trail = c.trail.slice(c.tail); c.tail = 0; }
+    }
+
+    function takePod(s, c) {
+        s.pod = null; s.podT = 5;
+        c.charge = Math.min(1, c.charge + 0.5);
+        if (c !== s.me) { G.sfx('blip'); return; }
+        G.sfx('coin');
+        G.addScore(50);
+        G.popup(cellX(c.y * COLS + c.x), cellY(c.y * COLS + c.x) - 10, 'CHARGE', C.yellow);
+    }
+
+    // Riding with a rival's wall right beside the cycle recharges the boost.
+    function grind(s, c) {
+        for (var side = 1; side <= 3; side += 2) {
+            var d = (c.dir + side) % 4, x = c.x + DX[d], y = c.y + DY[d];
+            if (x < 0 || y < 0 || x >= COLS || y >= ROWS) continue;
+            var v = s.grid[y * COLS + x];
+            if (!v || v === WALL || v === c.id) continue;
+            c.charge = Math.min(1, c.charge + 0.035);
+            G.addScore(2);
+            G.burst(cellX(c.y * COLS + c.x) + DX[d] * 5, cellY(c.y * COLS + c.x) + DY[d] * 5, { n: 2, color: C.fg, speed: 90, life: 0.25, size: 2 });
+            if (s.grindSfx <= 0) { G.tone(1900, 0.03, { type: 'sawtooth', vol: 0.05 }); s.grindSfx = 0.09; }
+        }
+    }
+
+    function stepCell(s, c) {
+        if (c === s.me) steerPlayer(c); else think(s, c);
+        var nx = c.x + DX[c.dir], ny = c.y + DY[c.dir];
+        if (solid(s, nx, ny, false)) { crash(s, c, nx, ny); return; }
+        c.x = nx; c.y = ny; c.stepTick = s.tick;
+        s.grid[ny * COLS + nx] = c.id;
+        c.trail.push(ny * COLS + nx);
+        fade(s, c);
+        if (s.pod && s.pod.x === nx && s.pod.y === ny) takePod(s, c);
+        if (c === s.me) grind(s, c);
+        if (c.boosting) G.burst(cellX(ny * COLS + nx), cellY(ny * COLS + nx), { n: 1, color: c.color, speed: 50, life: 0.35, size: 2 });
+    }
+
+    // Boosting drains the charge in two seconds; it trickles back otherwise.
+    function tickCharge(s, c, dt) {
+        var want = c === s.me ? G.key.a : c.boostT > 0;
+        if (c.boostT > 0) c.boostT -= dt;
+        c.boosting = want && s.phase === 'run' && c.charge > 0.02;
+        c.charge = G.clamp(c.charge + (c.boosting ? -0.5 : 0.05) * dt, 0, 1);
+    }
+
+    function moveAll(s, dt) {
+        s.cycles.forEach(function (c) {
+            if (!c.alive) return;
+            tickCharge(s, c, dt);
+            c.prog += s.cfg.speed * (c.boosting ? BOOST : 1) * dt;
+            while (c.prog >= 1 && c.alive) { c.prog -= 1; stepCell(s, c); }
+        });
+        if (s.me.boosting && s.boostSfx <= 0) {
+            G.noise(0.14, { filter: 'bandpass', freq: 900, slide: 2600, vol: 0.09 });
+            s.boostSfx = 0.16;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Arena events: collapse, trail lock, pods
+    // ------------------------------------------------------------------
+
+    function collapse(s) {
+        var r = s.ring;
+        for (var i = 0; i < N; i++) if (ringOf(i % COLS, Math.floor(i / COLS)) === r) s.grid[i] = WALL;
+        if (s.pod && ringOf(s.pod.x, s.pod.y) === r) s.pod = null;
+        s.ring++;
+        s.cycles.forEach(function (c) { if (c.alive && ringOf(c.x, c.y) === r) derez(s, c); });
+        G.noise(0.5, { freq: 320, slide: 50, vol: 0.3 });
+        G.shake(4, 0.3);
+    }
+
+    function tickShrink(s, dt) {
+        if (!s.cfg.shrink || s.ring >= MAX_RING) return;
+        s.shrinkT -= dt;
+        if (s.shrinkT < 1.3 && !s.warned) { s.warned = true; G.sfx('alarm'); }
+        if (s.shrinkT > 0) return;
+        collapse(s);
+        s.shrinkT = s.cfg.shrink.every; s.warned = false;
+    }
+
+    // Fading trails could let a careful round go on forever, so after a while
+    // they stop fading and the arena fills up like any other.
+    function tickLock(s) {
+        if (!s.cfg.decay || s.locked || s.roundT < LOCK_AT) return;
+        s.locked = true;
+        setNote(s, 'TRAILS LOCKED');
+        G.tone(220, 0.5, { type: 'sawtooth', slide: 880, vol: 0.14 });
+    }
+
+    function tickPod(s, dt) {
+        if (!s.cfg.pods || s.pod) return;
+        s.podT -= dt;
+        if (s.podT > 0) return;
+        // A few tries at a free cell away from the edge; if all are taken the
+        // next tick simply tries again.
+        for (var k = 0; k < 12; k++) {
+            var x = Math.floor(G.rnd(4, COLS - 4)), y = Math.floor(G.rnd(4, ROWS - 4));
+            if (solid(s, x, y, true) || ringOf(x, y) <= s.ring + 1) continue;
+            s.pod = { x: x, y: y };
+            G.tone(1320, 0.08, { type: 'triangle', vol: 0.08 });
+            return;
+        }
+    }
+
+    function tickArena(s, dt) {
+        s.roundT += dt;
+        s.boostSfx -= dt; s.grindSfx -= dt;
+        tickShrink(s, dt);
+        tickLock(s);
+        tickPod(s, dt);
+    }
+
+    // ------------------------------------------------------------------
+    // Round flow
+    // ------------------------------------------------------------------
+
+    function tickCount(s, dt) {
+        s.timer -= dt;
+        var left = Math.ceil(s.timer / COUNT_STEP);
+        // s.beeps starts one above the count, so the "3" also sounds here on
+        // the first tick and init (which runs on the title screen) stays silent.
+        if (left < s.beeps && left > 0) G.tone(440, 0.09, { type: 'triangle', vol: 0.16 });
+        s.beeps = left;
+        if (s.timer > 0) return;
+        s.phase = 'run';
+        G.tone(880, 0.3, { type: 'triangle', vol: 0.2 });
+    }
+
+    function endRound(s, msg) { s.phase = 'end'; s.timer = 1.7; s.msg = msg; }
+
+    function roundWon(s) {
+        s.wins++;
+        G.addScore(250 * G.level);
+        G.burst(cellX(s.me.y * COLS + s.me.x), cellY(s.me.y * COLS + s.me.x), { n: 30, color: C.cyan, speed: 220, life: 0.9 });
+        if (s.wins >= s.cfg.need) { G.win(500 * G.level + G.lives * 200); return; }
+        G.sfx('power');
+        endRound(s, 'ROUND WON');
+    }
+
+    // Decides the round once per tick, after every cycle has moved, so a
+    // mutual crash is seen as a draw and not as whoever moved first.
+    function judge(s) {
+        var riders = ridersAlive(s);
+        if (s.me.alive) { if (!riders) roundWon(s); return; }
+        if (!riders) { G.sfx('bounce'); endRound(s, 'DRAW — REPLAY'); return; }
+        if (G.loseLife() > 0) endRound(s, 'DEREZZED');
+    }
+
+    function update(s, dt) {
+        s.time += dt; s.tick++;
+        if (s.note.t > 0) s.note.t -= dt;
+        readTurns(s);
+        if (s.phase === 'count') { tickCount(s, dt); return; }
+        if (s.phase === 'run') tickArena(s, dt);
+        // After a win everything freezes for the banner; after a loss the
+        // surviving riders ride on.
+        if (s.phase === 'run' || !s.me.alive) moveAll(s, dt);
+        if (s.phase === 'run') { judge(s); return; }
+        s.timer -= dt;
+        if (s.timer <= 0) startRound(s);
+    }
+
+    // ------------------------------------------------------------------
+    // Drawing
+    // ------------------------------------------------------------------
+
+    function drawFloor(s, ctx) {
+        var h = ROWS * CELL, k;
+        ctx.fillStyle = C.bg;
+        ctx.fillRect(0, 0, G.W, G.H);
+        ctx.lineWidth = 1;
+        for (k = 0; k <= COLS; k++) {
+            ctx.strokeStyle = k % 4 ? 'rgba(0,245,255,0.05)' : 'rgba(0,245,255,0.13)';
+            ctx.beginPath(); ctx.moveTo(k * CELL + 0.5, OY); ctx.lineTo(k * CELL + 0.5, OY + h); ctx.stroke();
+        }
+        for (k = 0; k <= ROWS; k++) {
+            ctx.strokeStyle = (k + 1) % 4 ? 'rgba(255,0,204,0.05)' : 'rgba(255,0,204,0.13)';
+            ctx.beginPath(); ctx.moveTo(0, OY + k * CELL + 0.5); ctx.lineTo(G.W, OY + k * CELL + 0.5); ctx.stroke();
+        }
+        // A scan line sweeps the floor so the arena is never completely still.
+        var sy = OY + (s.time * 90) % h, grad = ctx.createLinearGradient(0, sy - 40, 0, sy);
+        grad.addColorStop(0, 'rgba(0,245,255,0)'); grad.addColorStop(1, 'rgba(0,245,255,0.10)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, Math.max(OY, sy - 40), G.W, sy - Math.max(OY, sy - 40));
+    }
+
+    function drawBlocks(s, ctx) {
+        ctx.fillStyle = 'rgba(138,77,255,0.35)';
+        ctx.strokeStyle = C.block;
+        ctx.lineWidth = 1;
+        s.blocks.forEach(function (i) {
+            var x = (i % COLS) * CELL, y = OY + Math.floor(i / COLS) * CELL;
+            ctx.fillRect(x, y, CELL, CELL);
+            ctx.strokeRect(x + 1.5, y + 1.5, CELL - 3, CELL - 3);
+        });
+    }
+
+    // The collapsed border, and a band on the ring that goes next which
+    // blinks faster as its time runs out.
+    function drawCollapse(s, ctx) {
+        var t = s.ring * CELL, w = G.W - 2 * t, h = ROWS * CELL - 2 * t;
+        if (t) {
+            ctx.fillStyle = 'rgba(255,0,204,0.20)';
+            ctx.fillRect(0, OY, G.W, t); ctx.fillRect(0, OY + ROWS * CELL - t, G.W, t);
+            ctx.fillRect(0, OY + t, t, h); ctx.fillRect(G.W - t, OY + t, t, h);
+        }
+        ctx.shadowColor = t ? C.magenta : C.cyan; ctx.shadowBlur = 12;
+        ctx.strokeStyle = t ? C.magenta : C.cyan; ctx.lineWidth = 2;
+        ctx.strokeRect(t + 1, OY + t + 1, w - 2, h - 2);
+        ctx.shadowBlur = 0;
+        if (!s.cfg.shrink || s.ring >= MAX_RING || s.phase !== 'run') return;
+        var urgent = s.shrinkT < 1.3, blink = 0.5 + 0.5 * Math.sin(s.time * (urgent ? 26 : 5));
+        ctx.strokeStyle = 'rgba(255,0,204,' + (urgent ? 0.25 + 0.5 * blink : 0.08 + 0.08 * blink) + ')';
+        ctx.lineWidth = CELL;
+        ctx.strokeRect(t + CELL / 2, OY + t + CELL / 2, w - CELL, h - CELL);
+    }
+
+    function drawPod(s, ctx) {
+        if (!s.pod) return;
+        var x = s.pod.x * CELL + CELL / 2, y = OY + s.pod.y * CELL + CELL / 2, r = 6 + 2 * Math.sin(s.time * 8);
+        ctx.shadowColor = C.yellow; ctx.shadowBlur = 14;
+        ctx.fillStyle = C.yellow;
+        ctx.beginPath();
+        ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y);
+        ctx.closePath(); ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    // The head is drawn on its way into its current cell: the grid already
+    // counts that cell as taken, so the picture never lags behind a crash.
+    function headPos(c) {
+        var i = c.y * COLS + c.x, back = c.stepTick < 0 ? 0 : (1 - Math.min(1, c.prog)) * CELL;
+        return { x: cellX(i) - DX[c.dir] * back, y: cellY(i) - DY[c.dir] * back };
+    }
+
+    // A wide soft stroke under a thin bright one reads as glow without the
+    // cost of blurring thousands of trail cells.
+    function drawTrail(ctx, c, h) {
+        var t = c.trail, last = t.length - 1;
+        ctx.beginPath();
+        ctx.moveTo(cellX(t[Math.min(c.tail, last)]), cellY(t[Math.min(c.tail, last)]));
+        for (var k = c.tail + 1; k < last; k++) ctx.lineTo(cellX(t[k]), cellY(t[k]));
+        ctx.lineTo(h.x, h.y);
+        ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
+        ctx.strokeStyle = c.color;
+        ctx.globalAlpha = 0.28; ctx.lineWidth = 9; ctx.stroke();
+        ctx.globalAlpha = 1; ctx.lineWidth = 4; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.2; ctx.stroke();
+    }
+
+    function drawCycle(s, ctx, c) {
+        if (!c.alive) return;
+        var h = headPos(c), flat = DX[c.dir] !== 0, w = flat ? 16 : 9, ht = flat ? 9 : 16;
+        drawTrail(ctx, c, h);
+        ctx.shadowColor = c.color; ctx.shadowBlur = c.boosting ? 26 : 14;
+        ctx.fillStyle = c.color;
+        ctx.fillRect(h.x - w / 2, h.y - ht / 2, w, ht);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(h.x - w / 4, h.y - ht / 4, w / 2, ht / 2);
+    }
+
+    function drawPips(s, ctx) {
+        var need = s.cfg.need, x0 = G.W / 2 - (need - 1) * 13, y = G.H / 2 + 86;
+        for (var k = 0; k < need; k++) {
+            ctx.strokeStyle = C.cyan; ctx.lineWidth = 2;
+            ctx.fillStyle = k < s.wins ? C.cyan : 'rgba(0,0,0,0.5)';
+            ctx.fillRect(x0 + k * 26 - 7, y - 7, 14, 14);
+            ctx.strokeRect(x0 + k * 26 - 7, y - 7, 14, 14);
+        }
+    }
+
+    function drawCountdown(s, ctx) {
+        var h = headPos(s.me), bob = Math.sin(s.time * 9) * 3;
+        var left = Math.max(1, Math.ceil(s.timer / COUNT_STEP));
+        G.text(String(left), G.W / 2, G.H / 2 + 30, { size: 96, bold: true, color: C.fg, align: 'center', glow: C.cyan });
+        G.text('ROUND ' + s.round + ' · FIRST TO ' + s.cfg.need, G.W / 2, G.H / 2 + 64, { size: 15, color: C.dim, align: 'center' });
+        drawPips(s, ctx);
+        G.text('YOU', h.x, h.y - 26 + bob, { size: 13, bold: true, color: C.cyan, align: 'center', glow: C.cyan });
+        ctx.fillStyle = C.cyan;
+        ctx.beginPath();
+        ctx.moveTo(h.x - 5, h.y - 21 + bob); ctx.lineTo(h.x + 5, h.y - 21 + bob); ctx.lineTo(h.x, h.y - 14 + bob);
+        ctx.closePath(); ctx.fill();
+    }
+
+    function drawMessages(s, ctx) {
+        if (s.phase === 'count') drawCountdown(s, ctx);
+        if (s.phase === 'end') {
+            var tint = s.msg === 'ROUND WON' ? C.cyan : (s.msg === 'DEREZZED' ? C.magenta : C.yellow);
+            G.text(s.msg, G.W / 2, G.H / 2 + 20, { size: 48, bold: true, color: C.fg, align: 'center', glow: tint });
+            drawPips(s, ctx);
+        }
+        if (s.note.t > 0) {
+            ctx.globalAlpha = Math.min(1, s.note.t);
+            G.text(s.note.text, G.W / 2, OY + 40, { size: 20, bold: true, color: C.yellow, align: 'center', glow: C.yellow });
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    function draw(s, ctx) {
+        drawFloor(s, ctx);
+        drawBlocks(s, ctx);
+        drawCollapse(s, ctx);
+        drawPod(s, ctx);
+        // The player is drawn last so the cyan cycle is never hidden.
+        for (var k = s.cycles.length - 1; k >= 0; k--) drawCycle(s, ctx, s.cycles[k]);
+        drawMessages(s, ctx);
+    }
+
+    function hud(s) {
+        return 'WINS ' + s.wins + '/' + s.cfg.need + '  RIDERS ' + ridersAlive(s) + '  BOOST ' + Math.round(s.me.charge * 100);
+    }
+
+    G.register('neon', {
+        title: 'LIGHT CYCLES',
+        blurb: 'Every cycle leaves a wall of light. Box the riders in and outlast them all.',
+        controls: [
+            '← → ↑ ↓ turn the cycle (it never stops)',
+            'SPACE boost while the charge lasts',
+            'Recharge: yellow pods, or ride right beside a rival wall',
+            'Win the rounds shown to clear the level — a crash costs a life'
+        ],
+        levelNames: ['Grid Zero', 'Crossfire', 'Pillars', 'Overclock', 'Fading Light', 'The Maze', 'Ghost Trails', 'Collapse', 'Meltdown', 'The Expert'],
+        colors: { bg: C.bg, fg: C.fg, accent: C.cyan, dim: C.dim },
+        lives: 3,
+        music: {
+            bpm: 132, root: 45, scale: 'pentatonic', prog: [0, 0, 2, 2, 4, 4, 3, 3],
+            bass: 'x.xox.xox.xox.o5',
+            lead: [
+                '5.7.9-..7.5.4...', '7.9.a-..9.7.5...', '9.a.c-..a.9.7.9-', '7-5-4-..2.4.5---',
+                '5.5.7.9.a-9.7...', '7.7.9.a.c-a.9...', 'c.a.9.7.a.9.7.5.', '4-5-7-..5-------'
+            ],
+            arp: '0123.213',
+            drums: { k: 'x...x...x...x.x.', s: '....x.......x...', h: '..x...x...x...xx' },
+            leadWave: 'sawtooth', bassWave: 'sawtooth', arpWave: 'triangle', leadOct: 2
+        },
+        init: init, update: update, draw: draw, hud: hud
+    });
+})();
