@@ -226,6 +226,8 @@
     var engineSound = false; // true while the engine itself plays a jingle
 
     function audio() {
+        // No sound once the game is closed, even if a game calls G.tone late.
+        if (!G.active) return null;
         if (!actx) {
             try {
                 actx = new (window.AudioContext || window.webkitAudioContext)();
@@ -621,9 +623,15 @@
         if (syncButtons(e) && cur && cur.screen !== 'play') menuClick();
     }
 
+    // A pointer that never pressed on the canvas only moves the cursor: its
+    // buttons are not ours (a drag in from the letterbox would otherwise
+    // leave a button stuck, since its release is ignored too).
     function onPointerMove(e) {
         if (foreignPointer(e)) return;
-        pointerPos(e); syncButtons(e);
+        pointerPos(e);
+        if (activePointer === null) return;
+        syncButtons(e);
+        if (!e.buttons) activePointer = null;
     }
 
     function onPointerUp(e) {
