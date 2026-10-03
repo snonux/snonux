@@ -25,27 +25,36 @@
     var REDIAL = 1.1;                           // pause after a crash
     var SPIKE_H = 30, PIT = 46, FALL_OUT = 50;
     var SLIDE_D = 640, SLIDE_K = 0.6, SLIDE_S = 56;
-    var MOV_W = 50, MOV_H = 170, MOV_A = (FLOOR - CEIL - MOV_H) / 2, MOV_WAVE = 120;
+    var MOV_W = 50, MOV_H = 170, MOV_A = (FLOOR - CEIL - MOV_H) / 2, MOV_WAVE = 300;
     var BURST_H = 150, BURST_WARN = 520, BURST_ON = 260;
     var FOG_SIGHT = 430;
     var HOT = '#ffe08a', AMBER = '#ffb000', MIDC = '#b87e00', DIM = '#7a5200', DARK = '#2e1f00', BG = '#0a0800';
     var BIT_NOTES = [660, 784, 880, 988, 1175];
 
-    // v: scroll speed, secs: nominal length, react: slack beyond the flip time
-    // between two hazards, keep: share of hazards on the lane the packet is
-    // NOT on (they punish flipping by rhythm), kinds: pattern weights.
+    // v: scroll speed. secs: nominal length. react: seconds between the end
+    // of a hazard on one wire and the start of the next one on the other,
+    // which is the window the flip has to be pressed in (the generator
+    // guarantees it; low hazards forgive a slightly earlier press). tight:
+    // how much of that window is left inside a zigzag. keep: share of
+    // hazards on the lane the packet is NOT on (they punish flipping by
+    // rhythm). kinds: pattern weights.
     var LEVELS = [
-        { v: 270, secs: 46, react: 0.80, keep: 0, kinds: { spike: 1 } },
-        { v: 290, secs: 50, react: 0.72, keep: 0.12, kinds: { spike: 3, gap: 3 } },
-        { v: 310, secs: 54, react: 0.66, keep: 0.15, kinds: { spike: 2, gap: 2, slider: 3 } },
-        { v: 325, secs: 57, react: 0.60, keep: 0.18, kinds: { spike: 2, gap: 2, slider: 1, burst: 3 } },
-        { v: 340, secs: 60, react: 0.54, keep: 0.20, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 4 } },
-        { v: 350, secs: 62, react: 0.50, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 4 } },
-        { v: 360, secs: 64, react: 0.47, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 4 } },
-        { v: 370, secs: 68, react: 0.45, keep: 0.24, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, turbo: 2 } },
-        { v: 380, secs: 70, react: 0.42, keep: 0.25, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, fog: 2 } },
-        { v: 395, secs: 78, react: 0.38, keep: 0.25, kinds: { spike: 2, gap: 2, slider: 2, burst: 2, zig: 2, mover: 2, jam: 2, turbo: 1.5, fog: 1.5 } }
+        { v: 270, secs: 46, react: 1.10, tight: 0.6, keep: 0, kinds: { spike: 1 } },
+        { v: 290, secs: 50, react: 1.00, tight: 0.6, keep: 0.12, kinds: { spike: 3, gap: 3 } },
+        { v: 310, secs: 54, react: 0.92, tight: 0.6, keep: 0.15, kinds: { spike: 2, gap: 2, slider: 3 } },
+        { v: 325, secs: 57, react: 0.85, tight: 0.6, keep: 0.18, kinds: { spike: 2, gap: 2, slider: 1, burst: 3 } },
+        { v: 340, secs: 60, react: 0.78, tight: 0.7, keep: 0.20, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 4 } },
+        { v: 350, secs: 62, react: 0.72, tight: 0.68, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 4 } },
+        { v: 360, secs: 64, react: 0.66, tight: 0.66, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 4 } },
+        { v: 370, secs: 68, react: 0.58, tight: 0.62, keep: 0.26, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, turbo: 2 } },
+        { v: 380, secs: 70, react: 0.52, tight: 0.58, keep: 0.28, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, fog: 2 } },
+        { v: 395, secs: 78, react: 0.50, tight: 0.58, keep: 0.30, kinds: { spike: 2, gap: 2, slider: 2, burst: 2, zig: 2, mover: 2, jam: 2, turbo: 1.5, fog: 1.5 } }
     ];
+    // Every kind a level enables appears at least this often, whatever the
+    // seed rolls: once in each half of the line.
+    var MIN_EACH = 2;
+    // After the relay the flip windows shrink to this share of `react`.
+    var SECOND_HALF = 0.88;
     // Inside a double-speed or dropout stretch only the plainest hazards
     // appear: the stretch itself is the difficulty.
     var MODE_KINDS = { spike: 1, gap: 1 };
@@ -85,7 +94,31 @@
 
     function localSpeed(t) { return t.mode === 'turbo' ? t.c.v * 2 : t.c.v; }
 
+    // One slot per enabled kind and half of the line, spread evenly along it.
+    function buildQuota(c, len) {
+        var kinds = Object.keys(c.kinds), slots = [];
+        for (var j = 0; j < MIN_EACH; j++) {
+            for (var i = 0; i < kinds.length; i++) {
+                slots.push({ kind: kinds[i], need: j + 1, at: len * (j + (i + 1) / (kinds.length + 1)) / MIN_EACH });
+            }
+        }
+        return slots;
+    }
+
+    // The kind a quota slot still owes once the cursor has passed it, if any.
+    function owedKind(t) {
+        while (t.quota.length && t.quota[0].at <= t.x) {
+            var q = t.quota.shift();
+            if ((t.count[q.kind] || 0) < q.need) return q.kind;
+        }
+        return null;
+    }
+
+    // Weighted pick; outside a stretch the quota goes first, so the weights
+    // decide the mix but never whether a kind shows up at all.
     function pickKind(t) {
+        var owed = t.mode ? null : owedKind(t);
+        if (owed) return owed;
         var kinds = t.mode ? MODE_KINDS : t.c.kinds, total = 0, k;
         for (k in kinds) total += kinds[k];
         var r = t.rnd() * total;
@@ -100,18 +133,26 @@
         for (var i = 0; i < 3; i++) t.bits.push({ x: G.lerp(h.d0, h.d1, i / 2) + PS / 2, y: y, got: false });
     }
 
+    // The earliest position at which the player can be asked to leave
+    // `lane`: the last hazard on the other wire must have gone by, with the
+    // level's reaction window on top, and the packet must have landed from
+    // the previous forced flip even if that one was pressed at the last moment.
+    function flipPoint(t, lane, v, tight) {
+        var space = v * t.react * (tight ? t.c.tight : 1);
+        return Math.max(t.x, t.end[-lane] + space, t.lastFlip + v * (FLIP_T + 0.05));
+    }
+
     // Puts one hazard on `lane`. If that is the packet's lane the player has
-    // to flip, and can only do so after the last hazard on the other lane
-    // has gone by, so the hazard is pushed back until there is time for it.
+    // to flip, so the hazard is pushed back to the next flip point.
     function place(t, kind, lane, tight) {
-        var v = localSpeed(t), space = v * (FLIP_T + t.c.react * (tight ? 0.6 : 1));
-        var d0 = lane === t.lane ? Math.max(t.x, t.end[-lane] + space) : t.x;
+        var v = localSpeed(t), must = lane === t.lane;
+        var d0 = must ? flipPoint(t, lane, v, tight) : t.x;
         var h = SHAPES[kind](d0, v, t.rnd);
         h.type = kind; h.lane = lane; h.d0 = d0; h.done = false;
         t.haz.push(h);
         addBits(t, h);
         t.end[lane] = Math.max(t.end[lane], h.d1);
-        if (lane === t.lane) t.lane = -lane;
+        if (must) { t.lane = -lane; t.lastFlip = d0; }
         t.x = h.d1 + v * (0.1 + t.rnd() * 0.45);
         return h;
     }
@@ -128,8 +169,8 @@
     // A jammed zone: no flipping inside, and all its hazards sit on one lane,
     // so the player has to read it and commit before the zone begins.
     function jam(t, lane) {
-        var v = t.c.v, space = v * (FLIP_T + t.c.react);
-        var z0 = lane === t.lane ? Math.max(t.x, t.end[-lane] + space) : t.x;
+        var v = t.c.v, z0 = t.x;
+        if (lane === t.lane) { z0 = flipPoint(t, lane, v, false); t.lastFlip = z0; }
         var n = 2 + Math.floor(t.rnd() * 2), h;
         t.x = z0 + v * 0.35;
         t.lane = -lane;                         // from here on the packet rides the free lane
@@ -151,31 +192,38 @@
     }
 
     // After double speed the packet needs a moment to slow down before the
-    // generator may assume normal speed again.
+    // generator may assume normal speed again. The cursor only ever moves
+    // forward: the last hazard of the stretch may already reach past that.
     function closeMode(t) {
         var z = t.zone;
         z.x1 = Math.min(z.x1, t.x);
-        t.x = z.x1 + t.c.v * (t.mode === 'turbo' ? 1.4 : 0.3);
+        t.x = Math.max(t.x, z.x1 + t.c.v * (t.mode === 'turbo' ? 1.4 : 0.3));
         t.mode = null; t.zone = null;
     }
 
     // The checkpoint. A respawned packet stands on the floor, so the next
     // hazard is forced onto the floor: doing nothing must never be safe.
+    // Past the relay the flip windows are narrower, so the second half is
+    // the harder one (which is why the relay hands back a life).
     function relay(t) {
         if (t.mode) closeMode(t);
         t.cpX = t.x + t.c.v * 0.5;
         t.x = t.cpX + t.c.v * 1.3;
-        t.lane = 1; t.force = true;
+        t.lane = 1; t.force = true; t.lastFlip = t.cpX;
+        t.react = t.c.react * SECOND_HALF;
         t.end = { '1': t.cpX, '-1': t.cpX };
     }
 
     function pattern(t) {
         var kind = pickKind(t), keep = !t.force && t.rnd() < t.c.keep;
         var lane = keep ? -t.lane : t.lane;
+        t.count[kind] = (t.count[kind] || 0) + 1;
+        // Opening a stretch places no hazard, so it must not use up the
+        // "next hazard goes on the floor" flag.
+        if (kind === 'turbo' || kind === 'fog') { openMode(t, kind); return; }
         t.force = false;
         if (kind === 'zig') zigzag(t);
         else if (kind === 'jam') jam(t, lane);
-        else if (kind === 'turbo' || kind === 'fog') openMode(t, kind);
         else place(t, kind, lane, false);
     }
 
@@ -183,7 +231,8 @@
         var c = LEVELS[level - 1], len = c.v * c.secs;
         var t = {
             c: c, rnd: G.rng(level * 7919 + 13), haz: [], zones: [], bits: [], x: c.v * 2.4, lane: 1,
-            end: { '1': 0, '-1': 0 }, mode: null, zone: null, force: true, cpX: 0
+            end: { '1': 0, '-1': 0 }, mode: null, zone: null, force: true, cpX: 0,
+            react: c.react, lastFlip: 0, count: {}, quota: buildQuota(c, len)
         };
         while (t.x < len) {
             if (t.mode && t.x >= t.zone.x1) closeMode(t);
@@ -255,6 +304,9 @@
 
     function sliderX(h, px) { return h.x - SLIDE_K * Math.max(0, px - h.x0); }
 
+    // A swinging block reaches its deadly wire exactly as the packet arrives.
+    // The wave is long enough that the block is already on its way there
+    // when it scrolls into view, so what the player sees is where it is going.
     function moverY(h, px) { return MID + h.lane * MOV_A * Math.cos((h.x - px) / MOV_WAVE) - MOV_H / 2; }
 
     // The rectangle that kills, or null (gaps kill by letting the packet
@@ -360,7 +412,8 @@
             s.cp = true;
             G.addScore(100);
             // The relay also hands back one lost life (never more than the
-            // three a level starts with): the second half is the harder one.
+            // three a level starts with): the generator narrows the flip
+            // windows after it (SECOND_HALF).
             G.addLife(3);
             G.popup(s.x + 40, MID, 'RELAY LOCKED', HOT);
             handshake(0.12);
