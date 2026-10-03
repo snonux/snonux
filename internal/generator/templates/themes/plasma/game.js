@@ -9,8 +9,8 @@
  * colours while they fall: three of one colour merge into a level of that
  * weapon (cyan spread, magenta beam, yellow homing).
  *
- * Bullet colours tell the pattern: magenta is aimed at you, cyan is radial,
- * yellow is a spiral or a special.
+ * Bullet colours tell the pattern: magenta is aimed at you, cyan is a radial
+ * ring, yellow is everything else (spirals, rain, trails, straight drops).
  */
 (function () {
     'use strict';
@@ -44,7 +44,7 @@
     // of the PATTERNS below at the same time and owns an equal share of hp.
     var BOSSES = [
         { name: 'EMBER', hp: 420, phases: [['fan'], ['rings']] },
-        { name: 'CORONA', hp: 560, phases: [['rings'], ['fan', 'rain']] },
+        { name: 'CORONA', hp: 600, phases: [['rings'], ['fan', 'rain']] },
         { name: 'GALE', hp: 720, phases: [['spiral'], ['fan', 'rings']] },
         { name: 'LANCER PRIME', hp: 900, phases: [['fan', 'rain'], ['spiral'], ['rings', 'fan']] },
         { name: 'CYCLONE', hp: 1150, phases: [['cross'], ['lances', 'rain'], ['spiral', 'fan']] },
@@ -165,7 +165,10 @@
         if (e.y > G.H + 40) e.gone = true;
     }
 
-    function fireTurret(e, s) { ring(s, e.x, e.y, 3, 135, e.age * 2.4, YL); }
+    // Like drones, a turret that has sunk to the player's altitude holds fire.
+    function fireTurret(e, s) {
+        if (e.y < 380) ring(s, e.x, e.y, 3, 135, e.age * 2.4, YL);
+    }
 
     // Hangs at the top for a moment, locks on to where the player is, then
     // dashes along that line. The lock is what makes it dodgeable.
@@ -186,7 +189,7 @@
 
     // A dashing dart leaves a short-lived wall of nearly still bullets behind.
     function fireDart(e, s) {
-        if (e.ang != null) shoot(s, e.x, e.y, DOWN, 18, MG, { r: 4, life: 2.4 });
+        if (e.ang != null) shoot(s, e.x, e.y, DOWN, 18, YL, { r: 4, life: 2.4 });
     }
 
     function moveMine(e, s, dt) {
@@ -197,7 +200,7 @@
 
     // A mine's "shot" is its fuse running out: shoot it first and it dies quietly.
     function detonateMine(e, s) {
-        ring(s, e.x, e.y, 14, 150, e.ph, YL);
+        ring(s, e.x, e.y, 14, 150, e.ph, CY);
         e.gone = true;
         G.burst(e.x, e.y, { n: 16, color: YL, speed: 240, life: 0.5 });
         boomSound(s, 22);
@@ -212,16 +215,16 @@
     // Aimed fans whose bullets curve, alternately left and right.
     function firePrism(e, s) {
         e.flip = !e.flip;
-        fan(s, e, 8, 0.2, 150, CY, { w: e.flip ? 0.6 : -0.6 });
+        fan(s, e, 8, 0.2, 150, MG, { w: e.flip ? 0.6 : -0.6 });
         G.tone(660, 0.12, { type: 'sine', slide: 1320, vol: 0.07 });
     }
 
     // hp, radius, score, colour, seconds between shots, orb drop chance, and
     // the look: polygon sides, spin (rad/s), fixed rotation, spiky outline.
     var TYPES = {
-        drone: { hp: 3, r: 13, pts: 50, col: CY, rate: 1.9, drop: 0.12, move: moveDrone, fire: fireDrone, sides: 3, rot: DOWN },
+        drone: { hp: 3, r: 13, pts: 50, col: CY, rate: 1.9, drop: 0.2, move: moveDrone, fire: fireDrone, sides: 3, rot: DOWN },
         spinner: { hp: 14, r: 17, pts: 150, col: MG, rate: 1.9, drop: 0.6, move: moveHover, fire: fireSpinner, stay: 7, sides: 6, spin: 2 },
-        weaver: { hp: 4, r: 12, pts: 70, col: YL, rate: 1.15, drop: 0.12, move: moveWeaver, fire: fireWeaver, sides: 4 },
+        weaver: { hp: 4, r: 12, pts: 70, col: YL, rate: 1.15, drop: 0.2, move: moveWeaver, fire: fireWeaver, sides: 4 },
         lancer: { hp: 12, r: 15, pts: 180, col: MG, rate: 1.7, drop: 0.5, move: moveHover, fire: fireLancer, stay: 8, track: 40, sides: 5, rot: DOWN },
         turret: { hp: 45, r: 22, pts: 400, col: YL, rate: 0.12, drop: 1, move: moveTurret, fire: fireTurret, sides: 8, spin: 0.6 },
         dart: { hp: 4, r: 11, pts: 90, col: MG, rate: 0.13, drop: 0.15, move: moveDart, fire: fireDart, sides: 3, rot: DOWN },
@@ -232,7 +235,7 @@
 
     function addEnemy(s, type, x, y, o) {
         var d = TYPES[type], e = {
-            type: type, x: x, y: y, x0: x, ty: y, ph: 0, dir: 1, delay: 0, age: 0, flash: 0, lock: 0,
+            type: type, squad: s.squad, x: x, y: y, x0: x, ty: y, ph: 0, dir: 1, delay: 0, age: 0, flash: 0, lock: 0,
             hp: Math.ceil(d.hp * (1 + (s.level - 1) * 0.08)),
             cool: d.rate * (d.first || 0.4 + s.rnd() * 0.6)
         };
@@ -290,7 +293,10 @@
         G.popup(e.x, Math.max(G.HUD + 30, e.y - d.r), d.pts * s.level, d.col);   // popups rise: keep them off the HUD
         G.burst(e.x, e.y, { n: 8 + d.r, color: d.col, speed: 220, life: 0.5 });
         boomSound(s, d.r);
-        if (s.rnd() < d.drop) dropOrb(s, e.x, e.y);
+        // The last of a squad always drops an orb, so even level 1 (drones
+        // only) hands out enough orbs to merge; the rest drop by chance.
+        var last = !s.enemies.some(function (o) { return o !== e && !o.gone && o.squad === e.squad; });
+        if (last || s.rnd() < d.drop) dropOrb(s, e.x, e.y);
         // The storm's eye: on the last level every wreck fires one parting
         // shot, unless it died too close for that to be dodgeable.
         if (s.level === 10 && s.stage !== 'outro' && e.y < s.p.y - 140) fan(s, e, 1, 0, 190, MG, { r: 4 });
@@ -356,11 +362,11 @@
             if (!every(b, 'cross', 0.13, dt)) return;
             var arms = 2 + Math.floor(s.level / 5);
             ring(s, b.x, b.y, arms, 150, b.age * 2.1, YL);
-            ring(s, b.x, b.y, arms, 130, -b.age * 2.1, CY);
+            ring(s, b.x, b.y, arms, 130, -b.age * 2.1, YL);
         },
         rain: function (s, b, dt) {
             if (!every(b, 'rain', 0.09 / s.k, dt)) return;
-            shoot(s, b.x + (s.rnd() - 0.5) * 420, b.y, DOWN + (s.rnd() - 0.5) * 0.5, 150 + s.rnd() * 70, MG, { r: 4 });
+            shoot(s, b.x + (s.rnd() - 0.5) * 420, b.y, DOWN + (s.rnd() - 0.5) * 0.5, 150 + s.rnd() * 70, YL, { r: 4 });
         },
         curve: function (s, b, dt) {
             if (!every(b, 'curve', 1.5 / s.k, dt)) return;
@@ -375,7 +381,9 @@
             addLane(s, 80 + s.rnd() * 800, b);
         },
         summon: function (s, b, dt) {
-            if (every(b, 'summon', 4.5 / s.k, dt) && s.enemies.length < 6) SPAWN.d(s, -1);
+            if (!every(b, 'summon', 4.5 / s.k, dt) || s.enemies.length >= 6) return;
+            s.squad++;
+            SPAWN.d(s, -1);
         }
     };
 
@@ -440,21 +448,24 @@
 
     function spawnWave(s, word) {
         var n = Math.floor(s.level / 3);
-        for (var i = 0; i < word.length; i++) SPAWN[word.charAt(i)](s, n);
+        for (var i = 0; i < word.length; i++) { s.squad++; SPAWN[word.charAt(i)](s, n); }
     }
 
     function runWaves(s, dt) {
         var busy = s.enemies.length > 0;
         s.waveT -= dt;
-        // An empty sky is dead time: bring the next wave in right away.
-        if (!busy && s.waveT > 0.6) s.waveT = 0.6;
+        // An empty sky is dead time: bring the next wave in right away
+        // (but never cut the opening pause before the first wave short).
+        if (!busy && s.wave > 0 && s.waveT > 0.6) s.waveT = 0.6;
         if (s.wave >= s.waves.length) {
             if (!busy) { s.stage = 'warning'; s.stageT = 2.4; }
             return;
         }
-        if (s.waveT > 0) return;
+        // A crowded sky holds the next wave back: waves must not pile up
+        // faster than they can be cleared.
+        if (s.waveT > 0 || s.enemies.length > 22) return;
         spawnWave(s, s.waves[s.wave++]);
-        s.waveT = Math.max(2.6, 6.2 - s.level * 0.36);
+        s.waveT = Math.max(3.3, 6.2 - s.level * 0.36);
     }
 
     function outro(s, dt) {
@@ -499,8 +510,9 @@
         pushShot(s, p.x - 7, p.y - 10, -DOWN, 760, 1, false);
         pushShot(s, p.x + 7, p.y - 10, -DOWN, 760, 1, false);
         for (var i = 1; i <= s.lv.spread; i++) {
-            pushShot(s, p.x, p.y - 8, -DOWN - i * 0.13, 760, 1, false);
-            pushShot(s, p.x, p.y - 8, -DOWN + i * 0.13, 760, 1, false);
+            // A narrow fan: from the lower screen it still reaches a boss.
+            pushShot(s, p.x, p.y - 8, -DOWN - i * 0.07, 760, 1, false);
+            pushShot(s, p.x, p.y - 8, -DOWN + i * 0.07, 760, 1, false);
         }
         if (gated(s, 'shot', 0.17)) G.tone(1250, 0.04, { type: 'triangle', slide: 700, vol: 0.035 });
     }
@@ -573,7 +585,13 @@
     }
 
     function gainBomb(s) {
-        if (s.bombs >= MAX_BOMBS) return;
+        // With a full rack the bomb is paid out in points instead.
+        if (s.bombs >= MAX_BOMBS) {
+            G.addScore(2000 * s.level);
+            G.popup(s.p.x, s.p.y - 26, '+' + 2000 * s.level, FG);
+            G.sfx('coin');
+            return;
+        }
         s.bombs++;
         G.popup(s.p.x, s.p.y - 26, '+BOMB', FG);
         G.tone(784, 0.1, { type: 'triangle', vol: 0.14 });
@@ -721,7 +739,7 @@
     // init), so later levels hand out a starting kit instead.
     function kit(level) {
         return {
-            spread: level >= 9 ? 2 : (level >= 3 ? 1 : 0),
+            spread: level >= 9 ? 2 : (level >= 2 ? 1 : 0),
             homing: level >= 5 ? 1 : 0,
             beam: level >= 7 ? 1 : 0
         };
@@ -735,7 +753,8 @@
             lv: kit(level), orbs: { spread: 0, beam: 0, homing: 0 },
             bombs: 3, bombT: 0, graze: 0, struck: false, beamOn: false,
             shots: [], bullets: [], enemies: [], drops: [], lanes: [],
-            waves: WAVES[level - 1].split(' '), wave: 0, waveT: 1.2,
+            waves: WAVES[level - 1].split(' '), wave: 0, squad: 0,
+            waveT: level === 1 ? 3 : 1.2,                        // level 1 leaves time to read the hint
             stage: 'waves', stageT: 0, boss: null,
             stars: buildStars(rnd), snd: {}
         };
@@ -967,9 +986,11 @@
             G.text('WARNING', G.W / 2, 230, { size: 54, bold: true, color: MG, align: 'center', glow: MG });
             ctx.globalAlpha = 1;
             G.text(BOSSES[s.level - 1].name + ' APPROACHING', G.W / 2, 266, { size: 18, color: FG, align: 'center' });
-        } else if (s.level === 1 && s.wave < 2 && s.stage === 'waves') {
-            // The one rule a new player must learn, shown while it is quiet.
-            G.text('HOLD SPACE: fire and focus  ·  X: bomb  ·  three orbs of a colour: weapon up', G.W / 2, G.H - 44, { size: 15, color: 'rgba(232,224,255,0.6)', align: 'center' });
+        } else if (s.level === 1 && s.stage === 'waves') {
+            // The rules a new player must learn, kept up for the whole wave
+            // stage and out of the ship's starting column.
+            G.text('HOLD SPACE: fire and focus  ·  X: bomb', 14, G.H - 52, { size: 15, color: 'rgba(232,224,255,0.6)' });
+            G.text('three orbs of one colour: weapon up', 14, G.H - 33, { size: 15, color: 'rgba(232,224,255,0.6)' });
         }
     }
 
