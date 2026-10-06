@@ -17,14 +17,20 @@
     var G = window.SnoGame;
     var SEG = 24;                    // horizontal spacing of the terrain points
     var R = 12;                      // ship radius: centre to the feet
-    var THRUST = 170, TURN = 3.2, BURN = 8, TANK = 100, CAN_FUEL = 35;
+    // BURN gives a full tank about 15 s of engine: a tidy flight uses some 60%
+    // of it on the longest legs, which leaves a learner room to hover and retry.
+    var THRUST = 170, TURN = 3.2, BURN = 6.5, TANK = 100, CAN_FUEL = 35;
     var HAUL = 0.88;                 // thrust left over while carrying cargo
     var LIMIT = { down: 60, side: 40, tilt: 0.35 };   // a softer touch than this lands
-    // Turrets hold their fire outside [near, range]; every start and every pad
-    // lies beyond the range, so spawning and landing are never under fire.
+    var EDGE = 2, FEET = 14;         // deck rim that does not count; half the ship's stance
+    // Turrets hold their fire outside [near, range] and a shell burns out once
+    // it has flown the range; every start and every pad lies beyond it, so
+    // spawning and landing are never under fire.
     var TURRET = { range: 440, near: 150, period: 2.2, shell: 150, lead: 0.6, warmup: 3.5 };
     var DRY = { landed: 1.5, adrift: 5 };             // seconds a dry tank is tolerated
-    var PANEL = { x: 10, y: 38, w: 150, h: 68 };
+    // The panel's labels are 18px and its bars 128px long so that they can
+    // still be read on a phone, where the canvas is drawn at about half size.
+    var PANEL = { x: 10, y: 38, w: 212, h: 92, bar: 76, len: 128, row: 21 };
     var C = { bg: '#030a0f', sky: '#06202b', teal: '#00e8e8', dim: '#1a4455', red: '#ff3320', silver: '#c8d8e0', rock: '#082230', far: '#05171f' };
 
     // One entry per level. floor/ceil are skeletons of [x, y] points that get
@@ -41,11 +47,13 @@
             pads: [{ i: 19, n: 4, kind: 'relay' }, { i: 57, n: 3, kind: 'goal' }] },
         { w: 1920, g: 58, fuel: 100, start: [1760, 100, -20], amp: 10, wind: [16, 6], hint: 'CROSSWIND — LEAN INTO THE GUSTS',
             floor: [[0, 410], [120, 450], [240, 400], [336, 360], [432, 360], [540, 430], [680, 470], [800, 420], [900, 470], [1008, 400], [1104, 400], [1200, 440], [1340, 480], [1480, 420], [1600, 470], [1760, 430], [1920, 410]],
-            pads: [{ i: 42, n: 4, kind: 'relay' }, { i: 14, n: 4, kind: 'goal' }] },
+            // One canister on the first leg: fighting the gusts over the beacon
+            // pad can cost a learner the whole tank.
+            cans: [[1190, 240]], pads: [{ i: 42, n: 4, kind: 'relay' }, { i: 14, n: 4, kind: 'goal' }] },
         { w: 1920, g: 58, fuel: 100, start: [130, 110, 20], amp: 14, hint: 'MATCH EACH FERRY DECK, THEN SET DOWN',
             floor: [[0, 380], [120, 420], [220, 500], [380, 470], [520, 515], [700, 480], [860, 515], [1000, 470], [1150, 515], [1300, 480], [1450, 515], [1600, 470], [1720, 515], [1840, 440], [1920, 400]],
             pads: [{ x: 560, y: 330, w: 108, sway: [150, 0.28], kind: 'relay' }, { x: 1420, y: 300, w: 96, sway: [190, 0.3], kind: 'goal' }] },
-        { w: 2880, g: 55, fuel: 35, start: [100, 160, 30], amp: 9, hint: 'LOW TANK — GRAB THE FUEL CANISTERS', gap: 184,
+        { w: 2880, g: 55, fuel: 40, start: [100, 160, 30], amp: 9, hint: 'LOW TANK — GRAB THE FUEL CANISTERS', gap: 184,
             cave: [[0, 190], [250, 210], [450, 290], [650, 230], [850, 170], [1050, 300], [1250, 360], [1450, 270], [1650, 190], [1850, 260], [2050, 350], [2250, 300], [2450, 220], [2650, 260], [2880, 270]],
             cans: [[520, 270], [1250, 360], [1900, 280], [2450, 220]], pads: [{ i: 112, n: 4, kind: 'goal' }] },
         { w: 2400, g: 58, fuel: 100, start: [120, 100, 30], amp: 10, hint: 'KEEP MOVING — FLAK HITS SLOW SHIPS',
@@ -56,12 +64,14 @@
             cans: [[1250, 300]], pads: [{ i: 4, n: 4, kind: 'cargo' }, { i: 70, n: 4, kind: 'goal' }] },
         { w: 2400, g: 24, fuel: 60, start: [90, 190, 20], amp: 6, hint: 'LOW GRAVITY — SMALL BURNS, MIND THE MINES', gap: 190,
             cave: [[0, 190], [250, 210], [400, 340], [560, 380], [720, 255], [900, 170], [1080, 280], [1250, 385], [1420, 305], [1600, 205], [1780, 300], [1960, 360], [2140, 250], [2300, 300], [2400, 300]],
-            // Mines bob at the bends, where the outside of the turn leaves room to pass.
-            mines: [[560, 380, 40, 1.2], [1600, 205, 40, 1.5], [1960, 360, 40, 1.7]],
+            // Mines bob at the bends, where the outside of the turn leaves room to
+            // pass; the two after the beacon bob less, as a ship's width of
+            // room is too little for a capsule drifting in low gravity.
+            mines: [[560, 380, 40, 1.2], [1600, 205, 30, 1.5], [1960, 360, 30, 1.7]],
             cans: [[900, 170], [2140, 250]], pads: [{ i: 52, n: 3, kind: 'relay' }, { i: 95, n: 3, kind: 'goal' }] },
         { w: 1920, g: 96, fuel: 100, start: [960, 90, 0], amp: 9, wind: [12, 5], hint: 'HEAVY WORLD — CARGO WEST, DELIVERY EAST',
             floor: [[0, 400], [144, 400], [240, 400], [350, 480], [500, 440], [650, 490], [800, 450], [950, 500], [1100, 460], [1250, 500], [1400, 450], [1550, 490], [1656, 420], [1752, 420], [1920, 380]],
-            turrets: [29], cans: [[1150, 250], [1350, 250], [1550, 280]], pads: [{ i: 6, n: 4, kind: 'cargo' }, { i: 69, n: 4, kind: 'goal' }] },
+            turrets: [29], cans: [[330, 150], [900, 190], [1250, 250], [1550, 280]], pads: [{ i: 6, n: 4, kind: 'cargo' }, { i: 69, n: 4, kind: 'goal' }] },
         { w: 960, g: 0, fuel: 100, start: [130, 120, 25], amp: 0, hint: 'CARRY THE CRATE FROM ONE ARM TO THE OTHER — MATCH THE SPIN',
             station: { x: 480, y: 290, r: 58, d: 122, spin: 0.4, g: 40, debris: [[205, -0.45, 0], [205, -0.45, Math.PI], [235, 0.35, 1]] },
             pads: [{ w: 64, arm: 0, kind: 'cargo' }, { w: 64, arm: Math.PI, kind: 'goal' }] }
@@ -244,13 +254,16 @@
     }
 
     // '' = clear of the pad, 'land' = a good touchdown, 'crash' = too fast,
-    // too tilted, off the edge or from underneath. A ground pad's edges are
-    // left to the terrain test; a hovering deck is solid all the way round.
+    // too tilted, off the edge or from underneath. A soft touch counts as
+    // long as the capsule's centre is over the deck (EDGE px of grace): with
+    // all three instruments in the clear, a foot over the rim must not be a
+    // wreck. A ground pad's edges are left to the terrain test; a hovering
+    // deck is solid all the way round.
     function padContact(ship, pad) {
-        var f = padFrame(ship, pad), reach = pad.w / 2 + (pad.ground ? -5 : R * 0.6);
+        var f = padFrame(ship, pad), deck = pad.w / 2 - EDGE, reach = pad.ground ? deck : pad.w / 2 + R * 0.6;
         if (Math.abs(f.along) > reach || Math.abs(f.h) > R) return '';
         var soft = f.down < LIMIT.down && f.side < LIMIT.side && f.tilt < LIMIT.tilt;
-        return soft && f.h > 0 && Math.abs(f.along) <= pad.w / 2 - 5 ? 'land' : 'crash';
+        return soft && f.h > 0 && Math.abs(f.along) <= deck ? 'land' : 'crash';
     }
 
     function crash(s) {
@@ -279,7 +292,9 @@
 
     // The next pad of the route has been reached: the last one wins, every
     // other one refills the tank (and a cargo pad loads its crate), which is
-    // what lets a level be several tanks long.
+    // what lets a level be several tanks long. The canisters are restocked
+    // too: the way back out often passes the ones emptied on the way in, and
+    // a loaded capsule on the heavy world cannot cross that stretch without.
     function reachPad(s, pad) {
         var ship = s.ship, cargo = pad.kind === 'cargo';
         s.step++;
@@ -289,6 +304,7 @@
             return;
         }
         ship.fuel = TANK;
+        s.cans.forEach(function (can) { can.taken = false; });
         if (cargo) ship.cargo = true;
         G.sfx('power'); G.addScore(200);
         G.popup(ship.x, ship.y - 26, (cargo ? 'CARGO' : 'BEACON') + ' +200', C.teal);
@@ -297,7 +313,9 @@
 
     function touchDown(s, i) {
         var ship = s.ship, pad = s.pads[i], nx = Math.sin(pad.ang), ny = -Math.cos(pad.ang);
-        ship.off = padFrame(ship, pad).along; ship.landed = i; ship.burning = false;
+        // The deck clamps draw the capsule in until both feet stand on it.
+        ship.off = G.clamp(padFrame(ship, pad).along, FEET - pad.w / 2, pad.w / 2 - FEET);
+        ship.landed = i; ship.burning = false;
         seat(s, false);
         G.noise(0.12, { freq: 300, vol: 0.3 });
         // Dust sprays away from the deck, whichever way the pad faces.
@@ -419,7 +437,7 @@
             if (tu.cool < 0.5 && !tu.warned) { tu.warned = true; G.tone(420, 0.4, { type: 'sawtooth', slide: 900, vol: 0.07 }); }
             if (tu.cool > 0) return;
             tu.cool = TURRET.period; tu.warned = false;
-            s.shells.push({ x: tu.x + Math.cos(tu.aim) * 16, y: my + Math.sin(tu.aim) * 16, vx: Math.cos(tu.aim) * TURRET.shell, vy: Math.sin(tu.aim) * TURRET.shell, life: 4 });
+            s.shells.push({ x: tu.x + Math.cos(tu.aim) * 16, y: my + Math.sin(tu.aim) * 16, vx: Math.cos(tu.aim) * TURRET.shell, vy: Math.sin(tu.aim) * TURRET.shell, life: TURRET.range / TURRET.shell });
             G.sfx('shoot'); G.noise(0.1, { freq: 700, vol: 0.15 });
         });
     }
@@ -678,26 +696,25 @@
     }
 
     // The instrument panel: closing speed, side slip and tilt against the
-    // target pad, each with its limit mark, and the tank. Red means that
-    // touching down now would wreck the ship. It fades while the ship flies
+    // target pad, each with its limit mark at half scale, and the tank (full
+    // scale, no mark). Red means that touching down now would wreck the
+    // ship, or that the tank is nearly dry. It fades while the ship flies
     // behind it, so it never hides the capsule.
     function drawPanel(ctx, s) {
         var ship = s.ship, f = padFrame(ship, target(s)), landed = ship.landed >= 0, P = PANEL;
         var under = ship.x - s.camX < P.x + P.w + 24 && ship.y < P.y + P.h + 24;
-        var rows = [['DESC', f.down / LIMIT.down], ['SIDE', f.side / LIMIT.side], ['TILT', f.tilt / LIMIT.tilt]];
+        var rows = [['DESC', f.down / LIMIT.down], ['SIDE', f.side / LIMIT.side], ['TILT', f.tilt / LIMIT.tilt], ['FUEL', ship.fuel / TANK * 2]];
         ctx.globalAlpha = under ? 0.22 : 1;
         ctx.fillStyle = 'rgba(2,6,8,0.72)'; ctx.fillRect(P.x, P.y, P.w, P.h);
         ctx.strokeStyle = C.dim; ctx.lineWidth = 1; ctx.strokeRect(P.x + 0.5, P.y + 0.5, P.w, P.h);
         rows.forEach(function (row, k) {
-            var y = P.y + 8 + k * 15, v = landed ? 0 : Math.max(0, row[1]);
-            G.text(row[0], P.x + 6, y + 8, { size: 10, color: C.silver });
-            ctx.fillStyle = C.dim; ctx.fillRect(P.x + 42, y, 100, 8);
-            ctx.fillStyle = v < 1 ? C.teal : C.red; ctx.fillRect(P.x + 42, y, Math.min(100, v * 50), 8);
-            ctx.fillStyle = C.silver; ctx.fillRect(P.x + 91, y - 2, 2, 12);            // the limit
+            var y = P.y + 7 + k * P.row, fuel = k === 3, v = landed && !fuel ? 0 : Math.max(0, row[1]);
+            var bad = fuel ? ship.fuel < 20 : v >= 1;
+            G.text(row[0], P.x + 6, y + 13, { size: 18, color: C.silver });
+            ctx.fillStyle = C.dim; ctx.fillRect(P.x + P.bar, y, P.len, 11);
+            ctx.fillStyle = bad ? C.red : C.teal; ctx.fillRect(P.x + P.bar, y, Math.min(P.len, v * P.len / 2), 11);
+            if (!fuel) { ctx.fillStyle = C.silver; ctx.fillRect(P.x + P.bar + P.len / 2 - 1, y - 2, 2, 15); }   // the limit
         });
-        G.text('FUEL', P.x + 6, P.y + 61, { size: 10, color: C.silver });
-        ctx.fillStyle = C.dim; ctx.fillRect(P.x + 42, P.y + 53, 100, 8);
-        ctx.fillStyle = ship.fuel < 20 ? C.red : C.teal; ctx.fillRect(P.x + 42, P.y + 53, ship.fuel / TANK * 100, 8);
         ctx.globalAlpha = 1;
     }
 
@@ -707,14 +724,14 @@
         var pad = target(s), sx = pad.cx - s.camX, off = sx < 0 ? -1 : (sx > G.W ? 1 : 0);
         if (s.msg.t > 0) {
             ctx.globalAlpha = Math.min(1, s.msg.t);
-            G.text(s.msg.text, G.W / 2, 132, { size: 15, color: C.teal, align: 'center', glow: C.teal, max: G.W - 60 });
+            G.text(s.msg.text, G.W / 2, 156, { size: 20, color: C.teal, align: 'center', glow: C.teal, max: G.W - 60 });
             ctx.globalAlpha = 1;
         }
         if (!off || Math.sin(s.t * 6) < -0.4) return;
-        var x = off < 0 ? 16 : G.W - 16, y = G.clamp(pad.cy - 40, 150, G.H - 40);
+        var x = off < 0 ? 16 : G.W - 16, y = G.clamp(pad.cy - 40, 190, G.H - 40);
         ctx.fillStyle = C.teal;
         ctx.beginPath(); ctx.moveTo(x + off * 10, y); ctx.lineTo(x - off * 6, y - 10); ctx.lineTo(x - off * 6, y + 10); ctx.fill();
-        G.text(Math.round(Math.abs(pad.cx - s.ship.x) / 10) + 'm', x - off * 14, y + 5, { size: 12, color: C.teal, align: off < 0 ? 'left' : 'right' });
+        G.text(Math.round(Math.abs(pad.cx - s.ship.x) / 10) + 'm', x - off * 14, y + 7, { size: 20, color: C.teal, align: off < 0 ? 'left' : 'right' });
     }
 
     function draw(s, ctx) {
@@ -744,7 +761,7 @@
         title: 'ORBITAL DOCK',
         blurb: 'Fly the capsule from pad to pad and touch down slowly and upright.',
         controls: [
-            '← → rotate · ↑ or SPACE fire the engine',
+            '← → rotate · ↑ / SPACE / THRUST fire the engine',
             'Land with DESC, SIDE and TILT all below their marks',
             'Follow the marker from pad to pad: each one refills the tank',
             'Canisters add fuel · cargo crates must be delivered to the last pad'
@@ -765,6 +782,10 @@
             drums: { k: 'x.......x.......', h: '....x.......x.x.' },
             leadWave: 'sine', bassWave: 'triangle', arpWave: 'triangle', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // Two thumbs: ← → turn the capsule, THRUST burns. ↑ is hidden on the
+        // pad because a thumb sliding between ← and → would brush it and
+        // waste fuel; ↓ and B do nothing in this game.
+        touch: { a: 'THRUST', hide: ['up', 'down', 'b'] }
     });
 })();
