@@ -19,6 +19,7 @@
     var SUB_R = 10, SINK = 70;                 // hull radius; the boat is a little heavy
     var COL_W = 110;                           // reach of a bubble column
     var ARM_SEGS = 10;
+    var CURTAIN_STEP = 29;                     // spacing of the jellyfish in a curtain
     var TAU = Math.PI * 2;
     var C = {
         navy: '#03045e', deep: '#023e8a', teal: '#00b4d8', aqua: '#48cae4', foam: '#caf0f8',
@@ -136,11 +137,11 @@
         },
         // A wall of jellyfish from floor to ceiling, pulsing as one and
         // drifting toward the boat: there is no way round, a hole has to be
-        // torpedoed into it.
+        // torpedoed into it. `link` ties them together (see zapJelly).
         curtain: function (s, x, w, rnd, out) {
             var cx = x + w * (0.3 + rnd() * 0.4), ph = rnd() * TAU;
-            for (var y = topAt(s, cx) + 22; y < botAt(s, cx) - 16; y += 29) {
-                out.push(ent('jelly', cx, y, { y0: y, ph: ph, amp: 7, drift: 34 }));
+            for (var y = topAt(s, cx) + 22; y < botAt(s, cx) - 16; y += CURTAIN_STEP) {
+                out.push(ent('jelly', cx, y, { y0: y, ph: ph, amp: 7, drift: 34, link: cx }));
             }
         },
         // Two mines, one hanging and one floating, make a slalom.
@@ -430,6 +431,21 @@
         }
     }
 
+    // One torpedo removes a single jellyfish, and the hole that leaves in a
+    // curtain is only 8 px taller than the boat while the torpedo may have
+    // struck up to 19 px off the jellyfish's centre: the boat following its
+    // own torpedo would still be stung. So a shot curtain jellyfish shorts
+    // out its two neighbours as well. Ramming gets no such help.
+    function zapJelly(s, e, rammed) {
+        SND.zap();
+        if (!e.link || rammed) return;
+        s.ents.forEach(function (o) {
+            if (o.dead || o.link !== e.link || Math.abs(o.y0 - e.y0) > CURTAIN_STEP + 1) return;
+            o.link = 0;             // the neighbours do not pass it on
+            kill(s, o);
+        });
+    }
+
     function repair(s, e) {
         s.hull = Math.min(100, s.hull + 20);
         G.popup(e.x, e.y - 34, 'HULL +20', C.amber);
@@ -439,7 +455,7 @@
     // r: hit radius (0 = cannot be torpedoed or touched). touch: 'burst' dies
     // on contact, 'bite' survives it. dmg: hull lost on contact.
     var KINDS = {
-        jelly: { r: 14, hp: 1, dmg: 15, score: 40, touch: 'burst', color: C.jelly, update: updateJelly, draw: drawJelly, die: SND.zap },
+        jelly: { r: 14, hp: 1, dmg: 15, score: 40, touch: 'burst', color: C.jelly, update: updateJelly, draw: drawJelly, die: zapJelly },
         mine: { r: 13, hp: 1, dmg: 0, score: 60, touch: 'burst', color: C.coral, update: updateMine, draw: drawMine, die: function (s, e, rammed) { blast(s, e.x, e.y, 80, rammed); } },
         angler: { r: 18, hp: 2, dmg: 25, score: 150, touch: 'bite', color: C.amber, update: updateAngler, draw: drawAngler, die: SND.pop },
         esub: { r: 20, hp: 3, dmg: 25, score: 250, touch: 'bite', color: C.coral, update: updateEsub, draw: drawEsub, die: SND.blast },
@@ -448,8 +464,9 @@
         crate: { r: 12, hp: 1, dmg: 0, score: 150, color: C.amber, update: function () {}, draw: drawCrate, die: repair }
     };
 
-    // `rammed` means the boat ran into it: that earns no points, and it is
-    // the only way a mine's blast is turned against the boat.
+    // `rammed` means the boat ran into it (or into the mine whose blast did
+    // this): that earns no points, and it is the only way a mine's blast is
+    // turned against the boat.
     function kill(s, e, rammed) {
         var k = KINDS[e.kind];
         if (e.dead) return;
@@ -462,21 +479,23 @@
         k.die(s, e, rammed);
     }
 
-    function damage(s, e, n) {
+    // `rammed` is passed on by a blast the boat set off with its own hull.
+    function damage(s, e, n, rammed) {
         e.hp -= n;
-        if (e.hp <= 0) kill(s, e); else G.sfx('hit');
+        if (e.hp <= 0) kill(s, e, rammed); else G.sfx('hit');
     }
 
     // An explosion hurts everything in reach, so mines set each other off.
-    // Only a hostile blast (a mine the boat ran into) hurts the player: depth
-    // charges, and mines set off by the boat's own weapons, are friendly.
+    // Only a hostile blast (a mine the boat ran into, and the mines that one
+    // sets off) hurts the player and scores nothing for what it destroys:
+    // depth charges, and mines set off by the boat's own weapons, are friendly.
     function blast(s, x, y, r, hostile) {
         G.burst(x, y, { n: 26, color: C.foam, speed: 240, life: 0.7, drag: 2.5 });
         G.burst(x, y, { n: 10, color: C.amber, speed: 120, life: 0.4 });
         G.shake(6, 0.25);
         SND.blast();
         s.ents.forEach(function (e) {
-            if (!e.dead && G.dist(x, y, e.x, e.y) < r + KINDS[e.kind].r) damage(s, e, 3);
+            if (!e.dead && G.dist(x, y, e.x, e.y) < r + KINDS[e.kind].r) damage(s, e, 3, hostile);
         });
         var k = s.boss;
         if (k && k.awake && G.dist(x, y, k.x - 64, k.y) < r + 24) hitEye(s, 2);
@@ -764,7 +783,7 @@
             var top = topAt(s, c.x), bot = botAt(s, c.x), h = bot - top;
             ctx.fillStyle = 'rgba(202,240,248,0.08)';
             ctx.fillRect(c.x - COL_W / 2, top, COL_W, h);
-            if (c.hint) G.text('AIR', c.x, top + 26, { size: 15, bold: true, align: 'center', color: s.o2 < 50 && Math.sin(s.t * 10) > 0 ? C.coral : C.foam });
+            if (c.hint) G.text('AIR', c.x, top + 30, { size: 22, bold: true, align: 'center', color: s.o2 < 50 && Math.sin(s.t * 10) > 0 ? C.coral : C.foam });
             ctx.strokeStyle = 'rgba(202,240,248,0.85)';
             ctx.lineWidth = 1.5;
             for (var i = 0; i < 12; i++) {
@@ -780,7 +799,7 @@
         if (s.boss || x > s.cam + G.W + 40) return;
         ctx.fillStyle = 'rgba(202,240,248,' + (0.16 + 0.1 * Math.sin(s.t * 5)) + ')';
         ctx.fillRect(x - 14, topAt(s, x), 28, botAt(s, x) - topAt(s, x));
-        G.text('OPEN SEA', x + 26, MID, { size: 18, bold: true, color: C.foam, glow: C.teal });
+        G.text('OPEN SEA', x + 26, MID, { size: 22, bold: true, color: C.foam, glow: C.teal });
     }
 
     // ------------------------------------------------------------------
@@ -835,6 +854,8 @@
         ctx.fillStyle = C.amber; ctx.shadowColor = C.amber; ctx.shadowBlur = lit ? 22 : 10;
         disc(ctx, e.x - 24, e.y - 22, lit ? 7 : 4);
         ctx.shadowBlur = 0;
+        // The flashing lure is tiny on a phone, so the warning is spelled out.
+        if (e.state === 'warn') G.text('!', e.x, e.y - 36, { size: 26, bold: true, align: 'center', color: C.amber });
     }
 
     function drawEsub(s, e, ctx) {
@@ -852,6 +873,12 @@
         ctx.beginPath(); ctx.moveTo(e.x - 22, e.y + 2); ctx.lineTo(e.x - 8, e.y - 16); ctx.lineTo(e.x + 8, e.y - 16); ctx.lineTo(e.x + 22, e.y + 2); ctx.fill();
         ctx.fillStyle = e.on || e.warn ? C.amber : '#7a5a2c';
         ctx.fillRect(e.x - 8, e.y - 18, 16, 4);
+        // The lamp alone is a few pixels on a phone: while a vent builds up,
+        // the plume to come shimmers faintly over its full height.
+        if (e.warn) {
+            ctx.fillStyle = 'rgba(255,209,102,' + (0.14 + 0.08 * Math.sin(e.t * 30)) + ')';
+            ctx.fillRect(e.x - 18, e.y - e.h, 36, e.h - 16);
+        }
         if (!e.on) return;
         var g = ctx.createLinearGradient(0, e.y - e.h, 0, e.y);
         g.addColorStop(0, 'rgba(255,209,102,0)'); g.addColorStop(1, 'rgba(255,140,90,0.75)');
@@ -928,28 +955,30 @@
 
     // One path covers the whole view except a teardrop around the boat and
     // its headlight beam; even-odd filling leaves that hole lit. The beam
-    // then fades out toward its far end.
+    // then fades out toward its far end: the fade is the outer part of the
+    // same wedge, drawn 2 px larger all round so that it overlaps the dark
+    // instead of meeting it edge to edge (which left a bright seam, and a
+    // lit sliver along both sides where the two shapes disagreed).
     function drawDarkness(s, ctx) {
         if (s.dark <= 0.01) return;
         var cx = s.sub.x - s.cam, y = s.sub.y, far = cx + 360, a = 0.5, r = 46, dark = 'rgba(1,4,20,' + (0.92 * s.dark) + ')';
+        var nx = cx + Math.cos(a) * r, nh = Math.sin(a) * r;      // where the wedge leaves the teardrop
+        var fx = cx + 140, fh = nh + (105 - nh) * (fx - nx) / (far - nx) + 2;
         ctx.fillStyle = dark;
         ctx.beginPath();
         ctx.rect(0, G.HUD, G.W, G.H - G.HUD);
         ctx.moveTo(far, y - 105);
-        ctx.lineTo(cx + Math.cos(a) * r, y - Math.sin(a) * r);
+        ctx.lineTo(nx, y - nh);
         ctx.arc(cx, y, r, -a, a, true);
         ctx.lineTo(far, y + 105);
         ctx.closePath();
         ctx.fill('evenodd');
-        var g = ctx.createLinearGradient(cx + 150, 0, far, 0);
+        var g = ctx.createLinearGradient(cx + 150, 0, far - 20, 0);
         g.addColorStop(0, 'rgba(1,4,20,0)'); g.addColorStop(1, dark);
         ctx.fillStyle = g;
-        ctx.save();                 // clipped to the beam, or the fade shows as a box
         ctx.beginPath();
-        ctx.moveTo(cx, y); ctx.lineTo(far, y - 105); ctx.lineTo(far, y + 105);
-        ctx.clip();
-        ctx.fillRect(cx + 150, y - 105, 210, 210);
-        ctx.restore();
+        ctx.moveTo(fx, y - fh); ctx.lineTo(far + 2, y - 107); ctx.lineTo(far + 2, y + 107); ctx.lineTo(fx, y + fh);
+        ctx.fill();
     }
 
     // In the dark every creature still gives itself away by a small light.
@@ -986,24 +1015,26 @@
         ctx.restore();
     }
 
+    // A bar starting at x with its label to the left of it. Label and bar are
+    // sized to stay readable on a phone, where the canvas is drawn at 40%.
     function gauge(ctx, x, label, frac, color) {
-        G.text(label, x + 30, 46, { size: 11, bold: true, color: C.foam, align: 'right' });
+        G.text(label, x - 7, 49, { size: 20, bold: true, color: C.foam, align: 'right' });
         ctx.fillStyle = 'rgba(3,4,94,0.75)';
-        ctx.fillRect(x + 36, 37, 120, 9);
+        ctx.fillRect(x, 35, 120, 13);
         ctx.fillStyle = color;
-        ctx.fillRect(x + 36, 37, 120 * G.clamp(frac, 0, 1), 9);
+        ctx.fillRect(x, 35, 120 * G.clamp(frac, 0, 1), 13);
         ctx.strokeStyle = 'rgba(202,240,248,0.55)'; ctx.lineWidth = 1;
-        ctx.strokeRect(x + 36.5, 37.5, 120, 9);
+        ctx.strokeRect(x + 0.5, 35.5, 120, 13);
     }
 
     // Gauges sit just under the engine's HUD strip. The third one shows the
     // way through the trench, or the kraken's health once it is awake.
     function drawGauges(s, ctx) {
         var low = s.o2 < 25 && Math.sin(s.t * 14) > 0, k = s.boss;
-        gauge(ctx, 8, 'AIR', s.o2 / 100, low ? C.coral : C.foam);
-        gauge(ctx, 200, 'HULL', s.hull / 100, s.hull < 35 ? C.coral : C.aqua);
-        if (k && k.awake) gauge(ctx, 760, 'KRAKEN', k.hp / k.max, C.coral);
-        else gauge(ctx, 776, 'TRIP', s.cam / s.cfg.len, C.teal);
+        gauge(ctx, 56, 'AIR', s.o2 / 100, low ? C.coral : C.foam);
+        gauge(ctx, 270, 'HULL', s.hull / 100, s.hull < 35 ? C.coral : C.aqua);
+        if (k && k.awake) gauge(ctx, 832, 'KRAKEN', k.hp / k.max, C.coral);
+        else gauge(ctx, 832, 'TRIP', s.cam / s.cfg.len, C.teal);
         if (s.ring < 1.2) {
             ctx.strokeStyle = 'rgba(202,240,248,' + (0.35 * (1 - s.ring / 1.2)) + ')'; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(s.sub.x - s.cam, s.sub.y, 20 + s.ring * 260, 0, TAU); ctx.stroke();
@@ -1040,9 +1071,10 @@
         title: 'DEEP CHANNEL',
         blurb: 'Fly the sub through the trench. Breathe in the bubble columns, mind the hull.',
         controls: [
-            '↑ ↓ ballast · ← → trim speed (the boat is heavy: it sinks if left alone)',
-            'SPACE torpedoes ahead · X depth charges below (crates repair the hull)',
-            'Linger in bubble columns for air · a hit arm recoils: then dash for the kraken\'s air'
+            '↑ ↓ ballast · ← → trim speed — the boat sinks if left alone',
+            'SPACE / TORP torpedoes ahead · X / CHRG depth charges below',
+            'Linger in bubble columns for air · blow up crates to repair the hull',
+            'Kraken: a hit arm recoils — shoot the eye, dash for its air'
         ],
         levelNames: ['Sunlit Shelf', 'Jelly Bloom', 'Chain Mines', 'Angler Hollow', 'Rip Current',
             'Wolf Pack', 'The Blackout', 'Vent Garden', 'Falling Teeth', 'Kraken\'s Maw'],
@@ -1061,6 +1093,10 @@
             drums: { k: 'x...............', h: '....x.......x.x.' },
             leadWave: 'sine', bassWave: 'sine', arpWave: 'triangle', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // Everything is on the pad and all six buttons are used: the 8-way
+        // stick steers (diagonals matter: rise while trimming back), A and B
+        // are the two weapons.
+        touch: { a: 'TORP', b: 'CHRG' }
     });
 })();
