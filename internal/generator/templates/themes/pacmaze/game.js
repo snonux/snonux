@@ -18,6 +18,7 @@
     var EXIT_ROW = 5, HOUSE_ROW = 7;                 // corridor above the ghost house / its inside
     var FRUIT_AT = [0.3, 0.65];                      // share of dots eaten when a fruit appears
     var GATE_PERIOD = 5, GATE_OPEN = 2.7, DYING = 1.2;
+    var LAST_DOTS = 12;                              // this few left: they shine through the dark
     var C = {
         night: '#03051d', fill: '#0d1d6b', dot: '#ffd84a', ink: '#f6f7ff', muted: '#a6aed1',
         pink: '#ff9fcf', mint: '#8ff0d2', peach: '#ffad88', lilac: '#c7a7ff',
@@ -261,15 +262,24 @@
     // Player
     // ------------------------------------------------------------------
 
+    // Is a remembered turn still waiting for its opening? Not once it has
+    // been taken, and not while the player stands at a wall.
+    function turnPending(pl) {
+        var w = DIRS[pl.want];
+        return !!w && (pl.dx !== 0 || pl.dy !== 0) && (w.x !== pl.dx || w.y !== pl.dy);
+    }
+
     // A key press is remembered until the maze allows that turn. A single
-    // held key counts too, so holding a direction works like tapping it.
+    // held key counts too, so holding a direction works like tapping it —
+    // but it must not wipe out a turn tapped ahead of a junction: people
+    // keep the old direction held while they tap the next one.
     function readInput(s) {
         var held = -1, n = 0;
         for (var i = 0; i < 4; i++) {
             if (G.hit[KEYS[i]]) { s.pl.want = i; return; }
             if (G.key[KEYS[i]]) { held = i; n++; }
         }
-        if (n === 1) s.pl.want = held;
+        if (n === 1 && !turnPending(s.pl)) s.pl.want = held;
     }
 
     function eatDot(s) {
@@ -499,11 +509,19 @@
         }
     }
 
+    // Distance in tiles the short way round: the maze wraps, so two actors
+    // meeting head-on in a tunnel are close although their coordinates are a
+    // whole maze apart (without this they passed through each other there).
+    function gap(a, b) {
+        var dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
+        return G.dist(0, 0, Math.min(dx, COLS - dx), Math.min(dy, ROWS - dy));
+    }
+
     function collide(s) {
         var pl = s.pl;
         for (var i = 0; i < s.ghosts.length && !s.dying; i++) {
             var g = s.ghosts[i];
-            if (g.state !== 'roam' || G.dist(pl.x, pl.y, g.x, g.y) > 0.65) continue;
+            if (g.state !== 'roam' || gap(pl, g) > 0.65) continue;
             if (g.scared) eatGhost(s, g); else catchPlayer(s);
         }
     }
@@ -639,7 +657,8 @@
     }
 
     // Dots, pulsing power pellets and turbo pads. `onlyPower` is the pass
-    // after the darkness, which keeps the power pellets findable.
+    // after the darkness, which keeps the power pellets findable (the
+    // darkness passes false for the last few dots, so those show too).
     function drawPellets(s, ctx, onlyPower) {
         var big = 5.5 + 1.8 * Math.sin(G.t * 7);
         for (var r = 0; r < ROWS; r++) {
@@ -652,7 +671,8 @@
                     ctx.shadowBlur = 0;
                 }
                 if (onlyPower) continue;
-                if (ch === '.') ctx.fillRect(px(c) - 2, py(r) - 2, 4, 4);
+                // 6 px, not smaller: on a phone held upright the canvas is drawn at 40%.
+                if (ch === '.') ctx.fillRect(px(c) - 3, py(r) - 3, 6, 6);
                 if (ch === 'b') drawPad(ctx, px(c), py(r));
             }
         }
@@ -738,9 +758,11 @@
         ctx.shadowBlur = 0;
     }
 
-    // Darkness with a hole of light around the player. Ghost eyes, power
-    // pellets and the fruit still glow through it: that keeps a dark level
-    // a matter of reading the maze, not of luck.
+    // Darkness with a hole of light around the player. Ghost eyes (on a
+    // halo in the ghost's colour, so they also read on a small phone
+    // screen), power pellets and the fruit still glow through it, and so do
+    // the last few dots: that keeps a dark level a matter of reading the
+    // maze, not of luck or of searching blind for one missed dot.
     function drawDark(s, ctx) {
         if (s.shade < 0.02) return;
         var x = px(s.pl.x), y = py(s.pl.y);
@@ -749,11 +771,14 @@
         grad.addColorStop(1, 'rgba(3,5,29,' + (0.97 * s.shade).toFixed(3) + ')');
         ctx.fillStyle = grad;
         ctx.fillRect(0, OY, G.W, G.H - OY);
-        drawPellets(s, ctx, true);
+        drawPellets(s, ctx, s.left > LAST_DOTS);
         drawFruit(s, ctx);
         if (s.dying > 0) return;
         s.ghosts.forEach(function (g) {
             if (g.scared) return;
+            ctx.fillStyle = g.color; ctx.globalAlpha = 0.3 * s.shade;
+            disc(ctx, px(g.x), py(g.y), 11);
+            ctx.globalAlpha = 1;
             ctx.shadowColor = g.color; ctx.shadowBlur = 10;
             ghostEyes(ctx, px(g.x), py(g.y), g);
             ctx.shadowBlur = 0;
@@ -776,7 +801,7 @@
         ctx.restore();
         if (s.ready > 0 && !s.dying) {
             ctx.globalAlpha = 0.6 + 0.4 * Math.sin(G.t * 12);
-            G.text('READY!', G.W / 2, py(9) + 6, { size: 18, bold: true, color: C.dot, align: 'center', glow: C.dot });
+            G.text('READY!', G.W / 2, py(9) + 7, { size: 22, bold: true, color: C.dot, align: 'center', glow: C.dot });
             ctx.globalAlpha = 1;
         }
     }
@@ -789,7 +814,7 @@
         title: 'NEON MAZE',
         blurb: 'Eat every dot. Stay away from the ghosts, unless they are blue.',
         controls: [
-            '← ↑ → ↓ or WASD: steer (turns are remembered, reversing works anywhere)',
+            '← ↑ → ↓ / WASD / touch pad: steer (turns are remembered, reversing works anywhere)',
             'Power pellets turn the ghosts blue: eat them for 200, 400, 800, 1600',
             'Tunnels wrap round · fruit appears on your start tile, the second is an extra life',
             'Later: red shutters open and close, lightning pads give a burst of speed'
@@ -809,6 +834,9 @@
             arp: '0.2.1.3.', drums: { k: 'x.....x.x.......', s: '....x.......x...', h: '..x...x...x...x.' },
             leadWave: 'square', bassWave: 'triangle', arpWave: 'triangle', leadOct: 1
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // Steering is all there is: one direction at a time (a thumb a little
+        // off axis must not hold two), and no action buttons.
+        touch: { dirs: 4, hide: ['a', 'b'] }
     });
 })();
