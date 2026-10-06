@@ -13,7 +13,11 @@
  * Overlord, a mech that carries the keycard itself (10).
  *
  * Two things keep the pressure on: when the clock runs out the warhead ends
- * the run outright, and whoever camps in one spot gets shelled.
+ * the run outright, and whoever camps in one spot gets shelled (waiting for
+ * a lift or a moving platform is not camping).
+ *
+ * On a phone the pad carries every control: the stick runs, jumps (up) and
+ * ducks (down), A fires and B throws a grenade.
  */
 (function () {
     'use strict';
@@ -53,7 +57,9 @@
     // Every chunk starts and ends on two columns of plain ground (the seam is
     // also the checkpoint) and can be crossed in both directions, so a player
     // who walked past the keycard can always go back for it. Nothing solid
-    // hangs over a gap: a ceiling there would cut the jump short.
+    // hangs over a gap: a ceiling there would cut the jump short. A laser gate
+    // stands on at least two tiles of floor on either side, never over acid:
+    // a lit gate throws the player back, and that must not be into a pool.
 
     var START = ['            ', '            ', '############'];
     var END = ['              ', '           D  ', '##############'];
@@ -89,7 +95,7 @@
         { min: 7, rows: ['    ###      ###    ', '                    ', '  j   e  B   e   j  ', '####################'] },
         { min: 7, rows: ['      j        j      ', '     ###      ###     ', '  e        B       e  ', '######################'] },
         { min: 8, rows: ['      !     !       ', '      !     !    r  ', '      !  e  !       ', '      !     !       ', '####################'] },
-        { min: 8, rows: ['     !     !          ', '     !     !          ', '     !     !          ', '  e  !     !        e ', '####~~~##~~~~###~~####'] }
+        { min: 8, rows: ['   !             !    ', '   !             !    ', '   !             !    ', ' e !             !  e ', '######~~~##~~~########'] }
     ];
 
     var KINDS = {
@@ -268,6 +274,11 @@
         };
     }
 
+    // A phone has no keyboard, only the pad (see `steer` for what changes).
+    function coarse() {
+        return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    }
+
     function init(level) {
         var L = buildLevel(level);
         return {
@@ -276,7 +287,7 @@
             checks: L.checks, card: L.card, door: L.door, arena: L.arena, haveCard: false,
             boss: L.enemies.filter(function (e) { return e.kind === 'boss'; })[0] || null,
             p: newPlayer(), shots: [], nades: [], blasts: [], t: 0, clock: L.time, cam: 0,
-            msg: '', msgT: 0, gate: {}, finale: 0, dark: level === 9, anchor: 60, camp: 0
+            msg: '', msgT: 0, gate: {}, finale: 0, dark: level === 9, anchor: 60, camp: 0, touch: coarse()
         };
     }
 
@@ -344,7 +355,13 @@
         G.shake(6, 0.3);
     }
 
+    // The fight ends with the Overlord: what it had in the air goes out with
+    // it and its own drones (the ones without a post) drop, so nobody is
+    // killed by a dead boss on the way to the keycard. The shots are only
+    // marked as spent: this may run in the middle of updateShots' own pass.
     function bossDown(s, e) {
+        s.shots.forEach(function (b) { if (b.foe) b.life = 0; });
+        s.enemies.forEach(function (d) { if (d.kind === 'drone' && d.home === undefined) d.dead = true; });
         sealArena(s, false);
         s.card = { x: e.x + e.w / 2 - 15, y: FLOOR * T - 40 };
         s.finale = 1.6;
@@ -419,9 +436,13 @@
 
     // Running has inertia (less grip in the air); the jump has coyote time,
     // a short input buffer and a height that depends on how long UP is held.
+    // On the touch pad DOWN shares a stick with LEFT and RIGHT, and a thumb
+    // that runs a little low holds both: there a run in progress wins, or
+    // the hero would stop dead and duck in front of every enemy. Ducking
+    // first and then turning still works, as it does on the keyboard.
     function steer(s, p, dt) {
         var dir = (G.key.right ? 1 : 0) - (G.key.left ? 1 : 0);
-        p.crouch = G.key.down && p.ground;
+        p.crouch = G.key.down && p.ground && !(s.touch && dir && !p.crouch);
         if (dir) p.face = dir;
         var target = p.crouch ? 0 : dir * RUN * (p.inAcid ? 0.5 : 1);
         var rate = (p.ground ? 1900 : 1100) * dt;
@@ -856,12 +877,23 @@
         if (s.msgT > 0) s.msgT -= dt;
     }
 
+    // True next to (or on) a lift or a moving platform: a ride has to be
+    // waited for, a slow one for ten seconds, and a shell would knock the
+    // player off the ledge into whatever the platform crosses.
+    function atRide(s, p) {
+        return s.movers.some(function (m) {
+            return p.x + p.w > Math.min(m.ax, m.bx) - 4 * T && p.x < Math.max(m.ax, m.bx) + m.w + 4 * T;
+        });
+    }
+
     // Camping is not an option. Whoever stays within a few steps of one spot
     // for too long is warned and then shelled until they move on. It is off
-    // during the Overlord fight, where the arena is the whole world.
+    // during the Overlord fight, where the arena is the whole world, and the
+    // count stands still while the player waits for a ride; the warhead's
+    // clock still runs there.
     function airstrike(s, p, dt) {
         if (Math.abs(p.x - s.anchor) > 220) { s.anchor = p.x; s.camp = 0; }
-        if (s.boss && s.boss.awake) return;
+        if ((s.boss && s.boss.awake) || atRide(s, p)) return;
         s.camp += dt;
         if (s.camp < 9) return;
         if (s.camp < 14) {
@@ -874,14 +906,17 @@
     }
 
     // The warhead: the last twenty seconds are counted out loud, and at zero
-    // it takes every life at once. There is no second try at a nuke.
+    // it takes every life at once. There is no second try at a nuke. The
+    // loop counts the lives itself: G.loseLife() does nothing once the level
+    // is over (the exit reached on this very tick), and waiting for it to
+    // return zero would then never end.
     function countdown(s) {
         if (s.clock < 20 && s.clock > 0 && gate(s, 'tick', 1)) G.sfx(s.clock < 8 ? 'alarm' : 'blip');
         if (s.clock > 0) return;
         G.sfx('bigboom');
         G.flash('#ffffff', 0.8);
         G.shake(16, 0.8);
-        while (G.loseLife() > 0) { /* every life goes in the same blast */ }
+        for (var n = Math.ceil(G.lives); n > 0; n--) G.loseLife();
     }
 
     function follow(s, p, dt) {
@@ -1073,7 +1108,7 @@
         ctx.globalAlpha = 0.4 + pulse * 0.6;
         ctx.fillRect(d.x + 9, d.y - 6, 12, 4);
         ctx.globalAlpha = 1;
-        G.text('EXIT', d.x + d.w / 2, d.y - 14, { size: 14, bold: true, color: open ? ACID : RED, align: 'center' });
+        G.text('EXIT', d.x + d.w / 2, d.y - 14, { size: 20, bold: true, color: open ? ACID : RED, align: 'center' });
     }
 
     function drawCard(s, ctx) {
@@ -1188,6 +1223,12 @@
         ctx.fillStyle = '#4a4a4a';
         ctx.fillRect(e.x + 14, e.y, e.w - 28, 16);
         ctx.fillRect(e.dir > 0 ? e.x + e.w - 6 : e.x - 18, e.y + 24, 24, 8);
+        // The tell: its cannon glows for the last half second before every
+        // attack (and through a burst), like a trooper's muzzle.
+        if (e.awake && !e.air && (e.cool < 0.5 || e.burst > 0)) {
+            ctx.fillStyle = Math.floor(s.t * 20) % 2 ? '#ffffff' : YEL;
+            ctx.fillRect(e.dir > 0 ? e.x + e.w + 16 : e.x - 28, e.y + 20, 12, 16);
+        }
         ctx.fillStyle = Math.floor(s.t * 8) % 2 ? RED : YEL;
         ctx.fillRect(eye - 7, e.y + 4, 14, 6);
         G.text('☢', e.x + e.w / 2, e.y + 42, { size: 22, color: DARK, align: 'center' });
@@ -1276,7 +1317,7 @@
         var x = right ? G.W - 26 : 26, d = right ? 1 : -1;
         ctx.fillStyle = GOLD;
         ctx.beginPath(); ctx.moveTo(x + d * 14, 78); ctx.lineTo(x - d * 6, 66); ctx.lineTo(x - d * 6, 90); ctx.fill();
-        G.text(s.haveCard ? 'EXIT' : 'KEY', x - d * 12, 83, { size: 14, bold: true, color: GOLD, align: right ? 'right' : 'left' });
+        G.text(s.haveCard ? 'EXIT' : 'KEY', x - d * 12, 85, { size: 20, bold: true, color: GOLD, align: right ? 'right' : 'left' });
     }
 
     function drawBossBar(s, ctx) {
@@ -1286,7 +1327,7 @@
         ctx.fillRect(278, 508, 404, 16);
         ctx.fillStyle = e.flash > 0 ? '#ffffff' : RED;
         ctx.fillRect(280, 510, 400 * Math.max(0, e.hp) / e.max, 12);
-        G.text('OVERLORD', G.W / 2, 503, { size: 14, bold: true, color: GOLD, align: 'center' });
+        G.text('OVERLORD', G.W / 2, 503, { size: 20, bold: true, color: GOLD, align: 'center' });
     }
 
     // The health bar belongs to the current life; the hearts in the engine's
@@ -1342,7 +1383,7 @@
         blurb: 'The nuke is ticking. Find the keycard, reach the exit, blow up the rest.',
         controls: [
             '← → run · ↑ jump (hold for height) · ↓ duck under fire',
-            'SPACE shoot · X throw a grenade',
+            'SPACE / FIRE shoot · X / NADE throw a grenade',
             'Shoot barrels for chain reactions · crates hide health, guns and grenades'
         ],
         levelNames: ['Rooftops', 'Loading Dock', 'Sky Patrol', 'Acid Sewers', 'Factory Floor', 'Lift Shaft', 'Mutant Lab', 'Laser Grid', 'Blackout', 'The Overlord'],
@@ -1360,6 +1401,10 @@
             arp: '0.2.0.3.', drums: { k: 'x.....x.x.....x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
             leadWave: 'square', bassWave: 'square', arpWave: 'sawtooth', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // The full pad: run, jump and duck on the stick (its corners give a
+        // running jump), the two actions under the right thumb. Jump stays
+        // on the stick so that FIRE can be held through every jump.
+        touch: { a: 'FIRE', b: 'NADE' }
     });
 })();
