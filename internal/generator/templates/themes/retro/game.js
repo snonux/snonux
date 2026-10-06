@@ -6,6 +6,10 @@
  * wire, sliding blocks, swinging blocks and bursts of line noise kill. Reach
  * the far end of the line; a relay halfway is the checkpoint.
  *
+ * It is a one-button game. On a phone (coarse pointer) the pad shows only
+ * FLIP, and a tap anywhere on the picture flips as well; a mouse click does
+ * nothing, so the desktop game is unchanged.
+ *
  * Every hazard is a pure function of the packet's position (a slider's place,
  * a swinging block's height, whether a noise burst is live), never of time.
  * That keeps a level identical on every attempt, lets a respawn simply move
@@ -33,26 +37,33 @@
 
     // v: scroll speed. secs: nominal length. react: seconds between the end
     // of a hazard on one wire and the start of the next one on the other,
-    // which is the window the flip has to be pressed in (the generator
-    // guarantees it; low hazards forgive a slightly earlier press). tight:
-    // how much of that window is left inside a zigzag. keep: share of
+    // which is the least time the flip can be pressed in (the generator
+    // guarantees it; a flip may also start while the last spikes are still
+    // passing under the far wire, so a played window is about 0.4s longer).
+    // tight: how much of `react` is left inside a zigzag. keep: share of
     // hazards on the lane the packet is NOT on (they punish flipping by
     // rhythm). kinds: pattern weights.
+    // The numbers are tuned with a bot that presses mid-window with Gaussian
+    // timing error: its losses must rise from level to level. Level 8 is
+    // nearly as tight as level 9 because its double-speed stretches hold only
+    // plain hazards and would otherwise be a rest.
     var LEVELS = [
         { v: 270, secs: 46, react: 1.10, tight: 0.6, keep: 0, kinds: { spike: 1 } },
-        { v: 290, secs: 50, react: 1.00, tight: 0.6, keep: 0.12, kinds: { spike: 3, gap: 3 } },
-        { v: 310, secs: 54, react: 0.92, tight: 0.6, keep: 0.15, kinds: { spike: 2, gap: 2, slider: 3 } },
-        { v: 325, secs: 57, react: 0.85, tight: 0.6, keep: 0.18, kinds: { spike: 2, gap: 2, slider: 1, burst: 3 } },
-        { v: 340, secs: 60, react: 0.78, tight: 0.7, keep: 0.20, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 4 } },
-        { v: 350, secs: 62, react: 0.72, tight: 0.68, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 4 } },
-        { v: 360, secs: 64, react: 0.66, tight: 0.66, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 4 } },
-        { v: 370, secs: 68, react: 0.58, tight: 0.62, keep: 0.26, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, turbo: 2 } },
-        { v: 380, secs: 70, react: 0.52, tight: 0.58, keep: 0.28, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, fog: 2 } },
-        { v: 395, secs: 78, react: 0.50, tight: 0.58, keep: 0.30, kinds: { spike: 2, gap: 2, slider: 2, burst: 2, zig: 2, mover: 2, jam: 2, turbo: 1.5, fog: 1.5 } }
+        { v: 290, secs: 50, react: 0.95, tight: 0.6, keep: 0.12, kinds: { spike: 3, gap: 3 } },
+        { v: 310, secs: 54, react: 0.85, tight: 0.6, keep: 0.15, kinds: { spike: 2, gap: 2, slider: 3 } },
+        { v: 325, secs: 57, react: 0.75, tight: 0.6, keep: 0.18, kinds: { spike: 2, gap: 2, slider: 1, burst: 3 } },
+        { v: 340, secs: 60, react: 0.66, tight: 0.90, keep: 0.20, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 3 } },
+        { v: 350, secs: 62, react: 0.58, tight: 0.75, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 4 } },
+        { v: 360, secs: 64, react: 0.50, tight: 0.80, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 4 } },
+        { v: 370, secs: 68, react: 0.36, tight: 0.70, keep: 0.26, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, turbo: 1.5 } },
+        { v: 380, secs: 70, react: 0.35, tight: 0.65, keep: 0.28, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, fog: 2 } },
+        { v: 395, secs: 78, react: 0.28, tight: 0.60, keep: 0.30, kinds: { spike: 2, gap: 2, slider: 2, burst: 2, zig: 2, mover: 2, jam: 2, turbo: 1.5, fog: 1.5 } }
     ];
-    // Every kind a level enables appears at least this often, whatever the
-    // seed rolls: once in each half of the line.
-    var MIN_EACH = 2;
+    // Every kind a level enables appears at least once before the relay and
+    // once after it, whatever the seed rolls. The slots of a half are spread
+    // over this share of it, so that the last one is not due at the very end,
+    // where a double-speed stretch could carry the cursor past it.
+    var QUOTA_SPREAD = 0.8;
     // After the relay the flip windows shrink to this share of `react`.
     var SECOND_HALF = 0.88;
     // Inside a double-speed or dropout stretch only the plainest hazards
@@ -94,22 +105,29 @@
 
     function localSpeed(t) { return t.mode === 'turbo' ? t.c.v * 2 : t.c.v; }
 
-    // One slot per enabled kind and half of the line, spread evenly along it.
+    // One slot per enabled kind and half of the line (0 before the relay,
+    // 1 after it), spread evenly along that half.
     function buildQuota(c, len) {
         var kinds = Object.keys(c.kinds), slots = [];
-        for (var j = 0; j < MIN_EACH; j++) {
+        for (var half = 0; half < 2; half++) {
             for (var i = 0; i < kinds.length; i++) {
-                slots.push({ kind: kinds[i], need: j + 1, at: len * (j + (i + 1) / (kinds.length + 1)) / MIN_EACH });
+                slots.push({ kind: kinds[i], half: half, at: len / 2 * (half + QUOTA_SPREAD * (i + 1) / (kinds.length + 1)) });
             }
         }
         return slots;
     }
 
+    // A first-half slot not yet looked at: the relay waits for these, or a
+    // kind due just before it would slip into the second half.
+    function firstHalfPending(t) { return t.quota.length > 0 && t.quota[0].half === 0; }
+
     // The kind a quota slot still owes once the cursor has passed it, if any.
+    // t.count is the tally of the current half (the relay resets it), and a
+    // second-half slot is never judged before the relay stands.
     function owedKind(t) {
-        while (t.quota.length && t.quota[0].at <= t.x) {
+        while (t.quota.length && t.quota[0].at <= t.x && (t.cpX || firstHalfPending(t))) {
             var q = t.quota.shift();
-            if ((t.count[q.kind] || 0) < q.need) return q.kind;
+            if (!t.count[q.kind]) return q.kind;
         }
         return null;
     }
@@ -212,6 +230,7 @@
         t.lane = 1; t.force = true; t.lastFlip = t.cpX;
         t.react = t.c.react * SECOND_HALF;
         t.end = { '1': t.cpX, '-1': t.cpX };
+        t.count = {};                           // the quota starts again for the second half
     }
 
     function pattern(t) {
@@ -236,11 +255,16 @@
         };
         while (t.x < len) {
             if (t.mode && t.x >= t.zone.x1) closeMode(t);
-            if (!t.cpX && t.x > len / 2) relay(t);
+            if (!t.cpX && t.x > len / 2 && !firstHalfPending(t)) relay(t);
             pattern(t);
         }
         if (t.mode) closeMode(t);
         return { haz: t.haz, zones: t.zones, bits: t.bits, cpX: t.cpX, len: t.x + c.v * 1.2 };
+    }
+
+    // A phone: the pad and the canvas are the only controls there.
+    function coarse() {
+        return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
     }
 
     function init(level) {
@@ -248,7 +272,7 @@
         return {
             v: v, len: line.len, haz: line.haz, zones: line.zones, bits: line.bits, cpX: line.cpX,
             x: 0, prevX: 0, y: FLOOR - PS, vy: 0, g: 1, ground: true, speed: v * 0.5,
-            want: 0, buf: 0, cp: false, redial: 0, started: false, squash: 0, combo: 0
+            want: 0, buf: 0, cp: false, redial: 0, started: false, squash: 0, combo: 0, touch: coarse()
         };
     }
 
@@ -326,11 +350,12 @@
         G.shake(3, 0.12);
     }
 
-    // SPACE toggles, up/down pick a wire. A flip needs a wire under the
+    // SPACE (FLIP on the pad) toggles, and so does a tap anywhere on the
+    // canvas of a phone; up/down pick a wire. A flip needs a wire under the
     // packet; a press just before landing is remembered so that fast
     // rhythms do not depend on a single frame.
     function steer(s, dt) {
-        if (G.hit.a) { s.want = -s.g; s.buf = BUFFER; }
+        if (G.hit.a || (s.touch && G.mouse.hit)) { s.want = -s.g; s.buf = BUFFER; }
         else if (G.hit.up) { s.want = -1; s.buf = BUFFER; }
         else if (G.hit.down) { s.want = 1; s.buf = BUFFER; }
         if (s.buf <= 0) return;
@@ -591,6 +616,14 @@
         ctx.fillRect(x, y, MOV_W, MOV_H);
         ctx.fillStyle = BG;
         for (var i = 14; i < MOV_H - 8; i += 16) ctx.fillRect(x + 6, y + i, MOV_W - 12, 5);
+        // A bright arrowhead on the end that leads towards the deadly wire:
+        // far away the block still hangs near the other wire, and a glance
+        // must tell where it is going, not where it is.
+        var tip = h.lane > 0 ? y + MOV_H - 4 : y + 4, base = tip - h.lane * 24;
+        ctx.fillStyle = HOT;
+        ctx.beginPath();
+        ctx.moveTo(x + 5, base); ctx.lineTo(x + MOV_W / 2, tip); ctx.lineTo(x + MOV_W - 5, base);
+        ctx.fill();
     }
 
     // Invisible until the packet is close, then a flickering outline, then
@@ -707,7 +740,7 @@
             G.text('REDIALING' + dots, G.W / 2, MID + 34, { size: 26, color: AMBER, align: 'center' });
         } else if (G.level === 1 && s.x < 420) {
             ctx.globalAlpha = 0.6 + 0.4 * Math.sin(G.t * 6);
-            G.text('SPACE FLIPS GRAVITY', G.W / 2, MID - 60, { size: 30, color: AMBER, align: 'center' });
+            G.text(s.touch ? 'TAP TO FLIP GRAVITY' : 'SPACE FLIPS GRAVITY', G.W / 2, MID - 60, { size: 30, color: AMBER, align: 'center' });
             ctx.globalAlpha = 1;
         }
     }
@@ -735,8 +768,8 @@
         title: 'CARRIER LOST',
         blurb: 'Ride the phone line to the far end. Flip between the wires to stay alive.',
         controls: [
-            'SPACE: flip gravity (only while touching a wire)',
-            'UP / DOWN: jump straight to the ceiling / floor wire',
+            'SPACE / FLIP / tap: flip gravity (only on a wire)',
+            'UP / DOWN keys: straight to the ceiling / floor wire',
             'The relay halfway is your checkpoint and restores one life'
         ],
         levelNames: ['Dial Tone', 'Handshake', 'Party Line', 'Line Noise', 'Crosstalk', 'Switchboard', 'Jammer', 'Overclock', 'Dropout', 'No Carrier'],
@@ -753,6 +786,8 @@
             drums: { k: 'x..x..x...x.x...', s: '....x.......x..x', h: 'x.xxx.xxx.xxx.xx' },
             leadWave: 'square', bassWave: 'triangle', arpWave: 'square', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // One button: FLIP alone is a big target, and the canvas is another.
+        touch: { a: 'FLIP', hide: ['left', 'right', 'up', 'down', 'b'] }
     });
 })();
