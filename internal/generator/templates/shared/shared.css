@@ -1072,9 +1072,11 @@ body.sno-game-on { overflow:hidden; }
    the canvas, the close button and each pad part its pixel rectangle (class
    sno-game-touch marks that mode), so the pad sits beside the canvas in
    landscape and below it in portrait, never on top of it. */
-#sno-game { -webkit-user-select:none; -webkit-touch-callout:none; }
+/* overflow:hidden: nothing placed in the overlay may ever widen the document,
+   or a phone would zoom the whole page out to show it. */
+#sno-game { overflow:hidden; -webkit-user-select:none; -webkit-touch-callout:none; }
 #sno-game.sno-game-touch canvas, #sno-game.sno-game-touch .sno-game-close { position:absolute; }
-#sno-game.sno-game-touch .sno-game-close { right:auto; padding:0; font-size:13px; opacity:0.8; }
+#sno-game.sno-game-touch .sno-game-close { right:auto; padding:0; font-size:20px; letter-spacing:0; opacity:0.8; }
 .sno-game-pad {
   position:absolute; inset:0; pointer-events:none; color:#fff; font:700 18px sans-serif;
   -webkit-tap-highlight-color:transparent;

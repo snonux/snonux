@@ -651,12 +651,15 @@
     // Every button simply holds a key code, so a game sees the pad exactly
     // as it sees the keyboard. A game tunes the pad with def.touch:
     //
-    //   { a: 'JUMP', b: 'BOMB', hide: ['up', 'down'], twin: true }
+    //   { a: 'JUMP', b: 'BOMB', hide: ['up', 'down'], twin: true, dirs: 4 }
     //
     // a / b relabel the action buttons, hide drops buttons the game does not
-    // use (left right up down a b), and twin turns the left pad into W A S D
-    // and adds a second direction pad on the right that sends the arrow
-    // keys, for twin-stick games that read the two halves with G.down(code).
+    // use (left right up down a b; all six leaves a tap-only game with just
+    // the close button), and twin turns the left pad into W A S D and adds a
+    // second direction pad on the right that sends the arrow keys, for
+    // twin-stick games that read the two halves with G.down(code). dirs: 4
+    // makes a direction pad report one direction at a time (grid and maze
+    // games) instead of the default eight with diagonals.
     //
     // Where the pad goes is decided in resize(): it never covers the canvas.
 
@@ -666,7 +669,7 @@
     // Eight 45° sectors clockwise from "right" (screen y grows downward).
     var SECTORS = [['right'], ['right', 'down'], ['down'], ['down', 'left'],
         ['left'], ['left', 'up'], ['up'], ['up', 'right']];
-    var PAD_GAP = 8, CLOSE_W = 72, CLOSE_H = 40, DEAD_ZONE = 0.18;
+    var PAD_GAP = 8, CLOSE_W = 48, CLOSE_H = 44, DEAD_ZONE = 0.18;
     var pad = null;         // { el, move, fire, act, parts } while a pad is on screen
 
     function isCoarse() {
@@ -677,7 +680,7 @@
         t = t || {};
         var hide = {};
         (t.hide || []).forEach(function (name) { hide[name] = true; });
-        return { a: String(t.a || 'A'), b: String(t.b || 'B'), hide: hide, twin: !!t.twin };
+        return { a: String(t.a || 'A'), b: String(t.b || 'B'), hide: hide, twin: !!t.twin, four: t.dirs === 4 };
     }
 
     function padButton(parent, code, label, name) {
@@ -745,14 +748,18 @@
     // Which directions a touch at (e.clientX, e.clientY) means on pad d. A
     // full pad is a real 8-way stick: the angle from its centre picks one of
     // eight sectors, so the corners are diagonals and a thumb can slide from
-    // one direction to the next without lifting. A pad with one axis hidden
-    // only looks at which half was touched.
+    // one direction to the next without lifting. With dirs: 4 the sectors
+    // are the four quarters, so a thumb slightly off axis in a maze still
+    // means one direction. A pad with one axis hidden only looks at which
+    // half was touched.
     function dpadWanted(d, e) {
         var r = d.el.getBoundingClientRect(), want = {}, names;
         var dx = (e.clientX - r.left) / r.width * 2 - 1, dy = (e.clientY - r.top) / r.height * 2 - 1;
         if (d.x && d.y) {
             if (Math.hypot(dx, dy) < DEAD_ZONE) return want;
-            names = SECTORS[Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) & 7];
+            // Every second sector is a cardinal: step by 90° to skip the diagonals.
+            var step = d.four ? Math.PI / 2 : Math.PI / 4;
+            names = SECTORS[Math.round(Math.atan2(dy, dx) / step) * (d.four ? 2 : 1) & 7];
         } else {
             names = [d.x ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down')];
         }
@@ -762,9 +769,9 @@
 
     // Builds one direction pad sending `codes`; null when the game hides all
     // four directions.
-    function buildDpad(parent, codes, hide, kind) {
-        var el = document.createElement('div');
-        var d = { el: el, codes: {}, btn: {}, held: {}, pointer: null };
+    function buildDpad(parent, codes, cfg, kind) {
+        var el = document.createElement('div'), hide = cfg.hide;
+        var d = { el: el, codes: {}, btn: {}, held: {}, pointer: null, four: cfg.four };
         ['up', 'left', 'right', 'down'].forEach(function (n) {
             if (hide[n]) return;
             d.codes[n] = codes[n];
@@ -806,9 +813,9 @@
         var el = document.createElement('div');
         el.className = 'sno-game-pad';
         el.setAttribute('aria-hidden', 'true');
-        var p = { el: el, twin: cfg.twin };
-        p.move = buildDpad(el, cfg.twin ? WASD : ARROWS, cfg.hide, 'move');
-        p.fire = cfg.twin ? buildDpad(el, ARROWS, cfg.hide, 'fire') : null;
+        var p = { el: el };
+        p.move = buildDpad(el, cfg.twin ? WASD : ARROWS, cfg, 'move');
+        p.fire = cfg.twin ? buildDpad(el, ARROWS, cfg, 'fire') : null;
         p.act = buildActions(el, cfg);
         p.parts = [p.move, p.fire].filter(Boolean).concat(p.act ? p.act.parts : []);
         root.appendChild(el);
@@ -835,18 +842,28 @@
             pad = null;
         }
         if (isCoarse()) pad = buildPad(dom.root, padConfig(touchDef));
+        // A phone has no Esc key to name.
+        dom.close.textContent = pad ? '✕' : '✕ ESC';
         resize();
     }
 
     // --- pad layout: pure geometry, applied by resize() ---
 
+    // A pad cell is normally at least 48 CSS px, the smallest target a thumb
+    // hits reliably. Only where that would leave next to no playfield (two
+    // direction pads on a small phone held sideways) may it shrink, down to
+    // MIN_UNIT, until the canvas is MIN_CANVAS_W wide.
+    var MIN_UNIT = 40, MIN_CANVAS_W = 280;
+
     function box(x, y, size) { return { x: x, y: y, w: size.w, h: size.h }; }
 
-    // Pixel sizes of the pad's parts for a viewport. The unit follows the
-    // short side of the screen but never drops below 48 CSS px, the smallest
-    // target a thumb hits reliably. `column` stacks the action buttons.
-    function padSizes(vw, vh, column) {
-        var c = G.clamp(Math.round(Math.min(vw, vh) * 0.135), 48, 68), b = Math.round(c * 1.15);
+    // Preferred cell size: it follows the short side of the screen.
+    function padUnit(vw, vh) { return G.clamp(Math.round(Math.min(vw, vh) * 0.135), 48, 68); }
+
+    // Pixel sizes of the pad's parts for cell size c. `column` stacks the
+    // action buttons instead of putting them side by side.
+    function padSizes(c, column) {
+        var b = Math.round(c * 1.15);
         var dsize = function (d) { return d ? { w: d.cols * c, h: d.rows * c } : { w: 0, h: 0 }; };
         var n = pad.act ? pad.act.n : 0, run = n * b + Math.max(0, n - 1) * PAD_GAP;
         var act = !n ? { w: 0, h: 0 } : (column ? { w: b, h: run } : { w: run, h: b });
@@ -879,25 +896,28 @@
 
     // Landscape: gutters left and right of the canvas. Direction pad in the
     // left one; close button, action buttons and fire pad in the right one.
-    function sideLayout(vw, vh) {
-        var z = padSizes(vw, vh, !pad.fire);
+    // Null when a gutter's contents are taller than the screen.
+    function sideLayout(vw, vh, c) {
+        var z = padSizes(c, !pad.fire);
         var left = z.move.w ? z.move.w + 2 * PAD_GAP : 0;
         var right = Math.max(z.act.w, z.fire.w, CLOSE_W) + 2 * PAD_GAP;
+        var mainH = z.fire.h || z.act.h, top = CLOSE_H + 2 * PAD_GAP + actsAbove(z);
+        if (top + mainH + PAD_GAP > vh || z.move.h + 2 * PAD_GAP > vh) return null;
         var canvas = fitCanvas(left, 0, vw - left - right, vh, false);
         if (!canvas) return null;
         // A little below the middle is where thumbs rest on a phone held
         // sideways; the right side also has to stay under the close button.
-        var rest = function (h, min) { return Math.round(G.clamp(vh * 0.58 - h / 2, min, Math.max(min, vh - h - PAD_GAP))); };
-        var mainH = z.fire.h || z.act.h, top = CLOSE_H + 2 * PAD_GAP + actsAbove(z);
+        var rest = function (h, min) { return Math.round(G.clamp(vh * 0.58 - h / 2, min, vh - h - PAD_GAP)); };
         var out = { z: z, canvas: canvas, close: { x: vw - PAD_GAP - CLOSE_W, y: PAD_GAP, w: CLOSE_W, h: CLOSE_H } };
         if (z.move.w) out.move = box(PAD_GAP, rest(z.move.h, PAD_GAP), z.move);
         return placeRight(z, vw - PAD_GAP, rest(mainH, top), out);
     }
 
     // Portrait: canvas across the top, the close button right under it, and
-    // the pad centred in what is left below (bottoms aligned).
-    function belowLayout(vw, vh) {
-        var z = padSizes(vw, vh, false);
+    // the pad centred in what is left below (bottoms aligned). Null when the
+    // pad is wider than the screen or leaves the canvas no height.
+    function belowLayout(vw, vh, c) {
+        var z = padSizes(c, false);
         var mainH = z.fire.h || z.act.h, padH = Math.max(z.move.h, mainH + actsAbove(z));
         if (z.move.w + Math.max(z.act.w, z.fire.w) + 3 * PAD_GAP > vw) return null;
         var closeRow = CLOSE_H + 2 * PAD_GAP;
@@ -912,10 +932,21 @@
     // Whichever arrangement leaves the bigger playfield wins: beside the
     // canvas on a phone held sideways, below it on one held upright (and on
     // a tablet, where there is room under a full-width canvas either way).
+    function roomiest(a, b) {
+        if (!a || !b) return a || b;
+        return a.canvas.w >= b.canvas.w ? a : b;
+    }
+
+    // The layout for a viewport, or null when no pad fits at all. Starts at
+    // the comfortable cell size and shrinks it only while the canvas would
+    // otherwise be narrower than MIN_CANVAS_W.
     function padLayout(vw, vh) {
-        var side = sideLayout(vw, vh), below = belowLayout(vw, vh);
-        if (!side || !below) return side || below;
-        return side.canvas.w >= below.canvas.w ? side : below;
+        var best = null;
+        for (var c = padUnit(vw, vh); c >= MIN_UNIT; c -= 4) {
+            best = roomiest(best, roomiest(sideLayout(vw, vh, c), belowLayout(vw, vh, c)));
+            if (best && best.canvas.w >= MIN_CANVAS_W) break;
+        }
+        return best;
     }
 
     function placeEl(el, r) {
@@ -923,12 +954,15 @@
         el.style.width = r.w + 'px'; el.style.height = r.h + 'px';
     }
 
+    function unplaceEl(el) { el.style.left = el.style.top = el.style.width = el.style.height = ''; }
+
     // Applies a layout from padLayout(). Without one (a viewport too small
-    // for any pad) the pad is hidden and the plain centred canvas is used.
+    // for any pad) the pad is hidden and the plain centred canvas is used,
+    // so whatever an earlier layout pinned in place is let go again.
     function applyPadLayout(lay) {
         dom.root.classList.toggle('sno-game-touch', !!lay);
         pad.el.style.display = lay ? '' : 'none';
-        if (!lay) return;
+        if (!lay) { unplaceEl(dom.canvas); unplaceEl(dom.close); return; }
         placeEl(dom.canvas, lay.canvas);
         placeEl(dom.close, lay.close);
         pad.el.style.fontSize = Math.round(lay.z.c * 0.38) + 'px';
@@ -1213,21 +1247,35 @@
         else if (LOGICAL[code] === 'right') selectLevel(cur.sel + 1);
     }
 
-    // Level boxes on the title screen: 10 squares in one centred row.
-    var BOX = { size: 56, gap: 12, y: 340 };
-    function boxX(i) { return (W - (LEVELS * BOX.size + (LEVELS - 1) * BOX.gap)) / 2 + i * (BOX.size + BOX.gap); }
+    // Level boxes on the title screen: 10 squares in one centred row. On a
+    // phone they are bigger (the whole canvas may be 390 px wide there) and a
+    // tap counts for a box from half a gap beside it and `slop` above and
+    // below it, so a thumb need not be exact.
+    var BOX = { size: 56, gap: 12, y: 340, font: 26, base: 38, slop: 0 };
+    var TOUCH_BOX = { size: 80, gap: 12, y: 322, font: 36, base: 54, slop: 18 };
+    function boxes() { return pad ? TOUCH_BOX : BOX; }
+    function boxX(i) {
+        var b = boxes();
+        return (W - (LEVELS * b.size + (LEVELS - 1) * b.gap)) / 2 + i * (b.size + b.gap);
+    }
+
+    // The level box under G.mouse as a 0-based index; null when the click is
+    // not about the boxes at all (it then confirms like any other click), and
+    // on a phone -1 for a tap in the row's band that is beside the row: a
+    // near miss, which must never start a level.
+    function boxAt() {
+        var b = boxes(), m = G.mouse, pitch = b.size + b.gap, side = pad ? b.gap / 2 : 0;
+        if (m.y < b.y - b.slop || m.y > b.y + b.size + b.slop) return null;
+        var rel = m.x - boxX(0) + side, i = Math.floor(rel / pitch);
+        if (i < 0 || i >= LEVELS) return pad ? -1 : null;
+        return rel - i * pitch <= b.size + 2 * side ? i : null;
+    }
 
     function menuClick() {
-        if (cur.screen !== 'title') { menuConfirm(); return; }
-        for (var i = 0; i < LEVELS; i++) {
-            var hit = G.mouse.x >= boxX(i) && G.mouse.x <= boxX(i) + BOX.size &&
-                G.mouse.y >= BOX.y && G.mouse.y <= BOX.y + BOX.size;
-            if (!hit) continue;
-            if (i + 1 > cur.save.unlocked) return;
-            if (i + 1 === cur.sel) menuConfirm(); else selectLevel(i + 1);
-            return;
-        }
-        menuConfirm();
+        var i = cur.screen === 'title' ? boxAt() : null;
+        if (i === null) { menuConfirm(); return; }
+        if (i < 0 || i + 1 > cur.save.unlocked) return;
+        if (i + 1 === cur.sel) menuConfirm(); else selectLevel(i + 1);
     }
 
     function tick() {
@@ -1280,14 +1328,14 @@
 
     function drawLevelBoxes(ctx, c) {
         for (var i = 0; i < LEVELS; i++) {
-            var x = boxX(i), open = i + 1 <= cur.save.unlocked, sel = i + 1 === cur.sel;
+            var b = boxes(), x = boxX(i), open = i + 1 <= cur.save.unlocked, sel = i + 1 === cur.sel;
             ctx.lineWidth = 2;
             ctx.strokeStyle = open ? c.accent : c.dim;
             ctx.fillStyle = sel ? c.accent : 'rgba(0,0,0,0.5)';
-            ctx.fillRect(x, BOX.y, BOX.size, BOX.size);
-            ctx.strokeRect(x, BOX.y, BOX.size, BOX.size);
-            G.text(String(i + 1), x + BOX.size / 2, BOX.y + 38, {
-                size: 26, bold: true, align: 'center', color: sel ? c.bg : (open ? c.fg : c.dim)
+            ctx.fillRect(x, b.y, b.size, b.size);
+            ctx.strokeRect(x, b.y, b.size, b.size);
+            G.text(String(i + 1), x + b.size / 2, b.y + b.base, {
+                size: b.font, bold: true, align: 'center', color: sel ? c.bg : (open ? c.fg : c.dim)
             });
         }
     }
@@ -1303,7 +1351,7 @@
         drawLevelBoxes(ctx, c);
         G.text('LEVEL ' + cur.sel + (name ? ' — ' + name : ''), W / 2, 430, { size: 18, color: c.fg, align: 'center', max: W - 80 });
         // The hints name what the player actually has in hand.
-        G.text(pad ? 'TAP to start · tap a box to pick the level · ✕ quit'
+        G.text(pad ? 'TAP to start · ' + (pad.move && pad.move.x ? '◀ ▶ or ' : '') + 'tap a box: level · ✕ quit'
             : 'ENTER start · ← → level · P pause · M ' + (muted ? 'unmute' : 'mute') + ' · ESC quit',
             W / 2, 478, { size: 14, color: c.dim, align: 'center' });
         G.text('HI ' + pad6(cur.save.hi) + (cur.save.won ? '  ★ COMPLETED' : ''), W / 2, 508, { size: 14, color: c.accent, align: 'center' });
@@ -1373,12 +1421,15 @@
     // to leave room and the pad never lies on the playfield.
     function resize() {
         if (!dom) return;
-        var vw = window.innerWidth, vh = window.innerHeight;
+        // The overlay's own box, not window.innerWidth/Height: on a phone
+        // whose blog page is wider than the screen the window reports the
+        // zoomed-out page size, while the fixed overlay keeps the real one.
+        var vw = dom.root.clientWidth, vh = dom.root.clientHeight;
         var lay = pad ? padLayout(vw, vh) : null;
         var fit = lay ? lay.canvas.fit : Math.min(vw / W, vh / H);
+        if (pad) applyPadLayout(lay);
         dom.canvas.style.width = Math.floor(W * fit) + 'px';
         dom.canvas.style.height = Math.floor(H * fit) + 'px';
-        if (pad) applyPadLayout(lay);
         // Render at device resolution, but never below the logical size and
         // never so large that a slow GPU struggles.
         scale = G.clamp(fit * Math.min(window.devicePixelRatio || 1, 2), 1, 3);
@@ -1393,6 +1444,16 @@
         lastTime = now;
         while (acc >= STEP) { tick(); acc -= STEP; }
         frame();
+    }
+
+    // On a phone "TAP to start" has to hold wherever the thumb lands, so the
+    // gutters and the space under the canvas confirm a menu like the canvas
+    // does. Pad parts and the close button are targets of their own and the
+    // canvas has its own handler; none of them arrive here as e.target.
+    function onOverlayTap(e) {
+        if (!pad || !dom || e.target !== dom.root || !cur || cur.screen === 'play') return;
+        audio();
+        menuConfirm();
     }
 
     function openOverlay() {
@@ -1419,6 +1480,7 @@
         // On the whole overlay, not just the canvas: a long press on a pad
         // button would otherwise open the browser's context menu.
         root.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+        root.addEventListener('pointerdown', onOverlayTap);
         root.tabIndex = -1;
         document.body.appendChild(root);
         document.body.classList.add('sno-game-on');
@@ -1482,6 +1544,8 @@
         if (G.active || !TITLES[theme]) return false;
         G.active = true;
         errors.length = 0;
+        // A new game starts with nothing held, by a finger or by a bot.
+        stepMem = newStepMem();
         clearInput(); clearFx();
         pauseAmbient();
         openOverlay();

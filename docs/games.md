@@ -112,8 +112,9 @@ fullscreen and asks for landscape where the browser allows it, and adds an
 on-screen pad. The pad never covers the playfield: in landscape the canvas
 shrinks to leave a gutter on each side (direction pad left, action buttons
 right), in portrait the canvas sits at the top with the pad below it. The
-`✕ ESC` button quits; a tap confirms every menu screen, and a tap on a level
-box selects that level.
+`✕` button quits. A tap anywhere but on the pad or `✕` confirms every menu
+screen; on the title screen a tap on a level box (or ◀ ▶ on the pad) picks
+that level, and a tap that only just misses a box does nothing.
 
 The pad holds keys, so a game needs no touch code of its own:
 
@@ -126,7 +127,9 @@ The pad holds keys, so a game needs no touch code of its own:
 The direction pad is an 8-way stick: its corners give diagonals (two
 directions held at once) and a thumb can slide from one direction to the next.
 Each part of the pad follows its own finger, so holding a direction while
-pressing A or B works. Buttons are at least 48 CSS px.
+pressing A or B works. Buttons are at least 48 CSS px; only a `twin` pad on a
+small phone held sideways shrinks them (to 40 at the least) so that the canvas
+stays about 280 px wide.
 
 `def.touch` tunes the pad; every field is optional, and a game that declares
 nothing gets the full pad above.
@@ -135,13 +138,18 @@ nothing gets the full pad above.
 touch: {
     a: 'JUMP', b: 'BOMB',     // labels for the action buttons (keep them to ~5 letters)
     hide: ['up', 'down'],     // buttons this game does not use: left right up down a b
+    dirs: 4,                  // one direction at a time instead of eight with diagonals
     twin: true                // twin-stick: see below
 }
 ```
 
 - **`hide`** every button the game ignores: fewer buttons are bigger targets
   and leave more room for the canvas. With `up` and `down` hidden the pad is
-  two buttons side by side.
+  two buttons side by side. A game played by taps on the canvas alone may
+  hide all six: it then gets only the `✕` button and the largest canvas.
+- **`dirs: 4`** is for grid and maze games. The default stick has eight 45°
+  sectors, so a thumb a little off axis holds two directions at once; with
+  `dirs: 4` each direction owns a full quarter and exactly one is held.
 - **`twin: true`** is for twin-stick games that read the two halves of the
   keyboard apart. The left pad then sends `KeyW` `KeyA` `KeyS` `KeyD` (move)
   and a second direction pad on the right sends the arrow keys (fire); read

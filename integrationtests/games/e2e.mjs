@@ -25,7 +25,7 @@
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { sleep, startSession, themesWithGames } from './lib.mjs';
-import { testPadConfigs, testThemeTouch } from './touch.mjs';
+import { testNoFullscreen, testPadConfigs, testRotation, testThemeTouch } from './touch.mjs';
 
 const LEVELS = 10;
 const BOT_TICKS = 900; // 15 seconds of game time per level
@@ -252,6 +252,12 @@ async function testStepMemory(page, base) {
     check(await count(`SnoGame.debug.step(1,{});${stepHeld}`) === '[2,2,2]', 'releasing and pressing again must give a new edge');
     check(await page.eval('!SnoGame.key.a && !SnoGame.down("KeyW") && !SnoGame.mouse.down'), 'step() must leave the live input state clean');
     check(await count(`SnoGame.debug.start(1);${stepHeld}`) === '[1,1,1]', 'debug.start() must forget what was held');
+    // Nor may it leak into the next game: quit, relaunch and start by key.
+    await page.eval(`SnoGame.quit(); SnoGame.launch('breakout')`);
+    await page.press('Enter');
+    await page.press('Enter'); // skips the intro banner
+    await page.waitFor(`${STATE}.screen==='play'`, 'play after relaunch');
+    check(await count(stepHeld) === '[1,1,1]', 'a relaunched game must not remember buttons held in the last one');
     await page.eval('SnoGame.quit()');
 }
 
@@ -268,7 +274,11 @@ async function main() {
         console.log('ok   debug.step keeps held buttons across calls');
         if (opts.touch) {
             await testPadConfigs(page, base, opts.shots);
-            console.log('ok   def.touch variants (twin, hidden buttons, labels) in both orientations');
+            console.log('ok   def.touch variants (twin, 4-way, hidden buttons, labels) in both orientations');
+            await testNoFullscreen(page, base, opts.shots);
+            console.log('ok   launch without fullscreen on a page wider than the phone (terminal, 360x800 and 800x360)');
+            await testRotation(page, base, opts.shots);
+            console.log('ok   turning the phone in game');
         }
         const run = opts.touch ? testThemeTouch : testTheme;
         for (const theme of themes) {
