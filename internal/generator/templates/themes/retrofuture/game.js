@@ -187,15 +187,18 @@
     // Player: cursor, counter-missiles, blasts
     // ------------------------------------------------------------------
 
-    // A tap nudges and a held key sweeps (the speed ramps up while a
-    // direction is held); the mouse takes over whenever it actually moves.
+    // A tap of a key nudges and a held key sweeps (the speed ramps up while
+    // a direction is held); the pointer takes over whenever it moves, and
+    // also on every press: a finger on a phone cannot hover, so a tap must
+    // aim where it lands even if the pad has moved the cursor away since
+    // the last tap on that very spot.
     function moveCursor(s, dt) {
         var c = s.cur, k = G.key;
         var dx = (k.right ? 1 : 0) - (k.left ? 1 : 0), dy = (k.down ? 1 : 0) - (k.up ? 1 : 0);
         c.hold = dx || dy ? Math.min(1, c.hold + dt * 2.2) : 0;
         var sp = (240 + 520 * c.hold) * (dx && dy ? 0.7071 : 1);
         c.x += dx * sp * dt; c.y += dy * sp * dt;
-        if (G.mouse.x !== s.mx || G.mouse.y !== s.my) { c.x = s.mx = G.mouse.x; c.y = s.my = G.mouse.y; }
+        if (G.mouse.hit || G.mouse.x !== s.mx || G.mouse.y !== s.my) { c.x = s.mx = G.mouse.x; c.y = s.my = G.mouse.y; }
         c.x = G.clamp(c.x, 8, G.W - 8);
         // Blasts stay above the skyline, so the rooftops are never hidden by them.
         c.y = G.clamp(c.y, CUR_TOP, CUR_BOTTOM);
@@ -697,7 +700,7 @@
         }
         if (b.ammo > 3) return;
         ctx.globalAlpha = 0.5 + 0.5 * Math.sin(G.t * 9);
-        G.text(b.ammo ? 'LOW' : 'OUT', b.x, GROUND + 38, { size: 11, color: PINK, align: 'center', bold: true });
+        G.text(b.ammo ? 'LOW' : 'OUT', b.x, GROUND + 40, { size: 18, color: PINK, align: 'center', bold: true });
         ctx.globalAlpha = 1;
     }
 
@@ -733,7 +736,8 @@
 
     function drawTrail(ctx, f, night) {
         var tr = f.trail, from = night ? Math.max(0, tr.length - 5) : 0;
-        ctx.strokeStyle = KIND[f.kind].color; ctx.lineWidth = f.kind === 'heavy' ? 3.5 : 1.8;
+        // Wide enough to survive a phone, where the canvas is drawn at 40-60%.
+        ctx.strokeStyle = KIND[f.kind].color; ctx.lineWidth = f.kind === 'heavy' ? 5 : 3;
         ctx.globalAlpha = night ? 0.95 : 0.6;
         ctx.beginPath(); ctx.moveTo(tr[from].x, tr[from].y);
         for (var i = from + 1; i < tr.length; i++) ctx.lineTo(tr[i].x, tr[i].y);
@@ -757,16 +761,18 @@
     }
 
     // Every kind has its own silhouette so it can be told apart at a glance.
+    // The heads are drawn larger than their hit radius (KIND.r): on a phone
+    // a true-to-size warhead would be a two-pixel dot.
     function drawHead(ctx, f) {
         var k = KIND[f.kind], pulse = 0.5 + 0.5 * Math.sin(G.t * 16 + f.id);
         ctx.fillStyle = f.hurt > 0 || pulse > 0.8 ? '#ffffff' : k.color;
-        if (f.kind === 'mirv') { diamond(ctx, f.x, f.y, 7); return; }
+        if (f.kind === 'mirv') { diamond(ctx, f.x, f.y, 8); return; }
         if (f.kind === 'cruise') { dart(ctx, f); return; }
-        ctx.beginPath(); ctx.arc(f.x, f.y, f.kind === 'heavy' ? 9 : 3.5, 0, 6.3); ctx.fill();
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.kind === 'heavy' ? 10 : 5.5, 0, 6.3); ctx.fill();
         if (f.kind === 'heavy' && f.hp > 1) { ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(f.x, f.y, 5, 0, 6.3); ctx.fill(); }
         if (f.kind !== 'smart') return;
-        ctx.strokeStyle = TEAL; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(f.x, f.y, 6 + pulse * 4, 0, 6.3); ctx.stroke();
+        ctx.strokeStyle = TEAL; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(f.x, f.y, 9 + pulse * 4, 0, 6.3); ctx.stroke();
     }
 
     function drawFoes(s, ctx) {
@@ -812,7 +818,7 @@
         // Hull gauge right under the HUD.
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(G.W / 2 - 122, 36, 244, 10);
         ctx.fillStyle = PINK; ctx.fillRect(G.W / 2 - 120, 38, 240 * m.hp / m.max, 6);
-        G.text('MOTHERSHIP', G.W / 2, 60, { size: 11, color: CREAM, align: 'center' });
+        G.text('MOTHERSHIP', G.W / 2, 62, { size: 14, color: CREAM, align: 'center' });
     }
 
     // ------------------------------------------------------------------
@@ -867,14 +873,14 @@
         var waves = s.cfg.n.length;
         if (s.phase === 'tally') {
             G.text('WAVE ' + (s.wave + 1) + ' REPELLED', G.W / 2, 190, { size: 30, bold: true, color: TEAL, align: 'center', glow: TEAL });
-            G.text('BONUS ' + s.tally.sum, G.W / 2, 224, { size: 18, color: CREAM, align: 'center' });
+            G.text('BONUS ' + s.tally.sum, G.W / 2, 226, { size: 20, color: CREAM, align: 'center' });
             return;
         }
         if (s.waveT <= 0.05 || s.waveT > 2.4) return;
         var note = s.boss ? 'MOTHERSHIP INBOUND' : (s.cfg.night ? 'BLACKOUT: WATCH THE TRAILS' : 'DEFEND THE DOMES');
         ctx.globalAlpha = Math.min(1, (2.4 - s.waveT) * 2);
         G.text('WAVE ' + (s.wave + 1) + ' OF ' + waves, G.W / 2, 190, { size: 30, bold: true, color: ORANGE, align: 'center', glow: ORANGE });
-        G.text(note, G.W / 2, 222, { size: 15, color: CREAM, align: 'center' });
+        G.text(note, G.W / 2, 226, { size: 20, color: CREAM, align: 'center' });
         ctx.globalAlpha = 1;
     }
 
@@ -899,7 +905,8 @@
         title: 'ATOMIC DEFENSE',
         blurb: 'Burst your missiles where the warheads will be. Keep one dome standing.',
         controls: [
-            'Mouse or arrows: aim   ·   click or SPACE: fire from the nearest battery',
+            'Click or TAP the sky: the nearest battery fires there',
+            'Keys / pad: arrows aim, SPACE / FIRE shoots',
             'Blasts chain: every kill bursts too and multiplies the score',
             'Ammunition is limited per wave · 3000 points earn a bonus city'
         ],
@@ -917,6 +924,10 @@
             arp: '0.1.2.3.2.1.', drums: { k: 'x...x...x...x...', s: '....x.......x..x', h: '..x...x...x...x.' },
             leadWave: 'sine', bassWave: 'triangle', arpWave: 'triangle', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud, cursor: 'crosshair'
+        init: init, update: update, draw: draw, hud: hud, cursor: 'crosshair',
+        // A tap on the canvas aims and fires at once, which is all a phone
+        // needs; the stick plus FIRE stays for those whose finger would hide
+        // the target. Nothing is on B.
+        touch: { a: 'FIRE', hide: ['b'] }
     });
 })();
