@@ -9,8 +9,9 @@
  * anchored on both sides (a lintel). Knock out the support and everything
  * above comes down and breaks. The crane cannot drive through a standing
  * wall, and a ball that is merely dragged along does no damage: only a real
- * swing counts. Demolish the target share before time is up, and keep the
- * cab out from under what falls.
+ * swing counts. Demolish the target share before time is up (every missed
+ * deadline costs a life and buys a short overtime), and keep the cab out
+ * from under what falls.
  */
 (function () {
     'use strict';
@@ -18,6 +19,11 @@
     var GROUND = 470, CW = 40, CH = 30, COLS = 24, ROWS = 13, PIVOT_Y = 62, BALL_R = 15;
     var GRAV = 900, L_MIN = 70, L_MAX = GROUND - BALL_R - PIVOT_Y - 2, REEL = 170, SUB = 4;
     var CAB_ACC = 620, CAB_MAX = 250, CAB_HALF = 30, CAB_H = 36, BLAST = 78, MARK = 68;
+    // Debris is lethal while the cab's centre is within MARK / 2 + CAB_HALF of
+    // its landing spot. Random debris keeps CLEAR (three such reaches) away
+    // from the cab, which leaves a cab-wide gap beside a piece that lands on
+    // the cab itself.
+    var CLEAR = 3 * (MARK / 2 + CAB_HALF + 16), OVERTIME = 15;
     var CONC = 0, REBAR = 1, GLASS = 2, CHARGE = 3;
     var RED = '#ff2200';
 
@@ -34,13 +40,14 @@
     // (landing speed / FALL_SCALE) * fall.
     var HIT_SCALE = 200, FALL_SCALE = 600;
     // Timers are roughly twice what a practised player needs, so they bind
-    // for a newcomer; running out ends the run, which is also what makes
-    // doing nothing lose.
+    // for a newcomer. Running out costs a life and buys OVERTIME seconds, so
+    // a slow first attempt is not thrown away at once, and doing nothing
+    // still loses: the last life goes two overtimes after the deadline.
     var LEVELS = [
-        { time: 100, target: 0.7 }, { time: 100, target: 0.7 }, { time: 110, target: 0.7 },
-        { time: 130, target: 0.65 }, { time: 130, target: 0.7 }, { time: 130, target: 0.7 },
+        { time: 100, target: 0.6 }, { time: 100, target: 0.7 }, { time: 110, target: 0.7 },
+        { time: 130, target: 0.6 }, { time: 130, target: 0.7 }, { time: 130, target: 0.7 },
         { time: 150, target: 0.6 }, { time: 160, target: 0.65, wind: true },
-        { time: 170, target: 0.65, tremor: true }, { time: 190, target: 0.7, wind: true, tremor: true }
+        { time: 160, target: 0.65, tremor: true }, { time: 170, target: 0.7, wind: true, tremor: true }
     ];
 
     // ------------------------------------------------------------------
@@ -288,10 +295,23 @@
         return (-vy + Math.sqrt(vy * vy + 2 * GRAV * Math.max(0, GROUND - y))) / GRAV;
     }
 
-    // Debris that can hit the cab. tx is where it will land, so the ground
-    // can show a warning mark while it is in the air.
-    function addChunk(s, x, y, vx, vy) {
-        s.chunks.push({ x: x, y: y, vx: vx, vy: vy, tx: x + vx * flightTime(y, vy), rot: 0, spin: G.rnd(-9, 9), size: 22 });
+    // Debris that can hit the cab, thrown from (x, y) at vy so that it lands
+    // at tx; the ground shows a warning mark there while it is in the air.
+    function addChunk(s, x, y, tx, vy) {
+        s.chunks.push({ x: x, y: y, vx: (tx - x) / flightTime(y, vy), vy: vy, tx: tx, rot: 0, spin: G.rnd(-9, 9), size: 22 });
+    }
+
+    // Moves a landing spot out to at least CLEAR from the cab, on the side
+    // it was already on unless that would put its mark off the site. All
+    // random debris goes through this: it never comes down where the cab
+    // stands, only where it might drive, and several pieces cannot close
+    // every way out at once (with a wall on one side and the fence on the
+    // other there would be nowhere left to dodge to).
+    function awayFromCab(s, tx) {
+        var d = tx - s.cab.x;
+        if (Math.abs(d) >= CLEAR) return tx;
+        var side = d < 0 ? -1 : 1, out = s.cab.x + side * CLEAR;
+        return out < MARK / 2 || out > G.W - MARK / 2 ? s.cab.x - side * CLEAR : out;
     }
 
     function blastBall(s, x, y) {
@@ -313,7 +333,9 @@
         });
         blastBall(s, x, y);
         if (Math.abs(s.cab.x - x) < 85 && y > GROUND - 150) hurtCab(s);
-        for (var i = 0; i < 3; i++) addChunk(s, x, y, G.rnd(-260, 260), G.rnd(-520, -260));
+        // The blast itself is the danger of a charge; its debris is what
+        // must not be driven into afterwards.
+        for (var i = 0; i < 3; i++) addChunk(s, x, y, awayFromCab(s, x + G.rnd(-280, 280)), G.rnd(-520, -260));
     }
 
     // ------------------------------------------------------------------
@@ -675,15 +697,17 @@
 
     // A tremor shakes roof blocks loose. The first is thrown at where the
     // cab stands right now, so standing still after the warning is what
-    // gets punished; the others land at random.
+    // gets punished; the others land at random, but far enough from the cab
+    // that there is room to drive out from under the first one.
     function quake(s) {
         var tops = topBlocks(s), n = Math.min(tops.length, G.level >= 10 ? 3 : 2);
         G.shake(12, 0.5); G.sfx('boom');
         for (var i = 0; i < n; i++) {
             var b = tops.splice(Math.floor(G.rnd(0, tops.length)), 1)[0];
-            var x = blockX(b), y = b.y + CH / 2, tx = i === 0 ? s.cab.x : G.rnd(60, G.W - 60);
+            var x = blockX(b), y = b.y + CH / 2;
+            var tx = i === 0 ? s.cab.x : awayFromCab(s, G.rnd(60, G.W - 60));
             discard(s, b);
-            addChunk(s, x, y, (tx - x) / flightTime(y, -300), -300);
+            addChunk(s, x, y, tx, -300);
         }
     }
 
@@ -728,9 +752,17 @@
         var before = s.time;
         s.time -= dt;
         if (s.time <= 10 && Math.ceil(before) !== Math.ceil(s.time)) G.sfx('alarm');
-        // Missing the deadline loses the contract outright; lives only pay
-        // for hits on the cab.
-        if (s.time <= 0) for (var n = G.lives; n > 0; n--) G.loseLife();
+        if (s.time <= 0) overtime(s);
+    }
+
+    // A missed deadline costs a life like a hit on the cab does, and the
+    // job goes on for OVERTIME seconds. With the last life the engine ends
+    // the run, so an idle player is out two overtimes after the deadline.
+    function overtime(s) {
+        if (G.loseLife() <= 0) return;
+        s.time = OVERTIME;
+        G.flash(RED, 0.2);
+        G.popup(G.W / 2, 200, 'DEADLINE MISSED — OVERTIME', RED);
     }
 
     function tickTimers(s, dt) {
@@ -782,7 +814,8 @@
         ctx.fillRect(x, 508, w * G.clamp(part, 0, 1), 16);
         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
         ctx.strokeRect(x, 508, w, 16);
-        G.text(label, x, 502, { size: 13, color: '#c8c8c8' });
+        // 20 px: on a phone the canvas is drawn at well under half size.
+        G.text(label, x, 502, { size: 20, color: '#c8c8c8', max: w });
     }
 
     function drawGround(s, ctx) {
@@ -935,7 +968,7 @@
             ctx.moveTo(x, y); ctx.lineTo(x - (f > 0 ? 46 : -46), y);
         }
         ctx.stroke();
-        G.text(f > 0 ? 'WIND >>>' : '<<< WIND', G.W / 2, 54, { size: 18, bold: true, color: '#ffffff', align: 'center' });
+        G.text(f > 0 ? 'WIND >>>' : '<<< WIND', G.W / 2, 54, { size: 20, bold: true, color: '#ffffff', align: 'center' });
     }
 
     function drawNotes(s, ctx) {
@@ -943,7 +976,7 @@
             G.text('TREMOR — KEEP MOVING', G.W / 2, 78, { size: 20, bold: true, color: RED, align: 'center' });
         }
         if (G.level === 1 && G.t < 9) {
-            G.text('DRIVE TO SWING THE BALL · BRAKE TO WHIP IT · HIT THE BOTTOM ROW', G.W / 2, 54, { size: 16, color: '#c8c8c8', align: 'center' });
+            G.text('DRIVE TO SWING THE BALL · BRAKE TO WHIP IT · HIT THE BOTTOM ROW', G.W / 2, 54, { size: 20, color: '#c8c8c8', align: 'center', max: G.W - 40 });
         }
     }
 
@@ -968,10 +1001,12 @@
         blurb: 'Swing the ball, knock out the support, bring the concrete down before time runs out.',
         controls: [
             '← → drive the crane: the ball swings by its own momentum',
-            '↑ ↓ reel the chain in / out · SPACE (touch: A) hard brake, whips the ball forward',
+            '↑ ↓ reel the chain in / out · SPACE / BRAKE hard brake, whips the ball forward',
             'Red-barred rebar needs a fast hit · TNT blows 1.6 s after it is struck',
-            'Walls stop the crane; time up ends the job · keep clear of slabs and debris'
+            'Walls stop the crane; time up costs a life · keep clear of slabs and debris'
         ],
+        // B does nothing in this game; the brake is the one action button.
+        touch: { a: 'BRAKE', hide: ['b'] },
         levelNames: ['Garden Wall', 'Twin Stacks', 'Glass House', 'Rebar Core', 'Arcade',
             'Short Fuse', 'Silos', 'Crosswind', 'Aftershock', 'Megastructure'],
         colors: { bg: '#0a0a0a', fg: '#ffffff', accent: RED, dim: '#9a9a9a' },
