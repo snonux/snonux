@@ -38,7 +38,7 @@
         scout: { look: 8, flood: 40, aggr: 0, wobble: 0.015, miss: 0.04, jitter: 5, boost: false },
         hunter: { look: 10, flood: 150, aggr: 0.5, wobble: 0.005, miss: 0.02, jitter: 3, boost: true },
         ace: { look: 12, flood: 500, aggr: 0.7, wobble: 0, miss: 0.008, jitter: 2, boost: true },
-        expert: { look: 14, flood: N, aggr: 1, wobble: 0, miss: 0, jitter: 1, boost: true }
+        expert: { look: 14, flood: N, aggr: 0.85, wobble: 0, miss: 0, jitter: 1, boost: true }
     };
 
     // need: round wins to clear; speed: cells per second; decay: trail length
@@ -50,11 +50,11 @@
         { need: 2, speed: 15, riders: ['scout', 'scout'], layout: 'pillars', blocks: 5 },
         { need: 2, speed: 17, riders: ['scout', 'hunter', 'rookie'], pods: true },
         { need: 2, speed: 17, riders: ['hunter', 'scout', 'rookie'], pods: true, decay: 70 },
-        { need: 3, speed: 18, riders: ['hunter', 'scout', 'scout', 'rookie'], pods: true, layout: 'bars', blocks: 6 },
+        { need: 2, speed: 18, riders: ['hunter', 'hunter', 'rookie', 'rookie'], pods: true, layout: 'bars', blocks: 6 },
         { need: 2, speed: 19, riders: ['ace', 'hunter', 'scout', 'rookie'], pods: true, decay: 90, layout: 'pillars', blocks: 4 },
         { need: 3, speed: 20, riders: ['hunter', 'hunter', 'scout'], pods: true, shrink: { start: 8, every: 4.5 } },
         { need: 2, speed: 21, riders: ['hunter', 'hunter', 'scout', 'rookie', 'rookie'], pods: true, decay: 110, layout: 'bars', blocks: 4, shrink: { start: 10, every: 5 } },
-        { need: 3, speed: 23, riders: ['expert'], pods: true, layout: 'pillars', blocks: 2, shrink: { start: 6, every: 3.6 } }
+        { need: 3, speed: 20, riders: ['expert'], pods: true, layout: 'pillars', blocks: 2, shrink: { start: 9, every: 4.5 } }
     ];
 
     // ------------------------------------------------------------------
