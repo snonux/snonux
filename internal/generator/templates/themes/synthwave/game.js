@@ -18,6 +18,17 @@
     var STEER = 2.2, CENT = 0.6, OFF_LIMIT = MAX * 0.3, OFF_DECEL = MAX * 0.9;
     var LANES = [-0.75, -0.25, 0.25, 0.75], CAR_HALF = 0.11, PLAYER_Y = 486;
     var GRID_X = [1.7, 2.7, 4, 5.6, 7.6];
+    // Traffic distances along the road. CAR_LEN: closer than this, two cars
+    // are alongside each other (contact is a side-swipe, not a shunt), and a
+    // car that far behind the player is between the lens and the player's own
+    // car, so it is not drawn. SHUNT: how far a rear-end crash drops the
+    // player back. TAIL: the gap traffic keeps to what it follows. FOLLOW:
+    // where a car coming up behind the player starts matching its speed.
+    var CAR_LEN = 300, SHUNT = 300, TAIL = 450, FOLLOW = 4 * SEG;
+    // Roadworks: sites are at least WORKS_GAP segments apart, and traffic
+    // looks WORKS_LOOK segments ahead for barriers (two lane changes at its
+    // top speed take about 40).
+    var WORKS_GAP = 90, WORKS_LOOK = 60;
     var CAR_COLORS = ['#35e0ff', '#ffd24a', '#ff6b2b', '#7dff9a', '#bf3fff', '#f4f0ff'];
 
     var PALS = {
@@ -32,24 +43,33 @@
         storm: { skyTop: '#05060f', skyBot: '#2b2f55', sun: ['#c8d0ff', '#5a4fb0'], ground: ['#080a18', '#0c1022'], grid: '#5f7bff',
             road: ['#0c0e1c', '#111426'], rumble: ['#5f7bff', '#ff2d78'], haze: '43,47,85', ridge: '#0a0c1c', edge: '#5f7bff', leaf: '#5f7bff', stars: 0 },
         dawn: { skyTop: '#1a0b4a', skyBot: '#ffb347', sun: ['#fff3a0', '#ff2d78'], ground: ['#200a40', '#2b0e52'], grid: '#ffd24a',
-            road: ['#1c1034', '#24153f'], rumble: ['#ffd24a', '#ff2d78'], haze: '255,179,71', ridge: '#4a1466', edge: '#ffd24a', leaf: '#ff2d78', stars: 0.4 }
+            road: ['#1c1034', '#24153f'], rumble: ['#ffd24a', '#ff2d78'], haze: '255,179,71', ridge: '#4a1466', edge: '#ffd24a', leaf: '#ff2d78', stars: 0.4 },
+        miami: { skyTop: '#1b0b5a', skyBot: '#ff5fa2', sun: ['#fff3a0', '#ff5fa2'], ground: ['#0a1a3a', '#0d2248'], grid: '#35e0ff',
+            road: ['#14122e', '#1a1838'], rumble: ['#35e0ff', '#ff5fa2'], haze: '255,95,162', ridge: '#2a1070', edge: '#35e0ff', leaf: '#7dff9a', stars: 0.3 },
+        highway: { skyTop: '#000814', skyBot: '#0b3a66', sun: ['#eaf6ff', '#35e0ff'], ground: ['#03101c', '#051826'], grid: '#7dff9a',
+            road: ['#0a1018', '#0e1620'], rumble: ['#7dff9a', '#35e0ff'], haze: '11,58,102', ridge: '#04122a', edge: '#7dff9a', leaf: '#35e0ff', stars: 1 },
+        works: { skyTop: '#1a0520', skyBot: '#d9482b', sun: ['#ffd24a', '#ff6b2b'], ground: ['#160818', '#1e0c20'], grid: '#ffd24a',
+            road: ['#18101c', '#1f1524'], rumble: ['#ffd24a', '#12041f'], haze: '217,72,43', ridge: '#2a0a2a', edge: '#ffd24a', leaf: '#ff6b2b', stars: 0.5 },
+        finale: { skyTop: '#12000a', skyBot: '#ff2d2d', sun: ['#ffffff', '#ff2d2d'], ground: ['#1a0410', '#240616'], grid: '#ff2d55',
+            road: ['#170a14', '#1e0e1a'], rumble: ['#ffffff', '#ff2d55'], haze: '255,45,45', ridge: '#3a0618', edge: '#ffd24a', leaf: '#ffd24a', stars: 0.15 }
     };
 
     // len: segments to the finish. curve/hold/alt/straight shape the bends,
     // hill the height changes. traffic, oil and works are counts per 1000
     // segments; oncoming is the size of the pool of cars driving toward you.
-    // pace is the share of top speed the clock expects on average.
+    // pace is the share of top speed the clock expects on average. Every
+    // level has a palette of its own, so no two stages look alike.
     var LEVELS = [
         { pal: 'sunset', len: 2800, cps: 3, curve: 2, hold: 1, straight: 0.4, hill: 0, traffic: 9, side: ['palm', 'pylon'], gap: 6, sideOff: 1.5, spread: 0.8, pace: 0.58 },
-        { pal: 'sunset', len: 3000, cps: 3, curve: 3, hold: 0.5, alt: true, straight: 0.1, hill: 0, traffic: 11, side: ['palm'], gap: 3, sideOff: 1.25, spread: 0.25, pace: 0.62 },
+        { pal: 'miami', len: 3000, cps: 3, curve: 3, hold: 0.5, alt: true, straight: 0.1, hill: 0, traffic: 11, side: ['palm'], gap: 3, sideOff: 1.25, spread: 0.25, pace: 0.62 },
         { pal: 'dusk', len: 3200, cps: 3, curve: 2.5, hold: 1, straight: 0.3, hill: 30, traffic: 12, side: ['pyramid', 'palm'], gap: 6, sideOff: 1.4, spread: 1.2, pace: 0.68 },
         { pal: 'night', city: true, len: 3400, cps: 3, curve: 2.5, hold: 1, straight: 0.5, hill: 0, traffic: 24, trucks: 0.3, side: ['tower', 'lamp'], gap: 4, sideOff: 1.3, spread: 0.5, pace: 0.705 },
         { pal: 'dawn', len: 3600, cps: 3, curve: 3.2, hold: 1, straight: 0.3, hill: 12, traffic: 14, oil: 14, side: ['palm', 'rock'], gap: 5, sideOff: 1.4, spread: 1, pace: 0.73 },
         { pal: 'canyon', len: 3600, cps: 4, curve: 5.5, hold: 1.4, straight: 0.25, hill: 30, traffic: 10, side: ['rock'], gap: 2, sideOff: 1.2, spread: 0.3, pace: 0.68 },
-        { pal: 'night', len: 3800, cps: 4, curve: 3, hold: 1, straight: 0.35, hill: 15, traffic: 16, oncoming: 3, side: ['lamp', 'pylon'], gap: 5, sideOff: 1.3, spread: 0.6, pace: 0.7 },
-        { pal: 'dusk', city: true, len: 4000, cps: 4, curve: 3.5, hold: 1, straight: 0.4, hill: 15, traffic: 16, trucks: 0.35, works: 6, side: ['tower', 'pylon'], gap: 5, sideOff: 1.3, spread: 0.6, pace: 0.74 },
+        { pal: 'highway', len: 3800, cps: 4, curve: 3, hold: 1, straight: 0.35, hill: 15, traffic: 16, oncoming: 3, side: ['lamp', 'pylon'], gap: 5, sideOff: 1.3, spread: 0.6, pace: 0.7 },
+        { pal: 'works', city: true, len: 4000, cps: 4, curve: 3.5, hold: 1, straight: 0.4, hill: 15, traffic: 16, trucks: 0.35, works: 6, side: ['tower', 'pylon'], gap: 5, sideOff: 1.3, spread: 0.6, pace: 0.74 },
         { pal: 'storm', len: 4200, cps: 4, curve: 4, hold: 1, straight: 0.3, hill: 25, traffic: 14, oncoming: 3, oil: 7, storm: true, wind: true, side: ['lamp', 'palm'], gap: 5, sideOff: 1.35, spread: 0.8, pace: 0.757 },
-        { pal: 'dawn', len: 4800, cps: 4, curve: 5, hold: 1.1, straight: 0.3, hill: 35, traffic: 18, trucks: 0.25, oncoming: 4, oil: 8, works: 3, wind: true, side: ['rock', 'palm', 'pylon'], gap: 4, sideOff: 1.3, spread: 0.7, pace: 0.75 }
+        { pal: 'finale', len: 4800, cps: 4, curve: 5, hold: 1.1, straight: 0.3, hill: 35, traffic: 18, trucks: 0.25, oncoming: 4, oil: 8, works: 3, wind: true, side: ['rock', 'palm', 'pylon'], gap: 4, sideOff: 1.3, spread: 0.7, pace: 0.75 }
     ];
 
     // w/h: drawn size in world units. col: width that collides. hit: what
@@ -162,16 +182,25 @@
 
     // A roadworks site: two rows of barriers across the blocked lanes with a
     // run of cones before them as the warning.
+    function addSite(segs, at, blocked) {
+        var b, k;
+        for (b = 0; b < blocked.length; b++) {
+            for (k = 0; k <= 10; k += 10) segs[at + k].sprites.push({ kind: 'barrier', off: LANES[blocked[b]], dir: 1, c: 0, dead: false });
+            for (k = 10; k <= 30; k += 10) segs[at - k].sprites.push({ kind: 'cone', off: LANES[blocked[b]], dir: 1, c: 0, dead: false });
+        }
+    }
+
+    // Each site gets a slot of the course to itself and stays WORKS_GAP short
+    // of the next slot. Sites placed freely could land on top of each other,
+    // closing every lane at once and putting one site's cones in the only
+    // lanes the other left open; spaced out, there is always a second or more
+    // at full speed to move over to the next gap.
     function placeWorks(segs, L, rnd, finish) {
-        var n = Math.round((L.works || 0) * finish / 1000), i, at, blocked, b, k;
+        var n = Math.round((L.works || 0) * finish / 1000), slot = (finish - 300) / n, i, at;
         var sets = L.oncoming ? [[2], [3]] : [[0, 1], [1, 2], [2, 3]];
         for (i = 0; i < n; i++) {
-            at = 200 + Math.floor(rnd() * (finish - 300));
-            blocked = sets[Math.floor(rnd() * sets.length)];
-            for (b = 0; b < blocked.length; b++) {
-                for (k = 0; k <= 10; k += 10) segs[at + k].sprites.push({ kind: 'barrier', off: LANES[blocked[b]], dir: 1, c: 0, dead: false });
-                for (k = 10; k <= 30; k += 10) segs[at - k].sprites.push({ kind: 'cone', off: LANES[blocked[b]], dir: 1, c: 0, dead: false });
-            }
+            at = 200 + Math.floor(i * slot + rnd() * Math.max(0, slot - WORKS_GAP));
+            addSite(segs, at, sets[Math.floor(rnd() * sets.length)]);
         }
     }
 
@@ -180,7 +209,10 @@
         return {
             z: z, off: off, goal: off, dir: dir, kind: truck ? 'truck' : 'car', seg: -1,
             speed: MAX * (truck ? 0.22 + 0.1 * rnd() : 0.27 + 0.28 * rnd()),
-            color: CAR_COLORS[Math.floor(rnd() * CAR_COLORS.length)], passed: false, honked: false, gone: false
+            color: CAR_COLORS[Math.floor(rnd() * CAR_COLORS.length)], passed: false, honked: false, gone: false,
+            // v: the speed it really drives at (speed is what it would like
+            // to do). lap: it overlapped the player sideways on the last tick.
+            v: 0, lap: false
         };
     }
 
@@ -190,6 +222,9 @@
             car = newCar(rnd, L, (90 + rnd() * (s.finish - 100)) * SEG, lanes[Math.floor(rnd() * lanes.length)], 1);
             s.cars.push(car);
             reseat(s, car);
+            // Seated next to roadworks, it starts in the lane it would have
+            // moved to rather than inside the barriers.
+            car.off = car.goal;
         }
         // Oncoming cars are a small pool that is recycled ahead of the
         // player, so the left lanes stay busy for the whole run.
@@ -218,7 +253,7 @@
             pos: 0, x: 0.25, vx: 0, speed: 0, nitro: 1, boost: false, slip: 0, off: false,
             lastSeg: Math.floor(PZ / SEG), time: leg + 6, time0: leg + 6, cpTime: leg,
             wind: 0, gust: 0, gustDir: 1, gustIn: 6, bolt: 0, boltIn: 5,
-            cp: 0, clock: 0, skyX: 0, sunX: 0, msg: '', msgT: 0, engT: 0, skidT: 0, beepT: 0, crashT: 0, dustT: 0,
+            cp: 0, clock: 0, skyX: 0, sunX: 0, msg: '', msgT: 0, engT: 0, skidT: 0, beepT: 0, crashT: 0, dustT: 0, safeT: 0, swipeT: 0,
             stars: sky.stars, ridge: sky.ridge
         };
         decorate(s.segs, L, rnd);
@@ -365,13 +400,23 @@
         return false;
     }
 
+    function worksAhead(s, from, lane) {
+        for (var n = 0; n <= WORKS_LOOK; n++) {
+            if (s.segs[from + n] && laneBlocked(s.segs[from + n], lane)) return true;
+        }
+        return false;
+    }
+
     // Traffic pulls out of a coned-off lane well before it reaches the
-    // barriers, into the nearest lane that is open.
+    // barriers, into the nearest lane that is open. It looks at the whole
+    // stretch ahead on every segment, not at one segment in the distance: a
+    // single probe misses the barriers whenever a car is seated or changes
+    // lane closer to them than the probe reaches.
     function dodgeWorks(s, car) {
-        var ahead = s.segs[car.seg + 30], lanes = ownLanes(s.L), best = car.goal, d = 9, i;
-        if (!ahead || !laneBlocked(ahead, car.goal)) return;
+        var lanes = ownLanes(s.L), best = car.goal, d = 9, i;
+        if (!s.L.works || !worksAhead(s, car.seg, car.goal)) return;
         for (i = 0; i < lanes.length; i++) {
-            if (!laneBlocked(ahead, lanes[i]) && Math.abs(lanes[i] - car.goal) < d) { d = Math.abs(lanes[i] - car.goal); best = lanes[i]; }
+            if (Math.abs(lanes[i] - car.goal) < d && !worksAhead(s, car.seg, lanes[i])) { d = Math.abs(lanes[i] - car.goal); best = lanes[i]; }
         }
         car.goal = best;
     }
@@ -389,19 +434,30 @@
         reseat(s, car);
     }
 
-    // The speed of whatever blocks this car: a slower car just ahead in its
-    // lane, or the player's own car, so that traffic never rams from behind.
+    // Whether `o` is in this car's way: ahead of it and either beside it
+    // right now or heading for the lane this car is heading for (a car that
+    // is changing lanes blocks both).
+    function inWay(car, o) {
+        if (o === car || o.dir < 0 || o.z <= car.z) return false;
+        return Math.abs(o.off - car.off) < CARS[o.kind].half + CARS[car.kind].half || Math.abs(o.goal - car.goal) < 0.2;
+    }
+
+    // The speed this car can really drive at: its own, capped by what blocks
+    // it — a car ahead (at the speed that one is really doing, which may be
+    // far below its own wish when it is queued too), or the player's car, so
+    // that traffic never rams from behind. Closer than TAIL it drives slower
+    // than its leader, so a queue opens up instead of merging into one car.
     function leaderSpeed(s, car) {
         var v = car.speed, n, seg, i, o, gap = s.pos + PZ - car.z;
-        for (n = 0; n < 3; n++) {
+        for (n = 0; n <= 4; n++) {
             seg = s.segs[car.seg + n];
             if (!seg) break;
             for (i = 0; i < seg.cars.length; i++) {
                 o = seg.cars[i];
-                if (o !== car && o.dir > 0 && o.z > car.z && Math.abs(o.off - car.off) < 0.2) v = Math.min(v, o.speed);
+                if (inWay(car, o)) v = Math.min(v, o.v * (o.z - car.z < TAIL ? 0.7 : 1));
             }
         }
-        if (gap > 0 && gap < 3 * SEG && Math.abs(s.x - car.off) < CAR_HALF + CARS[car.kind].half) v = Math.min(v, s.speed);
+        if (gap > 0 && gap < FOLLOW && Math.abs(s.x - car.off) < CAR_HALF + CARS[car.kind].half) v = Math.min(v, s.speed * (gap < TAIL ? 0.7 : 1));
         return v;
     }
 
@@ -412,7 +468,8 @@
             // Recycled once it is behind the camera (and before it leaves the track).
             if (car.z < Math.max(SEG, s.pos - SEG)) { respawnOncoming(s, car, DRAW + 5 + s.rnd() * 200); return; }
         } else {
-            car.z = Math.min(car.z + leaderSpeed(s, car) * dt, (s.segs.length - 3) * SEG);
+            car.v = leaderSpeed(s, car);
+            car.z = Math.min(car.z + car.v * dt, (s.segs.length - 3) * SEG);
             car.off += G.clamp(car.goal - car.off, -0.8 * dt, 0.8 * dt);
         }
         reseat(s, car);
@@ -428,10 +485,42 @@
             crashFx(s, true);
             return;
         }
-        // Rear-ending a car drops the player behind it at less than its speed.
-        s.speed = car.speed * 0.7;
-        s.pos = car.z - PZ - 30;
+        // Rear-ending a car drops the player well behind it, at no more than
+        // the speed that car is really doing (a queued car is slower than its
+        // nominal speed) and never faster than the player already was —
+        // otherwise the player is still closing and crashes again at once.
+        s.speed = Math.min(s.speed, car.v);
+        s.pos = car.z - PZ - SHUNT;
+        // For a moment after a crash, running into the car again only holds
+        // the player behind it: one mistake is one crash, not a string of them.
+        if (s.safeT > 0) return;
+        s.safeT = 1;
+        s.speed *= 0.7;
         crashFx(s, false);
+    }
+
+    // Steering into a car that is alongside bounces the player back out of
+    // its lane, with a scrape and a little speed lost. Only the tick on which
+    // the overlap begins counts: a car that was already in the player's lane
+    // is a shunt (or a follower), not a side-swipe.
+    function sideSwipe(s, car, dz, reach) {
+        var lap = Math.abs(car.off - s.x) < reach, side;
+        if (lap && !car.lap && Math.abs(dz) < CAR_LEN) {
+            side = s.x < car.off ? -1 : 1;
+            s.x = car.off + side * (reach + 0.01);
+            s.vx = side * STEER * 0.35;
+            lap = false;
+            // Leaning on a car scrapes a few times a second, not every tick.
+            if (s.swipeT <= 0) {
+                s.swipeT = 0.3;
+                s.speed *= 0.92;
+                G.shake(4, 0.15);
+                G.burst(W / 2 - side * 80, PLAYER_Y - 40, { n: 8, color: '#ffd24a', speed: 260, life: 0.35, gravity: 500 });
+                G.noise(0.2, { filter: 'bandpass', freq: 2600, slide: 900, q: 4, vol: 0.2 });
+                G.tone(210, 0.12, { type: 'square', slide: 120, vol: 0.12 });
+            }
+        }
+        car.lap = lap;
     }
 
     // Squeezing past a car is rewarded: that is where the nitro comes from.
@@ -453,18 +542,21 @@
     }
 
     // A car counts as met on the tick it goes from ahead to behind, which
-    // works at any closing speed.
+    // works at any closing speed. Distances are read afresh for every car,
+    // because a crash moves the player.
     function meetTraffic(s) {
-        var pz = s.pos + PZ, i, car, dz, dx;
+        var i, car, dz, dx, reach;
         for (i = 0; i < s.cars.length; i++) {
             car = s.cars[i];
             if (car.gone) continue;
-            dz = car.z - pz;
+            dz = car.z - s.pos - PZ;
+            reach = CAR_HALF + CARS[car.kind].half;
+            if (car.dir > 0) sideSwipe(s, car, dz, reach);
             dx = Math.abs(car.off - s.x);
             if (car.dir < 0 && !car.honked && dz > 0 && dz < 60 * SEG && dx < 0.3) honk(car);
             if (dz >= 0) { car.passed = false; continue; }
             if (car.passed) continue;
-            if (dx < CAR_HALF + CARS[car.kind].half) carCrash(s, car);
+            if (dx < reach) carCrash(s, car);
             else carPassed(s, car, dx);
         }
     }
@@ -499,7 +591,7 @@
         G.noise(0.6, { filter: 'highpass', freq: 800, slide: 5000, vol: 0.14 });
     }
 
-    // The engine is a short note retriggered about eleven times a second; its
+    // The engine is a short note retriggered every six ticks, ten times a second; its
     // pitch climbs through four "gears" so speed can be heard.
     function engineSound(s) {
         if (s.engT > 0) return;
@@ -513,7 +605,7 @@
     function tickTimers(s, dt) {
         s.clock += dt;
         s.time -= dt;
-        ['msgT', 'engT', 'skidT', 'crashT', 'dustT', 'slip', 'beepT'].forEach(function (k) { if (s[k] > 0) s[k] -= dt; });
+        ['msgT', 'engT', 'skidT', 'crashT', 'dustT', 'slip', 'beepT', 'safeT', 'swipeT'].forEach(function (k) { if (s[k] > 0) s[k] -= dt; });
         // The last ten seconds beep, faster in the last five.
         if (s.time < 10 && s.time > 0 && s.beepT <= 0) {
             s.beepT = s.time < 5 ? 0.5 : 1;
@@ -855,7 +947,9 @@
 
     function drawCar(s, ctx, cam, seg, car) {
         var cz = car.z - cam.z, k = CARS[car.kind], p, sc, u, x, y, clip;
-        if (car.gone || cz < 300) return;
+        // A car more than a length behind the player's own car sits between
+        // it and the lens; drawn, it would fill the screen and hide the road.
+        if (car.gone || cz < PZ - CAR_LEN) return;
         p = (car.z - seg.i * SEG) / SEG; sc = DEPTH / cz; u = sc * W / 2;
         x = W / 2 + u * (car.off * ROAD + G.lerp(seg.cx, seg.cx2, p) - cam.x);
         y = H / 2 - sc * (G.lerp(seg.y1, seg.y2, p) - cam.y) * H / 2;
@@ -1013,7 +1107,7 @@
         blurb: 'Reach every checkpoint before the sun sets. Lift off for the hard bends.',
         controls: [
             '← → steer · ↑ accelerate · ↓ brake',
-            'SPACE nitro — near misses and checkpoints refill the tank',
+            'SPACE / NITRO: nitro — near misses and checkpoints refill the tank',
             'Leaving the road, hitting traffic or roadside objects costs speed'
         ],
         levelNames: ['Sunset Strip', 'Palm Slalom', 'Rolling Hills', 'Neon City', 'Oil Coast',
@@ -1031,6 +1125,9 @@
             drums: { k: 'x...x...x...x...', s: '....x.......x...', h: '..x...x...x...xx' },
             leadWave: 'sawtooth', bassWave: 'sawtooth', arpWave: 'square', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // Everything is on the pad: steer, accelerate and brake on the
+        // directions, nitro on A. B does nothing in this game.
+        touch: { a: 'NITRO', hide: ['b'] }
     });
 })();
