@@ -6,10 +6,11 @@
  * drive and reach the exit before the trace completes. Vision cones are cut
  * off by walls, so cover is real. Being watched fills the detection meter;
  * a full meter means caught, and so does touching a live beam or stepping on
- * a pressure plate. A catch costs a life, hands back every drive and eats
- * into the trace; when the trace completes the run is over. Sprinting is
+ * a pressure plate. A catch costs a life, hands back every drive and starts
+ * the trace over; when the trace completes the run is over. Sprinting is
  * fast but loud: noise pulls guards and drones towards it. An EMP pulse
- * switches nearby electronics off for a while. Later levels add blinking
+ * switches nearby electronics off for a while, and an empty EMP slowly
+ * builds one charge back up. Later levels add blinking
  * tripwires, pressure plates, drones, travelling beams and, on level 10, a
  * grid of roaming searchlights that see over the walls.
  */
@@ -25,7 +26,9 @@
     var GUARD = { range: 150, fov: 1.2, rate: 1.5, feel: 16 };
     var DRONE_R = 62, LIGHT_R = 44, BEAM_R = 7;
     var RAY_STEP = 0.015;       // radians between the rays of a drawn cone
-    var CATCH_COST = 20;        // seconds of trace lost with every catch
+    var EMP_RECHARGE = 20;      // seconds an empty EMP takes to build one charge
+    var BEAM_ON = 1.5;          // seconds a tripwire stays live per blink
+    var BEAM_WARN = 0.4;        // seconds a dark tripwire flickers before it goes live
     var TIP_TIME = 8;           // seconds a level's hint stays on screen
     var DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     var FACING = { '>': 0, 'v': Math.PI / 2, '<': Math.PI, '^': -Math.PI / 2 };
@@ -38,9 +41,10 @@
      *            (a camera's tile cannot be walked on)
      *   | -  blinking tripwire (a run of them is one beam)
      *   ! ~  beam that travels along its corridor (! moves sideways, ~ up and down)
-     * time: seconds until the trace completes. They are about twice what a
-     *       careful run takes, so standing still loses in one to two and a
-     *       half minutes.
+     * time: seconds until the trace completes; every attempt (life) gets the
+     *       whole of it. They are about twice what a clean run takes for a
+     *       player who has to watch before moving, so standing still loses
+     *       in one to three minutes.
      * guards: one string of waypoint digits per guard, walked in a loop
      *         ('1232' walks 1-2-3 and back). No route may overlook the start.
      * hop: seconds a drone spends at one D before flying to the next (0 = stays home).
@@ -53,7 +57,8 @@
      * tile wide that a guard walks from end to end, so whoever does not step
      * aside into a side passage meets it; from level 4 on the short way
      * always crosses a pressure plate. On levels 7, 9 and 10 a plate seals
-     * the only way in or out: that is what the EMP is for.
+     * the only way in or out: that is what the EMP is for (and why an empty
+     * EMP recharges - wasting the charges must not strand anyone).
      */
     var LEVELS = [
         { time: 70, emp: 2, guards: [], tip: 'STAY OUT OF THE CONES - WALLS BLOCK THEM', map: [
@@ -74,7 +79,7 @@
             '#.o............................#',
             '#.........^....#.............X.#',
             '################################'] },
-        { time: 80, emp: 2, guards: ['21', '34'], tip: 'A GUARD GRABS WHOEVER IT MEETS - LET IT PASS FROM A SIDE PASSAGE', map: [
+        { time: 90, emp: 2, guards: ['21', '34'], tip: 'A GUARD GRABS WHOEVER IT MEETS - LET IT PASS FROM A SIDE PASSAGE', map: [
             '################################',
             '#.......#.......v..............#',
             '#.S.....#......................#',
@@ -92,7 +97,7 @@
             '#......##....##..o.##........X.#',
             '#........^.....................#',
             '################################'] },
-        { time: 90, emp: 2, guards: ['12'], tip: 'A LIVE RED BEAM CATCHES AT ONCE - CROSS WHILE IT IS DARK', map: [
+        { time: 100, emp: 2, guards: ['12'], tip: 'A LIVE RED BEAM CATCHES AT ONCE - CROSS WHILE IT IS DARK', map: [
             '################################',
             '#.......|.......|.............<#',
             '#.S.....|.......|..............#',
@@ -432,7 +437,7 @@
         var s = {
             def: def, map: def.map, level: level, start: null, exit: null,      // every map has an S and an X
             drives: [], cells: [], plates: [], cams: [], lasers: [], drones: [], guards: [], lights: [], marks: {}, rings: [],
-            det: 0, rate: 0, seen: false, time: def.time, clock: 0, emp: def.emp, empFx: 0, safe: 0, got: 0, open: false,
+            det: 0, rate: 0, seen: false, time: def.time, clock: 0, emp: def.emp, empT: 0, empFx: 0, safe: 0, got: 0, open: false,
             alarmT: 0, stepT: 0, player: null
         };
         for (var ty = 1; ty <= ROWS; ty++) {
@@ -516,6 +521,18 @@
         G.tone(900, 0.45, { type: 'sine', slide: 60, vol: 0.25 });
         G.burst(p.cx, p.cy, { n: 24, color: PHOS, speed: 260, life: 0.5, size: 2 });
         G.popup(p.cx, p.cy - 16, hit ? 'EMP x' + hit : 'EMP', PHOS);
+    }
+
+    // Out of charges must never be a dead end (three levels cannot be left
+    // without a pulse), so an empty EMP builds one charge back up. It is
+    // slow on purpose: the trace pays for every pulse that was wasted.
+    function rechargeEmp(s, dt) {
+        if (s.emp > 0) { s.empT = 0; return; }
+        s.empT += dt;
+        if (s.empT < EMP_RECHARGE) return;
+        s.emp = 1; s.empT = 0;
+        G.popup(s.player.cx, s.player.cy - 16, 'EMP READY', PHOS);
+        G.tone(330, 0.2, { type: 'sawtooth', slide: 1320, vol: 0.12 });
     }
 
     function takeDrive(s, d) {
@@ -669,11 +686,19 @@
     }
 
     // Tripwires blink; the dark gap shrinks a little on later levels.
+    function blinkCycle(s) { return BEAM_ON + 1.7 - s.level * 0.03; }
+
     // Travelling beams never go dark.
     function laserLive(s, l) {
         if (l.off > 0) return false;
-        var on = 1.5, cycle = on + 1.7 - s.level * 0.03;
-        return !!l.move || (s.clock + l.phase) % cycle < on;
+        return !!l.move || (s.clock + l.phase) % blinkCycle(s) < BEAM_ON;
+    }
+
+    // A beam that is about to go live says so: it catches at once, so the
+    // end of a dark gap - or of an EMP - must be visible before it comes.
+    function laserWarming(s, l) {
+        if (l.off > 0) return l.off < BEAM_WARN;
+        return !l.move && (s.clock + l.phase) % blinkCycle(s) > blinkCycle(s) - BEAM_WARN;
     }
 
     // Beams and plates are hard alarms: touching one is a catch at once.
@@ -725,12 +750,14 @@
 
     // A catch throws the player back to the entrance empty-handed: drives
     // and EMP cells return to their places, the charges are what the level
-    // started with, and the trace jumps ahead. Stealth is the only way to
-    // make progress; lives merely allow another attempt on the same trace.
+    // started with, and the trace starts over. Stealth is the only way to
+    // make progress: a life buys one more whole attempt, nothing else. (The
+    // trace used to run on and lose 20s per catch; a clean run takes over
+    // half of it, so a single catch late on already decided the level.)
     function returnLoot(s) {
         s.drives.concat(s.cells).forEach(function (o) { o.got = false; });
-        s.got = 0; s.open = false; s.emp = s.def.emp;
-        s.time -= CATCH_COST;
+        s.got = 0; s.open = false; s.emp = s.def.emp; s.empT = 0;
+        s.time = s.def.time;
     }
 
     function caught(s) {
@@ -742,7 +769,7 @@
         if (G.loseLife() <= 0) return;
         placePlayer(s);
         returnLoot(s);
-        G.popup(p.cx, p.cy - 16, 'CAUGHT  TRACE -' + CATCH_COST, RED);
+        G.popup(p.cx, p.cy - 16, 'CAUGHT - START OVER', RED);
         s.det = 0; s.safe = 2.5; s.rings = [];
         // Guards go back to their posts so the entrance is not camped.
         s.guards.forEach(function (g) { resetGuard(s, g); });
@@ -791,6 +818,7 @@
         s.rate = 0;
         movePlayer(s, dt);
         fireEmp(s);
+        rechargeEmp(s, dt);
         pickUp(s);
         updateCams(s, dt);
         s.guards.forEach(function (g) { updateGuard(s, g, dt); });
@@ -855,10 +883,12 @@
         ctx.stroke();
     }
 
-    // A live plate is a red-rimmed pad; a dead one is grey and counts down.
+    // A live plate is a red-rimmed pad; a dead one is grey, counts down and
+    // flashes red through its last second, because it catches the moment
+    // it comes back.
     function drawPlates(s, ctx) {
         s.plates.forEach(function (pl) {
-            var x = pl.tx * T, y = pl.ty * T, c = pl.off > 0 ? GREY : RED;
+            var x = pl.tx * T, y = pl.ty * T, c = pl.off > 0 && !(pl.off < 1 && Math.floor(G.t * 10) % 2) ? GREY : RED;
             ctx.strokeStyle = c;
             ctx.lineWidth = 1;
             ctx.strokeRect(x + 4.5, y + 4.5, T - 9, T - 9);
@@ -886,10 +916,11 @@
 
     function drawLasers(s, ctx) {
         s.lasers.forEach(function (l) {
-            var live = laserLive(s, l);
-            ctx.strokeStyle = l.off > 0 ? GREY : RED;
-            ctx.globalAlpha = live ? 0.75 + 0.25 * Math.sin(G.t * 40) : 0.25;
-            ctx.lineWidth = live ? 2 : 1;
+            var live = laserLive(s, l), warm = laserWarming(s, l);
+            ctx.strokeStyle = l.off > 0 && !warm ? GREY : RED;
+            // dark: faint dashes; about to go live: the dashes flash
+            ctx.globalAlpha = live ? 0.75 + 0.25 * Math.sin(G.t * 40) : (warm ? 0.5 + 0.5 * Math.sin(G.t * 50) : 0.25);
+            ctx.lineWidth = live || warm ? 2 : 1;
             ctx.setLineDash(live ? [] : [3, 5]);
             ctx.beginPath(); ctx.moveTo(l.x1, l.y1); ctx.lineTo(l.x2, l.y2); ctx.stroke();
             ctx.setLineDash([]);
@@ -1042,9 +1073,10 @@
 
     // Each level that brings a new rule says so in the top wall for its
     // first seconds (and on the level-select preview, where the clock is 0).
+    // 20px, because on a phone the canvas is drawn at about half size.
     function drawTip(s) {
         if (!s.def.tip || s.clock >= TIP_TIME) return;
-        G.text(s.def.tip, G.W / 2, G.HUD + 20, { size: 13, color: s.clock > TIP_TIME - 1 ? GREY : PHOS, align: 'center', bold: true, max: G.W - 40 });
+        G.text(s.def.tip, G.W / 2, G.HUD + 22, { size: 20, color: s.clock > TIP_TIME - 1 ? GREY : PHOS, align: 'center', bold: true, max: G.W - 40 });
     }
 
     function draw(s, ctx) {
@@ -1068,18 +1100,20 @@
         drawTip(s);
     }
 
+    // An empty EMP shows the seconds until its next charge instead.
     function hud(s) {
-        return 'DRIVES ' + s.got + '/' + s.drives.length + '  EMP ' + s.emp + '  TRACE ' + Math.max(0, Math.ceil(s.time));
+        var emp = s.emp > 0 ? s.emp : '0 +' + Math.ceil(EMP_RECHARGE - s.empT) + 's';
+        return 'DRIVES ' + s.got + '/' + s.drives.length + '  EMP ' + emp + '  TRACE ' + Math.max(0, Math.ceil(s.time));
     }
 
     G.register('surveillance', {
         title: 'BLIND SPOT',
         blurb: 'Steal every data drive and reach the exit without being seen.',
         controls: [
-            '← ↑ ↓ → sneak · hold X to sprint (loud: guards and drones come looking)',
-            'SPACE EMP pulse: switches off cameras, beams, plates, drones and searchlights nearby',
+            '← ↑ ↓ → / pad sneak · hold X / RUN to sprint (loud: guards and drones come looking)',
+            'SPACE / EMP: nearby devices go dark for 5s · an empty EMP recharges in 20s',
             'Walls block cones and drone rings, not searchlights · live beams and plates catch at once',
-            'Caught: a life, every drive and 20s of trace are gone · trace complete: game over'
+            'Caught: a life and every drive are gone, the trace starts over · trace complete: game over'
         ],
         levelNames: ['Orientation', 'Night Shift', 'Tripwire', 'Pressure', 'Hive', 'Server Farm', 'The Vault', 'Sweep', 'Panopticon', 'Searchlight Grid'],
         colors: { bg: BG, fg: PHOS, accent: GREEN, dim: GREY },
@@ -1094,6 +1128,8 @@
             drums: { k: 'x.....x.........', h: '....x.......x.x.' },
             leadWave: 'triangle', bassWave: 'sine', arpWave: 'square', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // Movement is free in eight directions, so the pad keeps its diagonals.
+        touch: { a: 'EMP', b: 'RUN' }
     });
 })();
