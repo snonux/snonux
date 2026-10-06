@@ -2,11 +2,11 @@
  * Island Hopper — the tropicale theme's game: a classic jump'n'run.
  *
  * Run and jump across a chain of islands to the tiki totem before the tide
- * comes in. Crabs, gulls and monkeys can be stomped; urchins, coconuts and
- * stalactites cannot. Palm-leaf springs, rafts, moving, lifting and crumbling
- * platforms carry the player over water. Every level is built from a seeded
- * chunk generator whose chunks are each clearable on their own, so any
- * sequence of them is clearable too.
+ * comes in. Crabs and gulls can be stomped (a monkey too, by whoever gets
+ * above its palm); urchins, coconuts and stalactites cannot. Palm-leaf
+ * springs, rafts, moving, lifting and crumbling platforms carry the player
+ * over water. Every level is built from a seeded chunk generator whose chunks
+ * are each clearable on their own, so any sequence of them is clearable too.
  */
 (function () {
     'use strict';
@@ -16,6 +16,14 @@
     // One tide surge cycle on the storm level: low, rising, high, falling.
     var TIDE = { period: 11, rise: 5, high: 7, fall: 9.5, lift: 96 };
     var DIVE = 1.5;         // seconds a gull's swoop takes, down and back up
+    var WARN = 0.45;        // seconds, at least, between a gull's squawk and its swoop
+    // The tide clock: every level starts with CLOCK seconds and each flag
+    // adds FLAG_TIME, so a player who keeps going has plenty and one who
+    // stands still is flooded out within about a minute.
+    var CLOCK = 75, FLAG_TIME = 45;
+    // How far below a platform's top the feet may be and still step onto it:
+    // enough to walk onto a lift that has just left the ground.
+    var STEP_UP = 14;
     var STOMPABLE = { crab: true, gull: true, monkey: true };
 
     var SETS = {
@@ -29,19 +37,21 @@
 
     // lo/hi: highest and lowest ground row a level may use (the cave keeps
     // headroom under its ceiling; the storm level keeps ordinary ground above
-    // the surge). gap: widest plain water gap in tiles. Each level's chunk
-    // list adds something the levels before it did not have.
+    // the surge; no level goes above row 7, which leaves a gull room to
+    // cruise out of jumping reach below the HUD). gap: widest plain water gap
+    // in tiles. Each level's chunk list adds something the levels before it
+    // did not have.
     var LEVELS = [
         { set: 'beach', len: 190, lo: 8, hi: 13, gap: 3, gulls: 0, chunks: 'crabs crabs gap gap steps isles blocks' },
         { set: 'beach', len: 210, lo: 7, hi: 13, gap: 3, gulls: 0, chunks: 'crabs gap steps isles blocks urchins urchins spring spring' },
         { set: 'jungle', len: 230, lo: 7, hi: 13, gap: 4, gulls: 0, chunks: 'crabs gap steps isles urchins spring raft raft raft blocks' },
-        { set: 'ridge', len: 250, lo: 6, hi: 13, gap: 4, gulls: 4, chunks: 'crabs gap steps isles urchins spring raft mover mover mover' },
+        { set: 'ridge', len: 250, lo: 7, hi: 13, gap: 4, gulls: 4, chunks: 'crabs gap steps isles urchins spring raft mover mover mover' },
         { set: 'jungle', len: 265, lo: 7, hi: 13, gap: 4, gulls: 3, chunks: 'crabs gap steps isles urchins spring raft mover monkey monkey monkey blocks' },
         { set: 'cave', len: 280, lo: 9, hi: 13, gap: 4, gulls: 0, chunks: 'crabs gap steps isles urchins spring mover drips drips drips falls falls monkey' },
-        { set: 'ridge', len: 295, lo: 6, hi: 13, gap: 4, gulls: 5, red: true, chunks: 'crabs gap steps isles urchins spring lift lift lift falls falls mover monkey' },
+        { set: 'ridge', len: 295, lo: 7, hi: 13, gap: 4, gulls: 5, red: true, chunks: 'crabs gap steps isles urchins spring lift lift lift falls falls mover monkey' },
         { set: 'jungle', len: 310, lo: 7, hi: 13, gap: 4, gulls: 5, red: true, dense: true, chunks: 'crabs crabs gap isles urchins spring raft raft mover lift falls monkey monkey monkey' },
         { set: 'storm', len: 325, lo: 7, hi: 12, gap: 4, gulls: 3, red: true, tide: true, chunks: 'tide tide tide tide crabs gap steps isles urchins spring falls mover' },
-        { set: 'dusk', len: 350, lo: 6, hi: 13, gap: 4, gulls: 6, red: true, dense: true, chunks: 'crabs crabs gap steps isles urchins urchins spring raft mover lift falls falls monkey monkey blocks' }
+        { set: 'dusk', len: 350, lo: 7, hi: 13, gap: 4, gulls: 6, red: true, dense: true, chunks: 'crabs crabs gap steps isles urchins urchins spring raft mover lift falls falls monkey monkey blocks' }
     ];
 
     // ------------------------------------------------------------------
@@ -221,14 +231,38 @@
         L.flags.push({ x: x0 * T + 76, y: L.h * T, on: false });
     }
 
-    // Gulls patrol well above the highest ground of their stretch, so only a
-    // swoop can reach the player.
+    // The highest thing to stand on in each column: the ground, a block, or
+    // over water the higher shore — planks, slabs and lifts never go above it.
+    function skyline(L) {
+        var sky = L.top.slice(), i, j, row;
+        for (i = 1; i < sky.length; i++) {
+            if (sky[i] !== NONE) continue;
+            for (j = i; sky[j] === NONE; j++);
+            // Every level starts and ends on ground, so both shores exist.
+            row = Math.min(sky[i - 1], sky[j]);
+            while (i < j) sky[i++] = row;
+        }
+        Object.keys(L.blocks).forEach(function (k) {
+            var c = k.split(',');
+            sky[+c[0]] = Math.min(sky[+c[0]], +c[1]);
+        });
+        return sky;
+    }
+
+    // Gulls cruise just out of reach of a full jump from the highest footing
+    // near them, so only a swoop can reach the player. The height follows
+    // the terrain: a patrol or a swoop may carry a gull over a cliff.
+    function cruiseAlt(sky, x) {
+        var c = Math.floor(x / T), row = LOW;
+        for (var i = c - 4; i <= c + 5; i++) row = Math.min(row, sky[i] || LOW);
+        return Math.max(G.HUD + 10, row * T - 165);
+    }
+
     function addGulls(L) {
+        L.sky = skyline(L);
         for (var i = 0; i < L.cfg.gulls; i++) {
-            var c = Math.floor(L.cfg.len * (i + 0.8) / (L.cfg.gulls + 0.3)), top = LOW;
-            for (var x = c - 6; x <= c + 6; x++) top = Math.min(top, L.top[x] || LOW);
-            var alt = Math.max(70, top * T - 165);
-            L.foes.push({ kind: 'gull', x: c * T, y: alt, w: 28, h: 16, home: c * T, alt: alt, vx: -80, state: 0, t: 0, cool: 1, ty: alt });
+            var x = Math.floor(L.cfg.len * (i + 0.8) / (L.cfg.gulls + 0.3)) * T, alt = cruiseAlt(L.sky, x);
+            L.foes.push({ kind: 'gull', x: x, y: alt, w: 28, h: 16, home: x, alt: alt, vx: -80, state: 0, t: 0, cool: 1, tx: x, ty: alt });
         }
     }
 
@@ -261,13 +295,13 @@
     }
 
     function init(level) {
-        var L = buildLevel(level), budget = 70 + Math.round(L.cfg.len * 0.5);
+        var L = buildLevel(level);
         return {
-            cfg: L.cfg, pal: SETS[L.cfg.set], top: L.top, ceil: L.ceil, solid: makeSolid(L),
+            cfg: L.cfg, pal: SETS[L.cfg.set], top: L.top, sky: L.sky, ceil: L.ceil, solid: makeSolid(L),
             blockList: Object.keys(L.blocks).map(function (k) { var c = k.split(','); return { tx: +c[0], ty: +c[1] }; }),
             foes: L.foes, plats: L.plats, springs: L.springs, pines: L.pines, flags: L.flags, palms: L.palms,
             totem: L.totem, shots: [], got: 0, combo: 0, cam: 0,
-            budget: budget, time: budget, flood: 0, tideT: 0, surge: 0, water: WATER,
+            time: CLOCK, flood: 0, tideT: 0, surge: 0, water: WATER,
             cp: { x: 3 * T, y: 12 * T - 28 },
             p: {
                 x: 3 * T, y: 12 * T - 28, w: 20, h: 28, vx: 0, vy: 0, face: 1, ground: true, ceil: false, wall: 0,
@@ -289,7 +323,7 @@
     }
 
     // The countdown is the tide table: at zero the sea floods the whole
-    // level, which is what makes standing still a losing move.
+    // level for good, which is what makes standing still a losing move.
     function tickWorld(s, dt) {
         var before = s.time;
         s.time -= dt;
@@ -366,12 +400,13 @@
     }
 
     // Platforms are one-way: the player lands only when falling and when the
-    // feet were above the platform's top on the previous tick.
+    // feet were above the platform's top (or a small step below it) on the
+    // previous tick.
     function landing(s, p, feet) {
         if (p.vy < 0) return null;
         for (var i = 0; i < s.plats.length; i++) {
             var pl = s.plats[i];
-            if (p.x + p.w > pl.x && p.x < pl.x + pl.w && feet <= pl.py + 3 && p.y + p.h >= pl.y) return pl;
+            if (p.x + p.w > pl.x && p.x < pl.x + pl.w && feet <= pl.py + STEP_UP && p.y + p.h >= pl.y) return pl;
         }
         return null;
     }
@@ -395,17 +430,21 @@
     function respawn(s) {
         var p = s.p;
         p.x = s.cp.x; p.y = s.cp.y; p.vx = 0; p.vy = 0; p.on = null; p.inv = 2; p.sprung = false; p.ground = true;
-        // A fresh tide table and a low sea, or the next life would drown at once.
-        s.time = s.budget; s.flood = 0; s.tideT = 0; s.surge = 0; s.water = WATER; s.shots = [];
+        // The clock keeps running, but the storm level's surge starts over so
+        // the next life gets a full spell of low water.
+        s.tideT = 0; s.surge = 0; s.water = WATER; s.shots = [];
         s.plats.forEach(function (pl) { if (pl.kind === 'fall') { pl.y = pl.home; pl.state = 0; } });
         s.cam = camTarget(s, p);
     }
 
-    // One hit costs a life; play resumes from the last flag while lives remain.
-    function lose(s) {
+    // One hit costs a life; play resumes from the last flag while lives
+    // remain. The flood at the end of the clock does not go out again, so
+    // drowning in it (flooded) takes every life that is left.
+    function lose(s, flooded) {
         var p = s.p;
         G.burst(p.x + 10, p.y + 14, { n: 16, color: '#f97316', speed: 220, gravity: 500 });
-        if (G.loseLife() > 0) respawn(s);
+        if (!flooded) { if (G.loseLife() > 0) respawn(s); return; }
+        for (var n = G.lives; n > 0; n--) G.loseLife();
     }
 
     function camTarget(s, p) {
@@ -422,23 +461,35 @@
         if (f.x > f.hi) { f.x = f.hi; f.vx = -Math.abs(f.vx); }
     }
 
-    // Patrols high, then dives in one arc to where the player stood when the
-    // dive began — a squawk warns, and moving on dodges it.
+    // Straight down onto the marked spot and up again. The cubed sine makes
+    // it a plunge with a quick pull-up: the gull is at head height for about
+    // a fifth of a second.
+    function diveGull(f, dt) {
+        f.t += dt;
+        f.y = f.alt + (f.ty - f.alt) * Math.pow(Math.sin(Math.PI * Math.min(1, f.t / DIVE)), 3);
+        if (f.t >= DIVE) { f.state = 0; f.cool = 3; }
+    }
+
+    // Patrols high (state 0). When the player comes near it marks the spot
+    // where the player stands, squawks, glides over that spot and hangs
+    // there (state 1, at least WARN seconds), then plunges straight down on
+    // it (state 2). The mark never moves, so one step aside dodges the
+    // swoop anywhere — on the ground, a raft, a plank or a lift.
     function moveGull(s, f, dt) {
         var p = s.p;
-        f.x += f.vx * dt;
-        if (f.state) {
-            f.t += dt;
-            f.y = f.alt + (f.ty - f.alt) * Math.sin(Math.PI * Math.min(1, f.t / DIVE));
-            if (f.t >= DIVE) { f.state = 0; f.cool = 3; f.vx = (f.vx < 0 ? -1 : 1) * 80; }
+        if (f.state === 2) { diveGull(f, dt); return; }
+        f.alt += G.clamp(cruiseAlt(s.sky, f.x + 14) - f.alt, -200 * dt, 200 * dt);
+        f.y = f.alt + Math.sin(G.t * 3 + f.home) * 6;
+        if (f.state === 1) {
+            f.t -= dt; f.x += G.clamp(f.tx - f.x, -260 * dt, 260 * dt);
+            if (f.t <= 0 && Math.abs(f.tx - f.x) < 1) { f.state = 2; f.t = 0; f.alt = f.y; }
             return;
         }
-        f.cool -= dt;
-        f.y = f.alt + Math.sin(G.t * 3 + f.home) * 6;
+        f.x += f.vx * dt; f.cool -= dt;
         if (Math.abs(f.x - f.home) > 190) f.vx = (f.x < f.home ? 1 : -1) * 80;
-        if (f.cool <= 0 && p.inv <= 0 && Math.abs(p.x - f.x) < 230 && p.y > f.y + 40) {
-            f.state = 1; f.t = 0; f.ty = p.y; f.vx = (p.x < f.x ? -1 : 1) * 150;
-            G.tone(1300, 0.2, { type: 'sawtooth', slide: 700, vol: 0.1 });
+        if (f.cool <= 0 && p.inv <= 0 && Math.abs(p.x - f.x) < 200 && p.y > f.y + 40) {
+            f.state = 1; f.t = WARN; f.tx = p.x - 4; f.ty = p.y; f.vx = (f.tx < f.x ? -1 : 1) * 80;
+            G.tone(1300, 0.4, { type: 'sawtooth', slide: 700, vol: 0.12 });
         }
     }
 
@@ -546,12 +597,15 @@
     }
 
     function touchFlags(s, p) {
+        var feet = p.y + p.h;
         s.flags.forEach(function (f) {
-            if (f.on || Math.abs(p.x + 10 - f.x) > 22 || Math.abs(p.y + p.h - f.y) > 40) return;
+            // The pole counts as high as a jump goes, so leaping over it still raises the flag.
+            if (f.on || Math.abs(p.x + 10 - f.x) > 22 || feet > f.y + 40 || feet < f.y - 130) return;
             f.on = true;
             s.cp = { x: f.x - 10, y: f.y - p.h };
+            s.time += FLAG_TIME;
             G.addScore(200);
-            G.popup(f.x, f.y - 70, 'CHECKPOINT', '#fef9e7');
+            G.popup(f.x, f.y - 70, 'CHECKPOINT +' + FLAG_TIME + 's', '#fef9e7');
             [659, 784, 988].forEach(function (hz, i) { G.tone(hz, 0.1, { type: 'triangle', vol: 0.15, delay: i * 0.07 }); });
         });
     }
@@ -571,8 +625,8 @@
         if (p.y + p.h > s.water + 8) {
             G.sfx('splash');
             G.burst(p.x + 10, s.water, { n: 18, color: '#38c9d8', speed: 260, angle: -Math.PI / 2, spread: 1.6, gravity: 700 });
-            lose(s);
-        } else if (updateShots(s, p, dt) || touchFoes(s, p)) lose(s);
+            lose(s, s.flood > 0);
+        } else if (updateShots(s, p, dt) || touchFoes(s, p)) lose(s, false);
         else if (G.aabb(p, s.totem)) {
             G.tone(196, 0.5, { type: 'triangle', vol: 0.2 });
             G.win(500 + Math.ceil(Math.max(0, s.time)) * 5 + G.lives * 200);
@@ -756,8 +810,18 @@
         disc(ctx, cx - 3, cy, 2, 2, '#f97316');
     }
 
+    // The visible warning of a swoop: a red "!" under the gull while it lines
+    // up, and a red arrowhead over the marked spot until the swoop is over.
+    function drawGullMark(ctx, f, cx, cy) {
+        var mx = f.tx + 14, my = f.ty - 12 + Math.sin(G.t * 12) * 3;
+        if (f.state === 1) G.text('!', cx, cy + 40, { size: 28, bold: true, color: '#e11d48', align: 'center' });
+        ctx.fillStyle = '#e11d48';
+        ctx.beginPath(); ctx.moveTo(mx - 9, my - 12); ctx.lineTo(mx + 9, my - 12); ctx.lineTo(mx, my); ctx.fill();
+    }
+
     function drawGull(ctx, f) {
         var cx = f.x + 14, cy = f.y + 8, flap = Math.sin(G.t * (f.state ? 22 : 11) + f.home) * 9, d = f.vx < 0 ? -1 : 1;
+        if (f.state) drawGullMark(ctx, f, cx, cy);
         ctx.strokeStyle = '#fef9e7'; ctx.lineWidth = 4; ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(cx - 16, cy - flap); ctx.lineTo(cx, cy); ctx.lineTo(cx + 16, cy - flap);
@@ -863,10 +927,10 @@
         title: 'ISLAND HOPPER',
         blurb: 'Hop the islands and reach the tiki totem before the tide comes in.',
         controls: [
-            '← → run · SPACE or ↑ jump (hold for a higher jump)',
-            'Stomp crabs, gulls and monkeys — never touch an urchin',
+            '← → run · SPACE / ↑ / JUMP button: jump (hold = higher)',
+            'Stomp crabs and gulls · avoid urchins · a gull squawks before it swoops',
             'Palm leaves spring you up, rafts and planks carry you over water',
-            '100 pineapples = extra life · flags are checkpoints'
+            'Flags are checkpoints and add tide time · 100 pineapples = extra life'
         ],
         levelNames: ['Shell Beach', 'Palm Springs', 'Raft Lagoon', 'Gull Ridge', 'Monkey Jungle',
             'Echo Cave', 'Crumble Cliffs', 'Coconut Canopy', 'Spring Tide', 'Tiki Summit'],
@@ -882,6 +946,8 @@
             drums: { k: 'x..x..x.x..x..x.', s: '....x.......x..x', h: 'x.xxx.xxx.xxx.xx' },
             leadWave: 'triangle', bassWave: 'triangle', arpWave: 'sine', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // Run and jump only: two big direction buttons and one action button.
+        touch: { a: 'JUMP', hide: ['up', 'down', 'b'] }
     });
 })();
