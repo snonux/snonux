@@ -20,7 +20,15 @@
     var GRAV = 1800, RUN = 280, JUMP = 700, KICK = 640, KICK_VX = 340, SLIDE = 110, MAX_FALL = 900;
     var LEASH = 330;            // the lava never trails the highest ledge reached by more than this
     var STEAM_H = 300, STEAM_LIFT = 620, REFORM = 2.2;
-    var LAVA_START = 260, CAM_FLOOR = -480, CAM_LEAD = 320;
+    // The lava starts this far under the shaft floor: about ten seconds on
+    // level 1 for a newcomer to find the keys before it comes through.
+    var LAVA_START = 340, CAM_FLOOR = -480;
+    // The climber's height on the screen: normally low (CAM_LEAD) to show the
+    // climb ahead, higher (CAM_NEAR) while that brings close lava into view.
+    var CAM_LEAD = 320, CAM_NEAR = 250, LAVA_VIEW = G.H - 24;
+    // A lava-fall is 24 px wide and the climber overhangs a ledge by up to
+    // 16 px, so a ledge this far from a column's middle is safe to stand on.
+    var FALL_CLEAR = 34, SURGE = 80;
     var C = {
         bg: '#0d0802', rock: '#1d1008', rockLit: '#3a2010', ledge: '#4a2c18', crumble: '#74502f',
         slab: '#2c2a33', lava: '#ff4400', ember: '#ff8c00', hot: '#ffcc00', cream: '#ffe8cc', dim: '#a8744a'
@@ -29,6 +37,8 @@
     // One row per level: shaft height, lava speed (px/s), share of crumbling
     // and drifting ledges, number of geysers / wall-kick gaps / bats /
     // lava-falls, seconds between bombs, quakes and lava surges (0 = none).
+    // Every geyser, wall-kick gap and lava-fall listed is really built: the
+    // upper shafts are crowded and end up to 10% higher than `h` for it.
     var LEVELS = [
         { h: 2800, lava: 32, cr: 0, mv: 0, gey: 0, wall: 0, bomb: 0, bats: 0, quake: 0, falls: 0, surge: 0 },
         { h: 3000, lava: 35, cr: 0.28, mv: 0, gey: 0, wall: 2, bomb: 0, bats: 0, quake: 0, falls: 0, surge: 0 },
@@ -37,9 +47,9 @@
         { h: 3600, lava: 41, cr: 0.3, mv: 0.2, gey: 3, wall: 3, bomb: 2.4, bats: 0, quake: 0, falls: 0, surge: 0 },
         { h: 3800, lava: 42, cr: 0.35, mv: 0.22, gey: 3, wall: 3, bomb: 2.2, bats: 5, quake: 0, falls: 0, surge: 0 },
         { h: 4000, lava: 43, cr: 0.4, mv: 0.22, gey: 4, wall: 3, bomb: 2.0, bats: 5, quake: 9, falls: 0, surge: 0 },
-        { h: 4300, lava: 44, cr: 0.4, mv: 0.25, gey: 4, wall: 3, bomb: 1.9, bats: 6, quake: 9, falls: 5, surge: 0 },
-        { h: 4600, lava: 45, cr: 0.45, mv: 0.25, gey: 4, wall: 4, bomb: 1.7, bats: 7, quake: 8, falls: 6, surge: 9 },
-        { h: 5200, lava: 44, cr: 0.45, mv: 0.25, gey: 5, wall: 4, bomb: 1.3, bats: 8, quake: 7, falls: 8, surge: 9 }
+        { h: 4300, lava: 44, cr: 0.4, mv: 0.25, gey: 3, wall: 3, bomb: 1.9, bats: 6, quake: 9, falls: 5, surge: 0 },
+        { h: 4600, lava: 45, cr: 0.45, mv: 0.25, gey: 4, wall: 3, bomb: 1.7, bats: 7, quake: 8, falls: 5, surge: 9 },
+        { h: 5200, lava: 44, cr: 0.45, mv: 0.25, gey: 4, wall: 3, bomb: 1.3, bats: 8, quake: 8, falls: 6, surge: 11 }
     ];
 
     // Cheap repeatable noise for decoration that needs no stored state.
@@ -86,11 +96,23 @@
         if (seek) b.dir = seek; else if (rnd() < 0.4) b.dir = -b.dir;
         var want = prev.bx + prev.w / 2 + b.dir * (prev.w / 2 + w / 2 + gap) - w / 2;
         if (prev.floor) want = WL + rnd() * (SHAFT - w);
-        var x = G.clamp(want, WL + amp, WR - w - amp);
+        if (b.guardN > 0 && amp) { kind = 'solid'; amp = 0; }
+        var room = b.guardN > 0 ? guardRoom(b.guard, w) : { lo: WL + amp, hi: WR - w - amp, w: w };
+        var x = G.clamp(want, room.lo, room.hi);
         if (x !== want) b.dir = -b.dir;          // ran into a wall: zigzag back
-        var l = push(b, makeLedge(x, prev.y - dy, w, kind));
+        var l = push(b, makeLedge(x, prev.y - dy, room.w, kind));
         if (amp) { l.amp = amp; l.sp = 1.1 + rnd() * 0.7; l.ph = rnd() * 6.28; }
         b.since++;
+        b.guardN = Math.max(0, b.guardN - 1);
+    }
+
+    // The two ledges after a lava-fall reach up past the column's top, so
+    // they are kept on its far side (narrowed if need be) and do not drift:
+    // neither standing on them nor jumping between them may cross the column.
+    function guardRoom(f, w) {
+        var lo = f.side > 0 ? f.x + FALL_CLEAR : WL, hi = f.side > 0 ? WR : f.x - FALL_CLEAR;
+        w = Math.min(w, hi - lo);
+        return { lo: lo, hi: hi - w, w: w };
     }
 
     // A gap of about 175 px is beyond any jump: the only way up is to jump
@@ -122,23 +144,67 @@
         return true;
     }
 
-    // A wide gap with a lava-fall column in its middle; the column switches
-    // on and off, so the jump has to be timed. The ledge to wait on is made
-    // solid: a crumbling one would drop the climber before the fall stops.
+    // Whether a geyser on ledge `l` could throw the climber into a column at
+    // `fx` whose foot is at `y1`: the ride ends up to about 440 px above the
+    // vent, anywhere between the vent and the ledge it leads to.
+    function geyserReaches(b, l, fx, y1) {
+        if (!l.vent || l.y - 480 > y1) return false;
+        var to = b.ledges[l.i + 1];
+        return fx > Math.min(l.vent.x, to.x) - 60 && fx < Math.max(l.vent.x, to.x + to.w) + 60;
+    }
+
+    // The outermost edge, toward `dir`, of every ledge (over its whole
+    // drift) from which a jump reaches the foot of a column at height y1:
+    // 170 px is a full jump plus the climber's own height.
+    function reachEdge(b, dir, y1) {
+        return b.ledges.reduce(function (far, l) {
+            if (l.y - 170 > y1) return far;
+            return dir > 0 ? Math.max(far, l.bx + l.w + l.amp) : Math.min(far, l.bx - l.amp);
+        }, dir > 0 ? WL : WR);
+    }
+
+    // Where a lava-fall of the sizes in `f` fits on the `dir` side of
+    // `prev`. The ledge to wait on (at `ax`) reaches at least as far that
+    // way as every ledge below it, so no jump on the way up passes under the
+    // column (at `fx`); the ledge to jump to starts at `bx`. Returns null if
+    // the waiting ledge would be out of reach from `prev`, the far ledge
+    // would not fit before the wall, or a geyser could throw the climber
+    // into the column.
+    function fallSite(b, prev, dir, f) {
+        var far = reachEdge(b, dir, f.y + 30);
+        far = dir > 0 ? Math.max(far, WL + f.wa) : Math.min(far, WR - f.wa);
+        var ax = dir > 0 ? far - f.wa : far, fx = far + dir * f.gap / 2;
+        var hop = dir > 0 ? ax - prev.x - prev.w : prev.x - ax - f.wa;
+        var fits = dir > 0 ? far + f.gap + f.wb <= WR : far - f.gap - f.wb >= WL;
+        if (hop > 80 || !fits) return null;
+        if (b.ledges.some(function (l) { return geyserReaches(b, l, fx, f.y + 30); })) return null;
+        return { dir: dir, ax: ax, fx: fx, bx: dir > 0 ? far + f.gap : far - f.gap - f.wb };
+    }
+
+    // A lava-fall is a set piece of two ledges: one to wait on and, past a
+    // wide gap with the column in its middle, the one to jump to. The column
+    // switches on and off, so the jump has to be timed. Both ledges are
+    // solid: a crumbling one to wait on would drop the climber before the
+    // fall stops, and a crumbling one to jump to can be shaken loose by a
+    // quake for longer than the lava leaves the climber to wait. Returns
+    // false while it fits on neither side; it is then tried from the next
+    // ledge.
     function stepFall(b, prev) {
-        if (prev.kind === 'move' || prev.vent) return false;
-        var rnd = b.rnd, w = ledgeWidth(b), gap = 84 + rnd() * 10;
-        var roomR = WR - prev.x - prev.w >= gap + w, roomL = prev.x - WL >= gap + w;
-        if (!roomR && !roomL) return false;
-        var dir = (b.dir > 0 ? roomR : !roomL) ? 1 : -1;
-        var x = dir > 0 ? prev.x + prev.w + gap : prev.x - gap - w;
-        var next = push(b, makeLedge(x, prev.y - 60 - rnd() * 20, w, rnd() < b.cfg.cr ? 'crumble' : 'solid'));
-        prev.kind = 'solid';
-        b.falls.push({
-            x: dir > 0 ? prev.x + prev.w + gap / 2 : prev.x - gap / 2, w: 24,
-            y0: next.y - 110, y1: prev.y + 30, period: 3.4, on: 1.6, ph: rnd() * 3.4, was: false
-        });
-        b.dir = dir;
+        if (prev.kind === 'move' || prev.vent || prev.floor) return false;
+        var rnd = b.rnd, f = { wa: ledgeWidth(b), wb: ledgeWidth(b), gap: 84 + rnd() * 10, y: prev.y - 62 - rnd() * 34 };
+        var site = fallSite(b, prev, b.dir, f) || fallSite(b, prev, -b.dir, f);
+        if (!site) return false;
+        push(b, makeLedge(site.ax, f.y, f.wa, 'solid'));
+        var next = push(b, makeLedge(site.bx, f.y - 60 - rnd() * 20, f.wb, 'solid'));
+        // `side` is the side of the column the climb goes on: stepNormal
+        // keeps the next two ledges there.
+        b.guard = {
+            x: site.fx, w: 24, side: site.dir,
+            y0: next.y - 110, y1: f.y + 30, period: 3.4, on: 1.6, ph: rnd() * 3.4, was: false
+        };
+        b.falls.push(b.guard);
+        b.guardN = 2;
+        b.dir = site.dir;
         return true;
     }
 
@@ -156,32 +222,26 @@
 
     var SPECIAL = { wall: stepWall, geyser: stepGeyser, fall: stepFall };
 
+    function topLedge(b) { return b.ledges[b.ledges.length - 1]; }
+
+    // Two plain steps between specials keep each one readable on its own.
+    // A special that is due but does not fit on this ledge waits for a later
+    // one, and must not hold up the specials planned after it: otherwise the
+    // upper shaft would run out before all of them were built.
     function addStep(b) {
-        var prev = b.ledges[b.ledges.length - 1], ev = b.events[0];
+        var prev = topLedge(b), ev = b.events;
         b.seek = 0;
-        // Two plain steps between specials keep each one readable on its own.
-        if (ev && ev.at <= -prev.y && b.since >= 2 && SPECIAL[ev.type](b, prev)) {
-            b.events.shift();
+        for (var k = 0; b.since >= 2 && k < ev.length && ev[k].at <= -prev.y; k++) {
+            if (!SPECIAL[ev[k].type](b, prev)) continue;
+            ev.splice(k, 1);
             b.since = 0;
             return;
         }
         stepNormal(b, prev, b.seek);
     }
 
-    // A lava-fall must not pour onto a ledge, nor hang anywhere a geyser can
-    // throw the climber (up to about 440 px above its vent): they could then
-    // be killed while standing still or while riding the steam.
-    function fallBlocked(f, l) {
-        var near = f.x > l.bx - l.amp - 34 && f.x < l.bx + l.w + l.amp + 34;
-        if (near && l.y > f.y0 - 10 && l.y < f.y1 + 10) return true;
-        return !!l.vent && l.y - 480 < f.y1 && l.y > f.y0;
-    }
-
     function placeExtras(b) {
         var n = b.ledges.length, rnd = b.rnd, k, l;
-        b.falls = b.falls.filter(function (f) {
-            return !b.ledges.some(function (l2) { return fallBlocked(f, l2); });
-        });
         for (k = 2; k < n - 1; k++) {
             l = b.ledges[k];
             if (l.kind !== 'move' && !l.vent && rnd() < 0.4) b.gems.push({ x: l.x + l.w / 2, y: l.y - 22, got: false });
@@ -194,13 +254,23 @@
         }
     }
 
+    // The shaft ends at the level's height, but not before every planned
+    // special step is built (a crowded shaft may grow by up to 600 px for
+    // that) and not on a ledge that is still being kept clear of a
+    // lava-fall: the rim spans the whole shaft, column included.
+    function shaftDone(b) {
+        var y = -topLedge(b).y;
+        if (b.guardN > 0) return false;
+        return y >= b.cfg.h - 150 && (!b.events.length || y >= b.cfg.h + 600);
+    }
+
     function buildShaft(level) {
         var cfg = LEVELS[level - 1], rnd = G.rng(level * 7919 + 101);
         var floor = makeLedge(WL, 0, SHAFT, 'solid');
         floor.floor = true;
-        var b = { level: level, cfg: cfg, rnd: rnd, ledges: [floor], falls: [], gems: [], bats: [], dir: 1, since: 0, seek: 0, events: planEvents(cfg, rnd) };
-        while (b.ledges[b.ledges.length - 1].y > -(cfg.h - 150)) addStep(b);
-        var rim = push(b, makeLedge(WL, b.ledges[b.ledges.length - 1].y - 78, SHAFT, 'solid'));
+        var b = { level: level, cfg: cfg, rnd: rnd, ledges: [floor], falls: [], gems: [], bats: [], dir: 1, since: 0, seek: 0, guard: null, guardN: 0, events: planEvents(cfg, rnd) };
+        while (!shaftDone(b)) addStep(b);
+        var rim = push(b, makeLedge(WL, topLedge(b).y - 78, SHAFT, 'solid'));
         rim.rim = true;
         placeExtras(b);
         return b;
@@ -441,11 +511,11 @@
         s.surgeT -= dt;
         if (s.surgeT < 1.5 && !s.surgeWarn) { s.surgeWarn = true; G.sfx('alarm'); }
         if (s.surgeT <= 0) {
-            s.surgeT = s.cfg.surge; s.surgeWarn = false; s.surgeLeft = 60;
+            s.surgeT = s.cfg.surge; s.surgeWarn = false; s.surgeLeft = SURGE;
             G.shake(4, 0.5);
             G.noise(0.7, { freq: 300, slide: 900, vol: 0.25, attack: 0.1 });
         }
-        var d = Math.min(s.surgeLeft, 160 * dt);
+        var d = Math.min(s.surgeLeft, 260 * dt);
         s.lavaY -= d; s.surgeLeft -= d;
     }
 
@@ -530,7 +600,7 @@
         s.quakeT = s.cfg.quake; s.quakeWarn = false;
         G.shake(10, 0.6);
         G.sfx('bigboom');
-        s.ledges.forEach(function (l) { if (onScreen(s, l.y)) startCrumble(l, 0.7 + Math.random() * 0.5); });
+        s.ledges.forEach(function (l) { if (onScreen(s, l.y)) startCrumble(l, G.rnd(0.7, 1.2)); });
         for (var k = 0; k < 3; k++) spawnBomb(s, WL + G.rnd(30, SHAFT - 30));
     }
 
@@ -554,6 +624,18 @@
         G.die();
     }
 
+    // The view leads upward and never shows below the shaft floor. Lava that
+    // is close but still under the bottom edge pulls the view down (by at
+    // most CAM_LEAD - CAM_NEAR) until its surface shows; `gap` is the lava's
+    // distance below the climber's head, and the pull fades out again where
+    // the lava is too far down to be brought into view.
+    function followCamera(s, dt) {
+        var gap = s.lavaY - s.p.y, span = CAM_LEAD - CAM_NEAR;
+        var pull = G.clamp(Math.min(gap - (LAVA_VIEW - CAM_LEAD), LAVA_VIEW - CAM_NEAR + span - gap), 0, span);
+        s.camY += (Math.min(s.p.y - CAM_LEAD + pull, CAM_FLOOR) - s.camY) * Math.min(1, dt * 7);
+        G.cam.y = s.camY;
+    }
+
     function update(s, dt) {
         var p = s.p;
         s.time += dt;
@@ -565,9 +647,7 @@
         updateQuake(s, dt);
         collectGems(s);
         ambience(s, dt);
-        // The view leads upward and never shows below the shaft floor.
-        s.camY += (Math.min(p.y - CAM_LEAD, CAM_FLOOR) - s.camY) * Math.min(1, dt * 7);
-        G.cam.y = s.camY;
+        followCamera(s, dt);
         if (p.on && p.on.rim) { G.win(500 + G.lives * 250 + s.gemsGot * 10); return; }
         if (updateFalls(s) || p.y + PH > s.lavaY + 6) burn(s);
     }
@@ -663,7 +743,7 @@
                 return;
             }
             drawSlab(ctx, l, l.x + (l.state === 'shake' ? Math.sin(s.time * 70) * 2 : 0), y);
-            if (l.rim) G.text('CRATER RIM', G.W / 2, y - 70, { size: 16, bold: true, color: C.hot, align: 'center' });
+            if (l.rim) G.text('CRATER RIM', G.W / 2, y - 70, { size: 22, bold: true, color: C.hot, align: 'center' });
         });
     }
 
@@ -700,10 +780,16 @@
                 ctx.fillStyle = C.lava; ctx.fillRect(f.x - f.w / 2, y0, f.w, y1 - y0);
                 ctx.fillStyle = C.hot;
                 for (k = 0; k < 6; k++) ctx.fillRect(f.x - 8 + hash(k) * 12, y0 + ((s.time * 420 + k * 61) % (y1 - y0 - 30)), 4, 30);
-            } else if (isWarning(f, s.time)) {
-                ctx.fillStyle = C.hot;                       // drips announce the next pour
-                for (k = 0; k < 3; k++) ctx.fillRect(f.x - 6 + k * 5, y0 + ((s.time * 260 + k * 47) % 90), 3, 9);
+                return;
             }
+            // The lane glows faintly while the fall is off, so the climber
+            // sees where it will pour; it brightens and drips just before.
+            var warn = isWarning(f, s.time);
+            ctx.fillStyle = 'rgba(255,68,0,' + (warn ? 0.32 : 0.1) + ')';
+            ctx.fillRect(f.x - f.w / 2, y0, f.w, y1 - y0);
+            if (!warn) return;
+            ctx.fillStyle = C.hot;
+            for (k = 0; k < 4; k++) ctx.fillRect(f.x - 8 + k * 5, y0 + ((s.time * 260 + k * 47) % (y1 - y0 - 12)), 4, 12);
         });
     }
 
@@ -766,13 +852,25 @@
         ctx.fillRect(p.face > 0 ? x + 10 : x + 3, y + 4, 7, 4);
     }
 
+    // Lava under the bottom edge still shows as heat pulsing up from below,
+    // brighter the closer it is: a brisk climber keeps it out of view, and
+    // must still be able to tell that it is right behind.
+    function drawHeat(s, ctx, ly) {
+        var near = G.clamp(1 - (ly - G.H) / 220, 0.3, 1), pulse = 0.42 + 0.1 * Math.sin(s.time * 6);
+        var band = ctx.createLinearGradient(0, G.H - 80, 0, G.H);
+        band.addColorStop(0, 'rgba(255,68,0,0)');
+        band.addColorStop(1, 'rgba(255,140,0,' + (near * pulse).toFixed(3) + ')');
+        ctx.fillStyle = band;
+        ctx.fillRect(WL, G.H - 80, SHAFT, 80);
+    }
+
     function drawLava(s, ctx) {
         var ly = s.lavaY - s.camY, t = s.time, hot = s.surgeWarn && Math.floor(t * 8) % 2;
         var glow = ctx.createLinearGradient(0, ly - 220, 0, ly);
         glow.addColorStop(0, 'rgba(255,68,0,0)'); glow.addColorStop(1, 'rgba(255,68,0,0.38)');
         ctx.fillStyle = glow;
         ctx.fillRect(WL, ly - 220, SHAFT, 220);
-        if (ly > G.H + 12) return;
+        if (ly > G.H + 12) { drawHeat(s, ctx, ly); return; }
         var body = ctx.createLinearGradient(0, ly, 0, ly + 220);
         body.addColorStop(0, hot ? C.cream : C.hot); body.addColorStop(0.1, C.ember);
         body.addColorStop(0.4, C.lava); body.addColorStop(1, '#7a1500');
@@ -812,8 +910,12 @@
         ctx.fillStyle = C.rockLit; ctx.fillRect(x, y0, 12, len);
         ctx.fillStyle = C.lava; ctx.fillRect(x, at(s.lavaY), 12, y0 + len - at(s.lavaY));
         ctx.fillStyle = C.cream; ctx.fillRect(x - 6, at(s.p.y + PH) - 2, 24, 4);
-        G.text('RIM', x + 6, y0 - 10, { size: 13, bold: true, color: C.hot, align: 'center' });
-        if (s.surgeWarn) G.text('SURGE!', x + 6, y0 + len + 22, { size: 14, bold: true, color: C.hot, align: 'center' });
+        G.text('RIM', x + 6, y0 - 12, { size: 18, bold: true, color: C.hot, align: 'center' });
+        // The surge warning blinks in the middle of the shaft, large enough
+        // to read on a phone: the lava it warns of is often out of view.
+        if (s.surgeWarn && Math.floor(s.time * 6) % 2) {
+            G.text('LAVA SURGE!', G.W / 2, G.H - 96, { size: 28, bold: true, color: C.cream, align: 'center', glow: C.lava });
+        }
     }
 
     function draw(s, ctx) {
@@ -844,8 +946,8 @@
         title: 'MAGMA RISING',
         blurb: 'The lava never stops. Climb to the crater rim.',
         controls: [
-            '← → run · SPACE jump (hold for a higher jump)',
-            'Jump against a shaft wall and press SPACE again to kick off it',
+            '← → run · SPACE / JUMP jump (hold for a higher jump)',
+            'Jump against a shaft wall and press JUMP again to kick off it',
             'Stand on a vent to ride the steam · cracked ledges fall · only lava kills'
         ],
         levelNames: ['First Ascent', 'Brittle Rock', 'Drifting Slabs', 'Steam Vents', 'Lava Bombs', 'Fire Bats', 'Tremors', 'Lava Falls', 'Surge', 'Eruption'],
@@ -859,6 +961,8 @@
             arp: '0.2.1.3.', drums: { k: 'x..x..x.x..x..x.', s: '....x.......x..x', h: 'x.xxx.xxx.xxx.xx' },
             leadWave: 'sawtooth', bassWave: 'sawtooth', arpWave: 'square'
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // Running and one jump button are all the game reads.
+        touch: { a: 'JUMP', hide: ['up', 'down', 'b'] }
     });
 })();
