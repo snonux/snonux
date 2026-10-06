@@ -5,7 +5,11 @@
  * car. Gangsters (black silhouettes, red tie, a red ring that fills while
  * they draw) pop out and must be shot before the ring closes. Civilians and
  * the informant are drawn pale: shooting one costs a life, exactly like being
- * shot. The revolver holds six rounds and has to be reloaded by hand.
+ * shot. The revolver holds six rounds and has to be reloaded by hand; pulling
+ * the trigger on an empty cylinder reloads too, only slower.
+ *
+ * On a phone a tap on the alley aims and fires in one go, the pad's stick
+ * moves the crosshair for those who prefer it (A fires) and B reloads.
  *
  * Each level adds something: back doors, runners crossing the street, the
  * informant and cover pop-ups, hostage shields, power cuts, drive-by cars,
@@ -23,9 +27,13 @@
     var GROUND = 400;               // where the facade meets the pavement
     var STREET_Y = 510;             // the line runners' and wheels' feet touch
     var CHAMBERS = 6, RELOAD_TIME = 0.95, SHOT_COOLDOWN = 0.16;
+    var DRY_RELOAD = 1.4;           // a reload forced by an empty click takes this much longer
     var AIM_ACCEL = 5200, AIM_SPEED = 820, AIM_DRAG = 26;
     var SNAP = 50;                  // keyboard aim: releasing the keys this close to a head locks on
-    var LIFE_STREAK = 12;           // this many busts in a row without a miss earn a life
+    var LIFE_STREAK = 15;           // this many busts in a row without a miss earn a life...
+    var LIFE_CAP = 4;               // ...up to one more than the level starts with
+    var TAP_SLOP = 22;              // a fingertip is blunt: a tap this close to a gangster still hits him
+    var HEAD = 20;                  // radius of a head shot: the face and the hat above it
     var GRACE = 1.2;                // seconds every draw timer pauses after the player is hit
     var DARK_PERIOD = 11, DARK_FROM = 6.5;
 
@@ -54,7 +62,7 @@
         hostage: { hostile: true, score: 250, draw: 1.3 },
         runner: { hostile: true, score: 150, draw: 1.15, mover: true },
         car: { hostile: true, score: 300, draw: 1.6, mover: true },
-        boss: { hostile: true, score: 500, draw: 0.8, sc: 1.25 },
+        boss: { hostile: true, score: 500, draw: 0.9, sc: 1.25 },
         civ: { hostile: false },
         informant: { hostile: false, tip: 200 },
         paperboy: { hostile: false, mover: true, sc: 0.85 }
@@ -62,17 +70,26 @@
 
     // quota: gangsters to bust; max: targets at once; draw: seconds before a
     // gangster fires; gap: seconds between spawns; mix: spawn weights.
+    //
+    // The gap shrinks only a little from level to level, on purpose. Aiming
+    // and firing takes a player close to a second per target, so a gap near
+    // one second is already a queue that barely drains: measured with a bot
+    // of 0.3 s reaction, a gap of 0.7-0.9 s cost a quick player nothing and a
+    // slightly slower one all three lives in twenty seconds. The levels get
+    // harder through shorter draws, more targets at once and nastier kinds;
+    // levels 8 and 10 get a longer gap than their neighbours because heavies
+    // and the Kingpin take extra shots.
     var LEVELS = [
         { quota: 38, max: 1, draw: 3.2, gap: 1.3, slots: 'w', mix: { thug: 8, civ: 2 } },
-        { quota: 46, max: 2, draw: 2.9, gap: 1.2, slots: 'wd', mix: { thug: 8, civ: 3 } },
-        { quota: 52, max: 2, draw: 2.7, gap: 1.1, slots: 'wd', mix: { thug: 6, civ: 2, runner: 3 } },
-        { quota: 58, max: 2, draw: 2.5, gap: 1.0, slots: 'wdc', mix: { thug: 7, civ: 2, runner: 2, informant: 3 } },
-        { quota: 64, max: 3, draw: 2.5, gap: 1.0, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 4 } },
-        { quota: 64, max: 3, draw: 2.6, gap: 0.95, slots: 'wdc', dark: true, mix: { thug: 7, civ: 3, runner: 2, informant: 1, hostage: 2 } },
-        { quota: 68, max: 3, draw: 2.3, gap: 0.9, slots: 'wdc', mix: { thug: 6, civ: 2, runner: 2, informant: 1, hostage: 2, car: 3 } },
-        { quota: 72, max: 4, draw: 2.2, gap: 0.8, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 4 } },
-        { quota: 76, max: 4, draw: 2.0, gap: 0.7, slots: 'wdc', dark: true, mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 3, paperboy: 2 } },
-        { quota: 0, max: 2, draw: 2.1, gap: 1.1, slots: 'wd', boss: 28, mix: { thug: 6, civ: 2, runner: 2, hostage: 2 } }
+        { quota: 46, max: 2, draw: 2.9, gap: 1.25, slots: 'wd', mix: { thug: 8, civ: 3 } },
+        { quota: 50, max: 2, draw: 2.7, gap: 1.2, slots: 'wd', mix: { thug: 6, civ: 2, runner: 3 } },
+        { quota: 52, max: 2, draw: 2.5, gap: 1.15, slots: 'wdc', mix: { thug: 7, civ: 2, runner: 2, informant: 3 } },
+        { quota: 56, max: 3, draw: 2.5, gap: 1.1, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 4 } },
+        { quota: 56, max: 3, draw: 2.6, gap: 1.1, slots: 'wdc', dark: true, mix: { thug: 7, civ: 3, runner: 2, informant: 1, hostage: 2 } },
+        { quota: 58, max: 3, draw: 2.3, gap: 1.05, slots: 'wdc', mix: { thug: 6, civ: 2, runner: 2, informant: 1, hostage: 2, car: 3 } },
+        { quota: 58, max: 4, draw: 2.2, gap: 1.15, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 4 } },
+        { quota: 62, max: 4, draw: 2.0, gap: 1.05, slots: 'wdc', dark: true, mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 3, paperboy: 2 } },
+        { quota: 0, max: 2, draw: 2.1, gap: 1.4, slots: 'wd', boss: 28, mix: { thug: 6, civ: 2, runner: 2, hostage: 2 } }
     ];
 
     // ------------------------------------------------------------------
@@ -90,11 +107,11 @@
     }
 
     // Six rounds ticking in, then the cylinder snapping shut as the reload ends.
-    function sndReload() {
+    function sndReload(time) {
         for (var i = 0; i < CHAMBERS; i++) {
-            G.tone(1050 + i * 45, 0.03, { type: 'triangle', vol: 0.1, delay: i * RELOAD_TIME / 7 });
+            G.tone(1050 + i * 45, 0.03, { type: 'triangle', vol: 0.1, delay: i * time / 7 });
         }
-        G.noise(0.06, { filter: 'highpass', freq: 3000, vol: 0.16, delay: RELOAD_TIME * 0.93 });
+        G.noise(0.06, { filter: 'highpass', freq: 3000, vol: 0.16, delay: time * 0.93 });
     }
 
     function sndEnemyShot(burst) {
@@ -141,8 +158,8 @@
             cfg: cfg, rnd: G.rng(level * 7919 + 13), targets: [], busts: 0, streak: 0,
             spawnT: 0.8, grace: 0,
             boss: cfg.boss ? { hp: cfg.boss, max: cfg.boss, wait: 2.2, last: -1 } : null,
-            cx: W / 2, cy: 250, vx: 0, vy: 0, steering: false, lock: null, lastMx: G.mouse.x, lastMy: G.mouse.y,
-            ammo: CHAMBERS, reload: 0, cool: 0, kick: 0, muzzle: 0, spin: 0, emptyHint: 0,
+            cx: W / 2, cy: 250, vx: 0, vy: 0, steering: false, lock: null, lastMx: G.mouse.x, lastMy: G.mouse.y, hovered: false,
+            ammo: CHAMBERS, reload: 0, cool: 0, kick: 0, muzzle: 0, spin: 0, reloadFull: RELOAD_TIME,
             holes: [], rain: makeRain(level), splashes: makeSplashes(), splashI: 0, wind: -40 - level * 16,
             boltIn: G.rnd(4, 9), bolt: 0, dim: 0, wasDark: false, stepT: 0
         };
@@ -341,7 +358,7 @@
             tg.y = sl.y + (sl.type === 'd' ? 16 : 4) + (sl.from === 'bottom' ? hide * sl.h : 0) + tg.drop;
         }
         if (tg.kind === 'car') { tg.hx = tg.x - tg.dir * 30; tg.hy = tg.y + 16; return; }
-        tg.hx = tg.x + (tg.kind === 'hostage' ? 20 * k : 0);
+        tg.hx = tg.x + (tg.kind === 'hostage' ? 24 * k : 0);
         tg.hy = tg.y + 24 * k;
     }
 
@@ -368,11 +385,14 @@
 
     function inSlot(sl, x, y) { return Math.abs(x - sl.x) < sl.w / 2 && y > sl.y && y < sl.y + sl.h; }
 
-    // The whole lit rear window counts as the gunner, and only while he is
-    // still taking aim: a moving head alone is too small a mark for keyboard
-    // aiming. The bodywork stops bullets at any time.
+    // The whole lit cabin (both windows and the pillar between them) and the
+    // gunner's hat above the roof count as the gunner, and only while he is
+    // still taking aim: a moving head alone is too small a mark for arrow
+    // keys, and at phone size for a fingertip. The bodywork stops bullets at
+    // any time.
     function carHit(tg, x, y) {
-        if (tg.phase === 'aim' && Math.abs(x - tg.hx) < 22 && Math.abs(y - tg.hy - 1) < 13) return 'head';
+        var cabin = Math.abs(x - tg.x + tg.dir * 8) < 46 && y > tg.y && y < tg.y + 32;
+        if (tg.phase === 'aim' && (cabin || G.dist(x, y, tg.hx, tg.hy) < HEAD)) return 'head';
         var dx = Math.abs(x - tg.x), dy = y - tg.y;
         return (dy > 0 && dy < 74 && dx < (dy < 30 ? 62 : 110)) ? 'metal' : '';
     }
@@ -380,10 +400,10 @@
     // The gangster's head shows over the hostage's shoulder; the hostage
     // covers almost everything else.
     function hostageHit(tg, x, y) {
-        if (G.dist(x, y, tg.hx, tg.hy) < 15) return 'head';
+        if (G.dist(x, y, tg.hx, tg.hy) < 17) return 'head';
         if (G.dist(x, y, tg.x - 8, tg.y + 42) < 13) return 'hostage';
         if (x > tg.x - 34 && x < tg.x + 18 && y > tg.y + 52 && y < tg.bottom) return 'hostage';
-        return (x >= tg.x + 18 && x < tg.x + 44 && y > tg.y + 38 && y < tg.bottom) ? 'body' : '';
+        return (x >= tg.x + 20 && x < tg.x + 48 && y > tg.y + 38 && y < tg.bottom) ? 'body' : '';
     }
 
     function hitPart(tg, x, y) {
@@ -392,19 +412,35 @@
         if (!open || (tg.clip && !inSlot(tg.clip, x, y))) return '';
         if (tg.kind === 'hostage') return hostageHit(tg, x, y);
         var k = tg.sc;
-        if (G.dist(x, y, tg.hx, tg.hy) < 18 * k) return 'head';
+        if (G.dist(x, y, tg.hx, tg.hy) < HEAD * k) return 'head';
         var wide = (tg.def.wide || 30) * k;
         return (Math.abs(x - tg.x) < wide && y > tg.y + 36 * k && y < tg.bottom) ? 'body' : '';
     }
 
     // Movers are drawn in front of everything else, so they are tested first.
-    function findHit(s) {
+    function findHit(s, x, y) {
         for (var pass = 0; pass < 2; pass++) {
             for (var i = s.targets.length - 1; i >= 0; i--) {
                 var tg = s.targets[i];
                 if (!!tg.def.mover !== (pass === 0)) continue;
-                var part = hitPart(tg, s.cx, s.cy);
+                var part = hitPart(tg, x, y);
                 if (part) return { tg: tg, part: part };
+            }
+        }
+        return null;
+    }
+
+    // What a finger tap hits when the spot itself is empty wall or bodywork:
+    // the nearest gangster within TAP_SLOP, looked for on two rings around
+    // the tap. Only a gangster's own head or body is found this way — an
+    // innocent or a hostage is never hit by a near miss, and a tap that
+    // lands on one directly is still a shot innocent.
+    function nearHit(s) {
+        for (var ring = 1; ring <= 2; ring++) {
+            for (var i = 0; i < 8; i++) {
+                var a = i * TAU / 8, r = ring * TAP_SLOP / 2;
+                var hit = findHit(s, s.cx + Math.cos(a) * r, s.cy + Math.sin(a) * r);
+                if (hit && hit.tg.def.hostile && (hit.part === 'head' || hit.part === 'body')) return hit;
             }
         }
         return null;
@@ -436,7 +472,7 @@
     function rewardStreak(s) {
         if (s.streak % LIFE_STREAK !== 0) return;
         var before = G.lives;
-        if (G.addLife(5) <= before) return;
+        if (G.addLife(LIFE_CAP) <= before) return;
         say(s.cx, s.cy + 4, 'EXTRA LIFE', LAMP);
         G.sfx('power');
     }
@@ -478,40 +514,53 @@
         if (s.holes.length > 28) s.holes.shift();
     }
 
-    function fire(s) {
+    function fire(s, tap) {
         s.ammo--; s.cool = SHOT_COOLDOWN; s.kick = 14; s.muzzle = 0.08; s.spin += TAU / CHAMBERS;
         sndShot();
         // The spent casing hops out to the side and falls.
         G.burst(s.cx + 20, s.cy + 14, { n: 1, color: SILVER, size: 4, speed: 240, gravity: 1400, angle: -0.9, spread: 0.5, life: 0.7 });
-        var hit = findHit(s);
+        var hit = findHit(s, s.cx, s.cy);
+        if (tap && (!hit || hit.part === 'metal')) hit = nearHit(s) || hit;
         if (!hit) { miss(s); return; }
         if (hit.part === 'metal') { s.streak = 0; sndMetal(); G.burst(s.cx, s.cy, { n: 8, color: LAMP, speed: 220, life: 0.25 }); return; }
         if (hit.part === 'hostage' || !hit.tg.def.hostile) { shootInnocent(s, hit.tg); return; }
         wound(s, hit.tg, hit.part);
     }
 
-    function pullTrigger(s) {
-        if (s.reload > 0 || s.cool > 0) return;
-        if (s.ammo > 0) { fire(s); return; }
-        sndEmpty();
-        s.emptyHint = 1.2;
+    // A reload asked for in time (X, right click, the pad's B) is quick. One
+    // forced by a click on an empty cylinder fumbles: it is the only reload a
+    // player who taps the screen needs, and the delay is its price.
+    function startReload(s, fumbled) {
+        if (s.reload > 0 || s.ammo === CHAMBERS) return;
+        s.reload = s.reloadFull = RELOAD_TIME * (fumbled ? DRY_RELOAD : 1);
+        sndReload(s.reloadFull);
     }
 
-    function startReload(s) {
-        if (s.reload > 0 || s.ammo === CHAMBERS) return;
-        s.reload = RELOAD_TIME;
-        sndReload();
+    // The trigger never fails silently: an empty cylinder or a reload under
+    // way answers with a dry click, so a tap that fired nothing is not taken
+    // for a miss.
+    function pullTrigger(s, tap) {
+        if (s.cool > 0) return;
+        if (s.reload <= 0 && s.ammo > 0) { fire(s, tap); return; }
+        sndEmpty();
+        s.cool = SHOT_COOLDOWN;
+        if (s.reload > 0) return;
+        say(s.cx, s.cy - 30, 'EMPTY - RELOADING', HOT);
+        startReload(s, true);
     }
 
     function updateGun(s, dt) {
-        s.cool -= dt; s.muzzle -= dt; s.emptyHint -= dt;
+        s.cool -= dt; s.muzzle -= dt; 
         s.kick -= s.kick * Math.min(1, 14 * dt);   // recoil settles like a damped spring
         if (s.reload > 0) {
             s.reload -= dt;
             if (s.reload <= 0) s.ammo = CHAMBERS;
         }
-        if (G.hit.b || G.mouse.rhit) startReload(s);
-        if (G.hit.a || G.mouse.hit) pullTrigger(s);
+        if (G.hit.b || G.mouse.rhit) startReload(s, false);
+        // A press from a pointer that has never moved with its button up is
+        // a finger on a touch screen (a mouse hovers, a finger cannot), and a
+        // finger gets TAP_SLOP.
+        if (G.hit.a || G.mouse.hit) pullTrigger(s, G.mouse.hit && !s.hovered);
     }
 
     // ------------------------------------------------------------------
@@ -549,14 +598,18 @@
     }
 
     // The keys accelerate the crosshair; the mouse takes over only when it
-    // really moves, so a resting pointer never drags the aim away.
+    // really moves, so a resting pointer never drags the aim away. A click
+    // always takes over: a finger tapping the same spot twice has not moved,
+    // yet the shot must land under it and not where the stick left the aim.
     function moveCrosshair(s, dt) {
         var ax = (G.key.right ? 1 : 0) - (G.key.left ? 1 : 0), ay = (G.key.down ? 1 : 0) - (G.key.up ? 1 : 0);
         s.vx = steer(s.vx, ax, dt);
         s.vy = steer(s.vy, ay, dt);
         s.cx += s.vx * dt; s.cy += s.vy * dt;
         keyboardLock(s, !!(ax || ay));
-        if (G.mouse.x !== s.lastMx || G.mouse.y !== s.lastMy) {
+        var moved = G.mouse.x !== s.lastMx || G.mouse.y !== s.lastMy;
+        if (moved && !G.mouse.down) s.hovered = true;
+        if (G.mouse.hit || moved) {
             s.cx = s.lastMx = G.mouse.x; s.cy = s.lastMy = G.mouse.y;
             s.vx = s.vy = 0; s.lock = null;
         }
@@ -703,7 +756,7 @@
 
     function drawHostage(ctx, tg, bottom) {
         ctx.save();
-        ctx.translate(20, 0);
+        ctx.translate(24, 0);
         setPaint(ctx, true);
         drawBust(ctx, 24, bottom);
         drawHat(ctx, SILVER);
@@ -716,7 +769,7 @@
         ctx.restore();
         // The gangster's arm across the hostage, pistol at the ready.
         ctx.strokeStyle = FOG; ctx.lineWidth = 9;
-        ctx.beginPath(); ctx.moveTo(30, 62); ctx.lineTo(-22, 68); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(34, 62); ctx.lineTo(-22, 68); ctx.stroke();
         ctx.fillStyle = SILVER;
         ctx.fillRect(-34, 62, 14, 6);
     }
@@ -975,7 +1028,7 @@
     }
 
     function drawCylinder(ctx, s) {
-        var x = 58, y = 488, loading = s.reload > 0 ? 1 - s.reload / RELOAD_TIME : 1;
+        var x = 58, y = 488, loading = s.reload > 0 ? 1 - s.reload / s.reloadFull : 1;
         ctx.fillStyle = 'rgba(11,11,11,0.8)'; ctx.strokeStyle = SILVER; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(x, y, 30, 0, TAU); ctx.fill(); ctx.stroke();
         for (var i = 0; i < CHAMBERS; i++) {
@@ -985,10 +1038,10 @@
             ctx.fillStyle = full ? LAMP : FOG;
             ctx.beginPath(); ctx.arc(x + Math.cos(a) * 18, y + Math.sin(a) * 18, 6, 0, TAU); ctx.fill(); ctx.stroke();
         }
-        if (s.ammo === 0 && s.reload <= 0 && (s.emptyHint > 0 || Math.sin(G.t * 10) > 0)) {
-            G.text('X: RELOAD', x + 42, y + 6, { size: 16, bold: true, color: HOT });
-        }
-        if (s.streak > 2) G.text('STREAK x' + s.streak, x + 42, y + 28, { size: 13, color: SILVER });
+        // Sized to be read on a phone, where the canvas is drawn at 60%.
+        if (s.reload > 0) G.text('RELOADING', x + 42, y + 2, { size: 20, bold: true, color: SILVER });
+        else if (s.ammo === 0 && Math.sin(G.t * 10) > 0) G.text('X / LOAD: RELOAD', x + 42, y + 2, { size: 20, bold: true, color: HOT });
+        if (s.streak > 2) G.text('STREAK x' + s.streak, x + 42, y + 28, { size: 20, color: SILVER });
     }
 
     function drawCrosshair(ctx, s) {
@@ -1007,7 +1060,7 @@
         ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
         if (s.reload <= 0) return;
         ctx.strokeStyle = SILVER; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(x, y, 21, -Math.PI / 2, -Math.PI / 2 + (1 - s.reload / RELOAD_TIME) * TAU); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, 21, -Math.PI / 2, -Math.PI / 2 + (1 - s.reload / s.reloadFull) * TAU); ctx.stroke();
     }
 
     function draw(s, ctx) {
@@ -1037,15 +1090,18 @@
         title: 'MIDNIGHT ALLEY',
         blurb: 'Shoot the gangsters before the red ring closes. Never shoot the pale ones.',
         controls: [
-            'Mouse or ← ↑ → ↓: move the crosshair · click or SPACE: shoot',
-            'X or right click: reload the six-shot revolver',
-            'Keyboard: let go of the arrows near a gangster to lock on',
-            'Black with a red tie: shoot · pale: hold your fire · 12 busts in a row: extra life'
+            'Mouse or ← ↑ → ↓ aim · click, SPACE or FIRE shoot · phone: tap a gangster',
+            'X, right click or LOAD: reload six shots (an empty click reloads slowly)',
+            'Keys or pad: let go of the arrows near a gangster to lock on',
+            'Black with a red tie: shoot · pale: hold your fire · ' + LIFE_STREAK + ' busts in a row: extra life'
         ],
         levelNames: ['First Watch', 'Back Doors', 'Runners', 'The Informant', 'Human Shields', 'Lights Out', 'Drive-By', 'Heavy Hitters', 'The Long Rain', 'The Kingpin'],
         colors: { bg: FOG, fg: INK, accent: BLOOD, dim: SILVER },
         lives: 3,
         cursor: 'none',
+        // The whole pad stays: the stick is the arrow keys for those who
+        // would rather steer the crosshair than tap the alley.
+        touch: { a: 'FIRE', b: 'LOAD' },
         // A slow twelve-bar blues: the bass walks root, fifth, octave, fifth
         // in quarter notes under a muted, sighing lead.
         music: {
