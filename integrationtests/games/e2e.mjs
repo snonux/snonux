@@ -4,6 +4,7 @@
 //   node integrationtests/games/e2e.mjs                 # every theme
 //   node integrationtests/games/e2e.mjs breakout neon   # just these
 //   node integrationtests/games/e2e.mjs --shots=/tmp/shots breakout
+//   node integrationtests/games/e2e.mjs --touch [themes…]   # the phone checks
 //
 // It builds the site into a temp dir, serves it over HTTP (cookies do not
 // work on file://), starts headless Chrome and talks to it over the DevTools
@@ -17,18 +18,23 @@
 // levels survive a random-input bot without errors; that winning unlocks the
 // next level in the cookie, that the level select follows it, and that the
 // cookie survives a reload.
+//
+// With --touch it runs the phone checks of touch.mjs instead: an emulated
+// phone in both orientations, driven by real touch events.
 
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { sleep, startSession, themesWithGames } from './lib.mjs';
+import { testPadConfigs, testThemeTouch } from './touch.mjs';
 
 const LEVELS = 10;
 const BOT_TICKS = 900; // 15 seconds of game time per level
 
 function parseArgs(argv) {
-    const opts = { themes: [], shots: '' };
+    const opts = { themes: [], shots: '', touch: false };
     for (const a of argv) {
         if (a.startsWith('--shots=')) opts.shots = resolve(a.slice(8));
+        else if (a === '--touch') opts.touch = true;
         else if (a.startsWith('--')) throw new Error(`unknown option ${a}`);
         else opts.themes.push(a);
     }
@@ -228,6 +234,27 @@ async function testSaveParsing(page, base) {
     check(!(await page.eval('SnoGame.active')), 'unknown theme must not open the overlay');
 }
 
+// A stand-in game that only counts the input edges it is shown.
+const EDGE_COUNTER = `SnoGame.register('breakout', {
+  init: function () { return { a: 0, raw: 0, click: 0 }; },
+  update: function (s) { if (SnoGame.hit.a) s.a++; if (SnoGame.pressed('KeyW')) s.raw++; if (SnoGame.mouse.hit) s.click++; },
+  draw: function () {} })`;
+
+// debug.step() must remember what was held between calls: a bot stepping one
+// tick at a time while holding a button gets one edge, not one per call.
+async function testStepMemory(page, base) {
+    await page.goto(`${base}/index.html`);
+    await page.eval(`${EDGE_COUNTER}; SnoGame.launch('breakout'); SnoGame.debug.start(1)`);
+    const held = '{a:true,codes:{KeyW:true},mouse:{x:5,y:5,down:true}}';
+    const count = async (expr) => JSON.stringify(await page.eval(`(function(){${expr};var s=SnoGame.debug.s();return [s.a,s.raw,s.click];})()`));
+    const stepHeld = `SnoGame.debug.step(1,${held})`;
+    check(await count(`${stepHeld};${stepHeld};${stepHeld}`) === '[1,1,1]', 'a button held across three step() calls must give exactly one edge');
+    check(await count(`SnoGame.debug.step(1,{});${stepHeld}`) === '[2,2,2]', 'releasing and pressing again must give a new edge');
+    check(await page.eval('!SnoGame.key.a && !SnoGame.down("KeyW") && !SnoGame.mouse.down'), 'step() must leave the live input state clean');
+    check(await count(`SnoGame.debug.start(1);${stepHeld}`) === '[1,1,1]', 'debug.start() must forget what was held');
+    await page.eval('SnoGame.quit()');
+}
+
 async function main() {
     const opts = parseArgs(process.argv.slice(2));
     const themes = opts.themes.length ? opts.themes : themesWithGames();
@@ -237,10 +264,17 @@ async function main() {
     try {
         await testSaveParsing(page, base);
         console.log('ok   save parsing and unknown-theme guard');
+        await testStepMemory(page, base);
+        console.log('ok   debug.step keeps held buttons across calls');
+        if (opts.touch) {
+            await testPadConfigs(page, base, opts.shots);
+            console.log('ok   def.touch variants (twin, hidden buttons, labels) in both orientations');
+        }
+        const run = opts.touch ? testThemeTouch : testTheme;
         for (const theme of themes) {
             const t0 = Date.now();
             try {
-                await testTheme(page, base, theme, opts.shots);
+                await run(page, base, theme, opts.shots);
                 console.log(`ok   ${theme} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
             } catch (err) {
                 failed++;
@@ -250,13 +284,17 @@ async function main() {
                 const engineErrors = await page.eval('window.SnoGame ? SnoGame.debug.errors.slice() : []').catch(() => []);
                 for (const e of engineErrors) console.log(`     engine error: ${String(e).split('\n')[0]}`);
                 if (opts.shots) await page.screenshot(join(opts.shots, `${theme}-FAIL.jpg`)).catch(() => {});
+                // A failed touch check may leave fingers down; lift them so
+                // they do not leak into the next theme.
+                await page.touch('touchCancel', []).catch(() => {});
                 await page.eval('window.SnoGame && SnoGame.quit()').catch(() => {});
             }
         }
     } finally {
         await close();
     }
-    console.log(failed ? `${failed} of ${themes.length} games failed` : `all ${themes.length} games passed`);
+    const what = opts.touch ? 'games (touch)' : 'games';
+    console.log(failed ? `${failed} of ${themes.length} ${what} failed` : `all ${themes.length} ${what} passed`);
     process.exit(failed ? 1 : 0);
 }
 

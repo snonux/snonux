@@ -35,8 +35,9 @@ A game is one self-contained file that registers itself under its theme name.
         music: { /* see Music */ },
         init: init, update: update, draw: draw,
         hud: function (s) { return 'FUEL 80'; },       // optional, right side of the HUD
-        cursor: 'none'                                 // optional CSS cursor during a level
+        cursor: 'none',                                // optional CSS cursor during a level
                                                        // (menus always show the pointer)
+        touch: { a: 'JUMP', hide: ['up', 'down', 'b'] } // optional touch pad setup (see Touch)
     });
 })();
 ```
@@ -69,6 +70,8 @@ A game is one self-contained file that registers itself under its theme name.
 9. **Keep the top 30 px clear** (`y < G.HUD`): the engine draws the HUD there.
 10. **House style**: functions of about 30 lines (never above 50), comments that
     explain why, no dead code. Reserved keys: `Esc`, `Enter`, `P`, `M`.
+11. **Playable on a phone.** Every game must be winnable with the touch pad
+    and taps alone; see [Touch](#touch).
 
 ### The API
 
@@ -101,6 +104,73 @@ Input (logical buttons work with keyboard and the touch pad):
 | `G.mouse.rdown`, `G.mouse.rhit` | right button |
 
 A game that uses the mouse must still be fully playable with the keyboard.
+
+### Touch
+
+On a phone (any device whose main pointer is coarse) the engine goes
+fullscreen and asks for landscape where the browser allows it, and adds an
+on-screen pad. The pad never covers the playfield: in landscape the canvas
+shrinks to leave a gutter on each side (direction pad left, action buttons
+right), in portrait the canvas sits at the top with the pad below it. The
+`✕ ESC` button quits; a tap confirms every menu screen, and a tap on a level
+box selects that level.
+
+The pad holds keys, so a game needs no touch code of its own:
+
+| Pad | Sends | The game reads |
+|---|---|---|
+| direction pad | `ArrowLeft` `ArrowRight` `ArrowUp` `ArrowDown` | `G.key.left` … `G.key.down`, `G.hit.*` |
+| **A** | `Space` | `G.key.a`, `G.hit.a` |
+| **B** | `KeyX` | `G.key.b`, `G.hit.b` |
+
+The direction pad is an 8-way stick: its corners give diagonals (two
+directions held at once) and a thumb can slide from one direction to the next.
+Each part of the pad follows its own finger, so holding a direction while
+pressing A or B works. Buttons are at least 48 CSS px.
+
+`def.touch` tunes the pad; every field is optional, and a game that declares
+nothing gets the full pad above.
+
+```js
+touch: {
+    a: 'JUMP', b: 'BOMB',     // labels for the action buttons (keep them to ~5 letters)
+    hide: ['up', 'down'],     // buttons this game does not use: left right up down a b
+    twin: true                // twin-stick: see below
+}
+```
+
+- **`hide`** every button the game ignores: fewer buttons are bigger targets
+  and leave more room for the canvas. With `up` and `down` hidden the pad is
+  two buttons side by side.
+- **`twin: true`** is for twin-stick games that read the two halves of the
+  keyboard apart. The left pad then sends `KeyW` `KeyA` `KeyS` `KeyD` (move)
+  and a second direction pad on the right sends the arrow keys (fire); read
+  them with `G.down('KeyW')` / `G.down('ArrowUp')`. `G.key.left` and friends
+  are true for either pad, exactly as on the keyboard. A and B stay (above the
+  right pad) unless hidden. Two pads cost canvas width in landscape, so hide
+  A and B when the game can do without them.
+
+A finger on the canvas is the mouse: `G.mouse.x/y` jump to it, `G.mouse.down`
+is true while it rests and `G.mouse.hit` on the tick it lands. What a phone
+does not have:
+
+- **No hover.** `G.mouse.x/y` only change while a finger is down, and they
+  jump rather than glide. Do not require the pointer to be moved somewhere
+  before a click; a tap must aim and act at once.
+- **No right button.** `G.mouse.rdown` / `G.mouse.rhit` never fire. Anything
+  on the right button must also be on A or B.
+- **No other keys.** Only the codes in the table (plus W A S D with `twin`)
+  exist. `P` and `M` are missing too; a game paused by a hidden tab resumes
+  on a tap.
+- **Less room.** The canvas is about 580x326 CSS px on a phone held sideways
+  and as small as 390x219 on one held upright, where everything is drawn at
+  40% size. Anything the player must read during play should be 20 px or
+  more in canvas units, and nothing should hinge on a one-pixel detail.
+
+The `controls` lines on the title screen are the only instructions a player
+gets, so name the pad buttons there next to the keys (`SPACE / A jump`), using
+the labels given in `def.touch`. The engine's own hints already say `TAP`
+instead of `ENTER` on a phone.
 
 Helpers:
 
@@ -185,8 +255,12 @@ node integrationtests/games/play.mjs mytheme --level=3 --shot=/tmp/l3.jpg
 node integrationtests/games/play.mjs mytheme --eval=/tmp/bot.js
 node integrationtests/games/play.mjs mytheme --serve     # play it yourself
 
-# The gate: must pass before the game is done.
+# The gate: must pass before the game is done, on desktop and on a phone.
 node integrationtests/games/e2e.mjs mytheme --shots=/tmp/shots
+node integrationtests/games/e2e.mjs --touch mytheme --shots=/tmp/shots
+
+# The phone layout: an emulated phone (landscape, or --touch=portrait).
+node integrationtests/games/play.mjs mytheme --touch --shot=/tmp/phone.jpg
 ```
 
 `play.mjs --eval` evaluates one expression in the page. The test hooks:
@@ -194,7 +268,7 @@ node integrationtests/games/e2e.mjs mytheme --shots=/tmp/shots
 | | |
 |---|---|
 | `SnoGame.debug.start(level)` | jump straight into play |
-| `SnoGame.debug.step(n, input)` | run `n` ticks synchronously; `input` is `{left, right, up, down, a, b, codes: {KeyW: true}, mouse: {x, y, down, rdown}}` or a function `(i, s, G) => input` |
+| `SnoGame.debug.step(n, input)` | run `n` ticks synchronously; `input` is `{left, right, up, down, a, b, codes: {KeyW: true}, mouse: {x, y, down, rdown}}` or a function `(i, s, G) => input`. A button held at the end of one call and the start of the next stays held (one `G.hit` edge, not one per call); `debug.start` forgets what was held |
 | `SnoGame.debug.state()` | `{screen, level, lives, score, …}`; `screen` is `play`, `clear`, `over`, `victory`, … |
 | `SnoGame.debug.s()` | the game's own state object |
 | `SnoGame.debug.errors` | exceptions thrown by `init` / `update` / `draw` |
@@ -210,6 +284,18 @@ presses, a canvas that draws and keeps changing with no input, pause, music,
 sound effects made by the game itself (the engine's own jingles do not
 count), a random bot on all ten levels without exceptions, the unlock cookie,
 the level select and the cookie's survival across a reload.
+
+`e2e.mjs --touch` turns Chrome into a phone (844x390 landscape and 390x844
+portrait, touch screen, coarse pointer) and uses real touch events: the game
+launches from a tap on the splash button; the pad is visible, inside the
+viewport, at least 48 px per button and nowhere on the canvas or the close
+button; every pad button holds its key while touched and only then; two
+fingers hold two buttons; a full direction pad gives diagonals and follows a
+sliding thumb; a tap on the canvas starts the level and, in play, puts
+`SnoGame.mouse` under the finger; `✕` quits. It checks the pad against the
+game's `def.touch`, and tries the `def.touch` options themselves on a stand-in
+game. It does not judge whether the game is *fun* on a phone: play a level
+with `--touch` screenshots in front of you, and on a real phone if you can.
 
 ## The games
 

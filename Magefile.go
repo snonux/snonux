@@ -72,6 +72,17 @@ func GamesE2E() error {
 	return cmd.Run()
 }
 
+// GamesTouchE2E runs the phone checks for every theme's arcade game: an
+// emulated phone in both orientations, driven by real touch events (pad
+// layout, pad buttons, canvas taps). Same requirements as GamesE2E.
+func GamesTouchE2E() error {
+	fmt.Println("Running theme game touch tests...")
+	cmd := exec.Command("node", "integrationtests/games/e2e.mjs", "--touch")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 // Vet runs go vet on all packages to catch common mistakes.
 func Vet() error {
 	fmt.Println("Vetting...")

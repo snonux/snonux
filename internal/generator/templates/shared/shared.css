@@ -1068,17 +1068,39 @@ body.sno-game-on { overflow:hidden; }
   border-radius:3px; padding:5px 9px; cursor:pointer; opacity:0.55;
 }
 .sno-game-close:hover { opacity:1; }
-/* Touch pad: only built on coarse-pointer devices. Direction keys bottom-left,
-   action buttons bottom-right. */
-.sno-game-pad { position:absolute; inset:auto 0 12px 0; height:150px; pointer-events:none; }
-.sno-game-pad button {
-  position:absolute; width:56px; height:56px; border-radius:50%; pointer-events:auto;
-  font:700 18px sans-serif; color:#fff; background:rgba(255,255,255,0.14);
-  border:1px solid rgba(255,255,255,0.4); touch-action:none;
+/* Touch pad: only built on coarse-pointer devices. games.js resize() gives
+   the canvas, the close button and each pad part its pixel rectangle (class
+   sno-game-touch marks that mode), so the pad sits beside the canvas in
+   landscape and below it in portrait, never on top of it. */
+#sno-game { -webkit-user-select:none; -webkit-touch-callout:none; }
+#sno-game.sno-game-touch canvas, #sno-game.sno-game-touch .sno-game-close { position:absolute; }
+#sno-game.sno-game-touch .sno-game-close { right:auto; padding:0; font-size:13px; opacity:0.8; }
+.sno-game-pad {
+  position:absolute; inset:0; pointer-events:none; color:#fff; font:700 18px sans-serif;
+  -webkit-tap-highlight-color:transparent;
 }
-.sno-game-pad-l { left:12px; bottom:40px; }
-.sno-game-pad-r { left:124px; bottom:40px; }
-.sno-game-pad-u { left:68px; bottom:92px; }
-.sno-game-pad-d { left:68px; bottom:0; }
-.sno-game-pad-a { right:76px; bottom:20px; }
-.sno-game-pad-b { right:12px; bottom:70px; }
+.sno-game-dpad, .sno-game-acts { position:absolute; }
+/* A direction pad is one touch surface (an 8-way stick read by angle); its
+   arrows are only pictures. Each action button takes its own pointer. */
+.sno-game-dpad {
+  display:grid; grid-template-columns:repeat(3, 1fr); grid-template-rows:repeat(3, 1fr);
+  pointer-events:auto; touch-action:none; border-radius:18%; background:rgba(255,255,255,0.05);
+}
+.sno-game-dpad-h { grid-template-columns:repeat(2, 1fr); grid-template-rows:1fr; }
+.sno-game-dpad-v { grid-template-columns:1fr; grid-template-rows:repeat(2, 1fr); }
+.sno-game-acts { display:flex; }
+.sno-game-btn {
+  display:flex; align-items:center; justify-content:center; box-sizing:border-box; min-width:0;
+  background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.4);
+}
+.sno-game-btn.on { background:rgba(255,255,255,0.42); }
+.sno-game-btn-long { font-size:0.6em; letter-spacing:0.02em; }
+.sno-game-dpad .sno-game-btn { pointer-events:none; border-radius:22%; }
+.sno-game-acts .sno-game-btn { flex:1 1 0; border-radius:50%; pointer-events:auto; touch-action:none; }
+.sno-game-dpad .sno-game-btn-up { grid-area:1 / 2; }
+.sno-game-dpad .sno-game-btn-left { grid-area:2 / 1; }
+.sno-game-dpad .sno-game-btn-right { grid-area:2 / 3; }
+.sno-game-dpad .sno-game-btn-down { grid-area:3 / 2; }
+.sno-game-dpad-h .sno-game-btn-left, .sno-game-dpad-v .sno-game-btn-up { grid-area:1 / 1; }
+.sno-game-dpad-h .sno-game-btn-right { grid-area:1 / 2; }
+.sno-game-dpad-v .sno-game-btn-down { grid-area:2 / 1; }

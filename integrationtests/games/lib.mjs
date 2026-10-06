@@ -170,6 +170,36 @@ export class Page {
         }
     }
 
+    // Turns the page into a phone: a mobile viewport of the given size and a
+    // touch screen, so `(pointer: coarse)` matches and the engine builds its
+    // touch pad. Call it before loading the page.
+    async emulatePhone(width, height) {
+        await this.send('Emulation.setDeviceMetricsOverride', {
+            width, height, deviceScaleFactor: 2, mobile: true,
+            screenOrientation: width > height ? { type: 'landscapePrimary', angle: 90 } : { type: 'portraitPrimary', angle: 0 },
+        });
+        await this.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+    }
+
+    // One real touch event with `points` as [{x, y, id}]. For touchStart and
+    // touchMove they are all fingers now on the glass (two fingers are a
+    // touchStart with one point, then a touchStart with both). For touchEnd
+    // they are the fingers being lifted; an empty list lifts every finger.
+    //
+    // Coordinates are client (layout) pixels, as getBoundingClientRect gives
+    // them. A page wider than the phone is shown zoomed out, and Chrome wants
+    // touch positions in screen pixels, so they are converted here.
+    async touch(type, points) {
+        const v = points.length ? await this.eval('({s:visualViewport.scale,x:visualViewport.offsetLeft,y:visualViewport.offsetTop})') : null;
+        const touchPoints = points.map((p) => ({ x: (p.x - v.x) * v.s, y: (p.y - v.y) * v.s, id: p.id || 0 }));
+        await this.send('Input.dispatchTouchEvent', { type, touchPoints });
+    }
+
+    async tap(x, y) {
+        await this.touch('touchStart', [{ x, y }]);
+        await this.touch('touchEnd', []);
+    }
+
     async screenshot(file) {
         const r = await this.send('Page.captureScreenshot', { format: 'jpeg', quality: 70 });
         writeFileSync(file, Buffer.from(r.data, 'base64'));
