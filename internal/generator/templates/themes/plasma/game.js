@@ -11,6 +11,12 @@
  *
  * Bullet colours tell the pattern: magenta is aimed at you, cyan is a radial
  * ring, yellow is everything else (spirals, rain, trails, straight drops).
+ *
+ * On a phone (coarse pointer) the ship fires by itself, so no thumb has to
+ * hold a button down: a finger dragged anywhere on the canvas steers (the
+ * ship copies the finger's movement, it does not jump under it, so the thumb
+ * never hides the ship), or the pad steers with A to slow down. Bullets fly
+ * a little slower there, because the picture is small and partly covered.
  */
 (function () {
     'use strict';
@@ -18,41 +24,48 @@
     var CY = '#00f0ff', MG = '#ff00e0', YL = '#ffee00', FG = '#e8e0ff', BG = '#050008';
     var TAU = Math.PI * 2, DOWN = Math.PI / 2;
     var SPEED = 340, FOCUS = 170;          // ship speed, and while firing
+    // Phone only: how far the ship moves per unit of finger travel (a thumb
+    // must cross the field without leaving the canvas), the ship's top speed
+    // under a finger, and the factor on every bullet's speed.
+    var DRAG_GAIN = 1.5, DRAG_SPEED = 425, TOUCH_BULLETS = 0.85;
     var HIT_R = 3, GRAZE_R = 24;           // the real hitbox is a dot; grazing is generous
     var MAX_BULLETS = 700, MAX_BOMBS = 5, MAX_WEAPON = 3;
     var LANE_W = 26, LANE_WARN = 1.0, LANE_LIVE = 0.55;
+    var CROWD = 12;                        // more enemies than this hold the next wave back
     var WEAPONS = ['spread', 'beam', 'homing'];
     var WCOL = { spread: CY, beam: MG, homing: YL };
 
     // One string per level; each word is a wave, each letter a squad that
-    // arrives with it. Every level introduces the letter it leads with.
+    // arrives with it. Every level introduces the letter it leads with, and
+    // later levels put more squads into a wave.
     var WAVES = [
         'd d d dd d dd',
-        's d ds d ss dd sd',
-        'w d ws s wd ww sdw',
-        'l d ls w ld lw lsd ws ll',
-        't d tw l ts tl dwl tt ls tw',
-        'a d as w al at aw aad ts al aw',
-        'm a md s mt ml ma mw mma tl ms',
-        'g d gw m ga gl gt gs gma gt mw gl',
-        'p a pd g pw pm pl pt pga pt gm ps',
-        'pd gt am lw ps tg ma pp wtd gla pm gt sa ptl'
+        's d ds d ss dd sd dss sdd',
+        'w d ws sd wd ww sdw wsd wws',
+        'l d ls w ld lw sdw ws ll',
+        't dw tw ls ts tl dwl tt lsd tws',
+        'a dw as wl al at aws aad ts ald awt',
+        'm ad mdw st mtl ml mad mws mma tlm msw',
+        'g dw gwa ma gad gl gt gsm gma gtd mwl gla',
+        'p ad pd gw pw pm pl pt pga ptd gma psl',
+        'pd gt am lw ps dg ma pp wtd gla pm gs sa ptl'
     ];
     var LETTER = { d: 'drone', s: 'spinner', w: 'weaver', l: 'lancer', t: 'turret', a: 'dart', m: 'mine', g: 'warden', p: 'prism' };
 
     // A boss fights through its phases in order; each phase runs one or more
     // of the PATTERNS below at the same time and owns an equal share of hp.
+    // The hp is tuned so that every boss outlasts the one before it.
     var BOSSES = [
         { name: 'EMBER', hp: 420, phases: [['fan'], ['rings']] },
-        { name: 'CORONA', hp: 600, phases: [['rings'], ['fan', 'rain']] },
-        { name: 'GALE', hp: 720, phases: [['spiral'], ['fan', 'rings']] },
-        { name: 'LANCER PRIME', hp: 900, phases: [['fan', 'rain'], ['spiral'], ['rings', 'fan']] },
-        { name: 'CYCLONE', hp: 1150, phases: [['cross'], ['lances', 'rain'], ['spiral', 'fan']] },
-        { name: 'HORNET QUEEN', hp: 1400, phases: [['summon', 'fan'], ['cross'], ['rings', 'rain']] },
-        { name: 'DETONATOR', hp: 1700, phases: [['curve'], ['lances', 'rings'], ['cross', 'fan']] },
+        { name: 'CORONA', hp: 900, phases: [['rings'], ['fan', 'rain']] },
+        { name: 'GALE', hp: 1000, phases: [['spiral'], ['fan', 'rings']] },
+        { name: 'LANCER PRIME', hp: 1000, phases: [['fan', 'rain'], ['spiral'], ['rings', 'fan']] },
+        { name: 'CYCLONE', hp: 1300, phases: [['cross'], ['lances', 'rain'], ['spiral', 'fan']] },
+        { name: 'HORNET QUEEN', hp: 1600, phases: [['summon', 'fan'], ['cross'], ['rings', 'rain']] },
+        { name: 'DETONATOR', hp: 1850, phases: [['curve'], ['lances', 'rings'], ['cross', 'fan']] },
         { name: 'ION WARDEN', hp: 2000, phases: [['lances', 'fan'], ['spiral', 'rain'], ['curve', 'lances']] },
         { name: 'PRISM HEART', hp: 2500, phases: [['curve', 'fan'], ['cross', 'rain'], ['lances', 'spiral'], ['curve', 'rings']] },
-        { name: 'THE EYE', hp: 3400, phases: [['spiral', 'fan'], ['lances', 'curve'], ['cross', 'rain'], ['summon', 'rings', 'lances']] }
+        { name: 'THE EYE', hp: 3400, phases: [['lances', 'curve'], ['cross', 'rain'], ['spiral', 'fan'], ['summon', 'rings', 'lances']] }
     ];
 
     // ------------------------------------------------------------------
@@ -76,10 +89,11 @@
     // o: {r, w (turn rate in rad/s, for curving bullets), life}
     function shoot(s, x, y, ang, speed, col, o) {
         if (s.bullets.length >= MAX_BULLETS) return;
-        var v = speed * s.k;
+        var v = speed * s.bk;
         s.bullets.push({
             x: x, y: y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, col: col, grazed: false,
-            r: (o && o.r) || 5, w: (o && o.w) || 0, life: (o && o.life) || 12
+            // The turn rate scales with the speed, so a curve keeps its shape.
+            r: (o && o.r) || 5, w: ((o && o.w) || 0) * s.bk / s.k, life: (o && o.life) || 12
         });
     }
 
@@ -123,7 +137,7 @@
 
     // Drones low on the screen hold fire: a point-blank aimed shot is not fair.
     function fireDrone(e, s) {
-        if (e.y < 380) fan(s, e, s.level >= 4 ? 3 : 1, 0.26, 170, MG);
+        if (e.y < 380) fan(s, e, s.level >= 5 ? 3 : 1, 0.26, 170, MG);
     }
 
     // Slides to its post, holds it for def.stay seconds, then retreats upward.
@@ -221,14 +235,15 @@
 
     // hp, radius, score, colour, seconds between shots, orb drop chance, and
     // the look: polygon sides, spin (rad/s), fixed rotation, spiky outline.
+    // `swarm` marks the weak types that arrive many to a squad.
     var TYPES = {
-        drone: { hp: 3, r: 13, pts: 50, col: CY, rate: 1.9, drop: 0.2, move: moveDrone, fire: fireDrone, sides: 3, rot: DOWN },
+        drone: { swarm: true, hp: 3, r: 13, pts: 50, col: CY, rate: 1.9, drop: 0.2, move: moveDrone, fire: fireDrone, sides: 3, rot: DOWN },
         spinner: { hp: 14, r: 17, pts: 150, col: MG, rate: 1.9, drop: 0.6, move: moveHover, fire: fireSpinner, stay: 7, sides: 6, spin: 2 },
-        weaver: { hp: 4, r: 12, pts: 70, col: YL, rate: 1.15, drop: 0.2, move: moveWeaver, fire: fireWeaver, sides: 4 },
+        weaver: { swarm: true, hp: 4, r: 12, pts: 70, col: YL, rate: 1.15, drop: 0.2, move: moveWeaver, fire: fireWeaver, sides: 4 },
         lancer: { hp: 12, r: 15, pts: 180, col: MG, rate: 1.7, drop: 0.5, move: moveHover, fire: fireLancer, stay: 8, track: 40, sides: 5, rot: DOWN },
         turret: { hp: 45, r: 22, pts: 400, col: YL, rate: 0.12, drop: 1, move: moveTurret, fire: fireTurret, sides: 8, spin: 0.6 },
-        dart: { hp: 4, r: 11, pts: 90, col: MG, rate: 0.13, drop: 0.15, move: moveDart, fire: fireDart, sides: 3, rot: DOWN },
-        mine: { hp: 8, r: 14, pts: 120, col: YL, rate: 5.5, first: 1, drop: 0.25, move: moveMine, fire: detonateMine, sides: 16, spin: 1, star: true },
+        dart: { swarm: true, hp: 4, r: 11, pts: 90, col: MG, rate: 0.13, drop: 0.15, move: moveDart, fire: fireDart, sides: 3, rot: DOWN },
+        mine: { swarm: true, hp: 8, r: 14, pts: 120, col: YL, rate: 5.5, first: 1, drop: 0.25, move: moveMine, fire: detonateMine, sides: 16, spin: 1, star: true },
         warden: { hp: 22, r: 18, pts: 300, col: CY, rate: 3.4, drop: 0.6, move: moveHover, fire: fireWarden, stay: 11, track: 80, sides: 4, rot: Math.PI / 4 },
         prism: { hp: 30, r: 20, pts: 350, col: CY, rate: 1.5, drop: 0.8, move: moveHover, fire: firePrism, stay: 10, sides: 3, spin: -1.5 }
     };
@@ -275,7 +290,7 @@
             addEnemy(s, 'warden', 540 + s.rnd() * 300, -30, { ty: 62 });
         },
         p: function (s) {
-            for (var i = 0; i < (s.level >= 10 ? 2 : 1); i++) addEnemy(s, 'prism', 180 + s.rnd() * 600, -30, { ty: 100 + s.rnd() * 40 });
+            addEnemy(s, 'prism', 180 + s.rnd() * 600, -30, { ty: 100 + s.rnd() * 40 });
         }
     };
 
@@ -293,9 +308,9 @@
         G.popup(e.x, Math.max(G.HUD + 30, e.y - d.r), d.pts * s.level, d.col);   // popups rise: keep them off the HUD
         G.burst(e.x, e.y, { n: 8 + d.r, color: d.col, speed: 220, life: 0.5 });
         boomSound(s, d.r);
-        // The last of a squad always drops an orb, so even level 1 (drones
+        // The last of a swarm always drops an orb, so even level 1 (drones
         // only) hands out enough orbs to merge; the rest drop by chance.
-        var last = !s.enemies.some(function (o) { return o !== e && !o.gone && o.squad === e.squad; });
+        var last = d.swarm && !s.enemies.some(function (o) { return o !== e && !o.gone && o.squad === e.squad; });
         if (last || s.rnd() < d.drop) dropOrb(s, e.x, e.y);
         // The storm's eye: on the last level every wreck fires one parting
         // shot, unless it died too close for that to be dodgeable.
@@ -345,7 +360,8 @@
     var PATTERNS = {
         fan: function (s, b, dt) {
             if (!every(b, 'fan', 0.9 / s.k, dt)) return;
-            fan(s, b, 5 + 2 * Math.floor(s.level / 3), 0.17, 185, MG);
+            // Nine is the widest fan that still leaves room beside a spiral.
+            fan(s, b, Math.min(9, 5 + 2 * Math.floor(s.level / 3)), 0.17, 185, MG);
             G.tone(700, 0.1, { type: 'sawtooth', slide: 250, vol: 0.06 });
         },
         rings: function (s, b, dt) {
@@ -462,8 +478,9 @@
             return;
         }
         // A crowded sky holds the next wave back: waves must not pile up
-        // faster than they can be cleared.
-        if (s.waveT > 0 || s.enemies.length > 22) return;
+        // faster than they can be cleared. This cannot stall a level, since
+        // every enemy leaves the screen by itself sooner or later.
+        if (s.waveT > 0 || s.enemies.length > CROWD) return;
         spawnWave(s, s.waves[s.wave++]);
         s.waveT = Math.max(3.3, 6.2 - s.level * 0.36);
     }
@@ -491,14 +508,40 @@
     // Player: movement, weapons, bomb, orbs
     // ------------------------------------------------------------------
 
+    // Phone: while a finger rests on the canvas, the point the ship flies to.
+    // It starts at the ship and then moves as the finger moves, wherever the
+    // finger is (a phone has no hover, and a ship under the thumb is unseen).
+    function dragTarget(s) {
+        var m = G.mouse, d = s.drag;
+        if (!s.touch || !m.down) { s.drag = null; return null; }
+        if (!d) d = s.drag = { mx: m.x, my: m.y, x: s.p.x, y: s.p.y };
+        d.x = G.clamp(d.x + (m.x - d.mx) * DRAG_GAIN, 14, G.W - 14);
+        d.y = G.clamp(d.y + (m.y - d.my) * DRAG_GAIN, G.HUD + 14, G.H - 14);
+        d.mx = m.x; d.my = m.y;
+        return d;
+    }
+
+    // The ship chases the drag point at a capped speed: an instant jump would
+    // carry it straight through a wall of bullets.
+    function followDrag(p, d, dt) {
+        var dist = G.dist(p.x, p.y, d.x, d.y), step = Math.min(dist, DRAG_SPEED * dt);
+        if (dist < 0.01) return 0;
+        p.x += (d.x - p.x) / dist * step;
+        p.y += (d.y - p.y) / dist * step;
+        return G.clamp((d.x - p.x) / 12, -1, 1);
+    }
+
     function movePlayer(s, dt) {
-        var p = s.p;
+        var p = s.p, d = dragTarget(s);
         var dx = (G.key.right ? 1 : 0) - (G.key.left ? 1 : 0), dy = (G.key.down ? 1 : 0) - (G.key.up ? 1 : 0);
         var sp = (G.key.a ? FOCUS : SPEED) / (dx && dy ? Math.SQRT2 : 1);
-        p.x = G.clamp(p.x + dx * sp * dt, 14, G.W - 14);
-        p.y = G.clamp(p.y + dy * sp * dt, G.HUD + 14, G.H - 14);
+        if (d) dx = followDrag(p, d, dt);
+        else {
+            p.x = G.clamp(p.x + dx * sp * dt, 14, G.W - 14);
+            p.y = G.clamp(p.y + dy * sp * dt, G.HUD + 14, G.H - 14);
+        }
         p.lean += (dx - p.lean) * Math.min(1, dt * 10);   // the ship banks into a turn
-        p.focus = G.key.a;
+        p.focus = s.touch || G.key.a;                     // a phone fires by itself: A only slows
     }
 
     function pushShot(s, x, y, ang, speed, dmg, homing) {
@@ -586,16 +629,20 @@
 
     function gainBomb(s) {
         // With a full rack the bomb is paid out in points instead.
-        if (s.bombs >= MAX_BOMBS) {
-            G.addScore(2000 * s.level);
-            G.popup(s.p.x, s.p.y - 26, '+' + 2000 * s.level, FG);
-            G.sfx('coin');
-            return;
-        }
+        if (s.bombs >= MAX_BOMBS) { payMerge(s); return; }
         s.bombs++;
         G.popup(s.p.x, s.p.y - 26, '+BOMB', FG);
         G.tone(784, 0.1, { type: 'triangle', vol: 0.14 });
         G.tone(1568, 0.25, { type: 'triangle', vol: 0.14, delay: 0.1 });
+    }
+
+    // A merge on a weapon already at its top level is paid in points. It used
+    // to be a bomb, but late levels shower orbs on a maxed ship: eight to ten
+    // extra bombs made level 10 easier than level 9.
+    function payMerge(s) {
+        G.addScore(2000 * s.level);
+        G.popup(s.p.x, s.p.y - 26, '+' + 2000 * s.level, FG);
+        G.sfx('coin');
     }
 
     function useBomb(s) {
@@ -622,8 +669,7 @@
         G.tone(520 * n, 0.12, { type: 'sine', vol: 0.16 });
         if (n < 3) return;
         s.orbs[kind] = 0;
-        // A weapon already at its top level turns the merge into a bomb.
-        if (s.lv[kind] >= MAX_WEAPON) { gainBomb(s); return; }
+        if (s.lv[kind] >= MAX_WEAPON) { payMerge(s); return; }
         s.lv[kind]++;
         G.popup(s.p.x, s.p.y - 26, kind.toUpperCase() + ' LV' + s.lv[kind], WCOL[kind]);
         G.flash(WCOL[kind], 0.18);
@@ -745,10 +791,16 @@
         };
     }
 
+    // A phone: its main pointer is a finger, and the engine shows the pad.
+    function coarse() {
+        return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    }
+
     function init(level) {
-        var rnd = G.rng(level * 7919 + 13);
+        var rnd = G.rng(level * 7919 + 13), touch = coarse(), k = 1 + (level - 1) * 0.055;
         return {
-            level: level, rnd: rnd, k: 1 + (level - 1) * 0.055,   // k scales bullet speed and fire rates
+            level: level, rnd: rnd, touch: touch, drag: null,
+            k: k, bk: k * (touch ? TOUCH_BULLETS : 1),           // k scales fire rates, bk bullet speed
             p: { x: G.W / 2, y: G.H - 70, inv: 1.5, cool: 0, missile: 0, lean: 0, focus: false },
             lv: kit(level), orbs: { spread: 0, beam: 0, homing: 0 },
             bombs: 3, bombT: 0, graze: 0, struck: false, beamOn: false,
@@ -857,7 +909,7 @@
         ctx.fillRect(x, y, w * left, 7);
         ctx.fillStyle = BG;
         for (var i = 1; i < b.n; i++) ctx.fillRect(x + w * i / b.n - 1, y, 2, 7);
-        G.text(BOSSES[s.level - 1].name, x + w + 12, y + 8, { size: 13, color: FG });
+        G.text(BOSSES[s.level - 1].name, x + w + 12, y + (s.touch ? 12 : 8), { size: s.touch ? 20 : 13, color: FG });
     }
 
     function pathBullets(s, ctx, col, k) {
@@ -961,21 +1013,23 @@
     }
 
     // Bottom-left tray: each weapon's level and how many of its three orbs
-    // are collected; bombs sit bottom-right.
+    // are collected; bombs sit bottom-right. A phone shows the canvas at about
+    // half size, so there the tray is drawn half as large again.
     function drawTray(s, ctx) {
+        var z = s.touch ? 1.5 : 1, y = G.H - 12;
         WEAPONS.forEach(function (kind, i) {
-            var x = 14 + i * 136, y = G.H - 12;
-            G.text(kind.toUpperCase() + ' ' + s.lv[kind], x, y, { size: 13, bold: true, color: WCOL[kind] });
+            var x = 14 + i * 136 * z;
+            G.text(kind.toUpperCase() + ' ' + s.lv[kind], x, y, { size: Math.round(13.4 * z), bold: true, color: WCOL[kind] });
             for (var n = 0; n < 3; n++) {
                 ctx.fillStyle = n < s.orbs[kind] ? WCOL[kind] : 'rgba(232,224,255,0.2)';
-                ctx.fillRect(x + 88 + n * 10, y - 9, 7, 9);
+                ctx.fillRect(x + (88 + n * 10) * z, y - 9 * z, 7 * z, 9 * z);
             }
         });
         for (var b = 0; b < s.bombs; b++) {
             ctx.strokeStyle = CY;
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(G.W - 20 - b * 22, G.H - 18, 7, 0, TAU);
+            ctx.arc(G.W - (20 + b * 22) * z, G.H - 18 * z + 6 * (z - 1), 7 * z, 0, TAU);
             ctx.stroke();
         }
     }
@@ -986,12 +1040,21 @@
             G.text('WARNING', G.W / 2, 230, { size: 54, bold: true, color: MG, align: 'center', glow: MG });
             ctx.globalAlpha = 1;
             G.text(BOSSES[s.level - 1].name + ' APPROACHING', G.W / 2, 266, { size: 18, color: FG, align: 'center' });
-        } else if (s.level === 1 && s.stage === 'waves') {
-            // The rules a new player must learn, kept up for the whole wave
-            // stage and out of the ship's starting column.
-            G.text('HOLD SPACE: fire and focus  ·  X: bomb', 14, G.H - 52, { size: 15, color: 'rgba(232,224,255,0.6)' });
-            G.text('three orbs of one colour: weapon up', 14, G.H - 33, { size: 15, color: 'rgba(232,224,255,0.6)' });
+        } else if (s.level === 1 && s.stage === 'waves') drawHint(s);
+    }
+
+    // The rules a new player must learn, kept up for the whole wave stage of
+    // level 1 and out of the ship's starting column. A phone gets its own
+    // controls, in type large enough to read on a small screen.
+    function drawHint(s) {
+        var dim = 'rgba(232,224,255,0.6)';
+        if (s.touch) {
+            G.text('DRAG: steer · it fires by itself', 14, G.H - 68, { size: 20, color: dim, max: 420 });
+            G.text('BOMB: wipe bullets · 3 orbs alike: weapon up', 14, G.H - 42, { size: 20, color: dim, max: 420 });
+            return;
         }
+        G.text('HOLD SPACE: fire and focus  ·  X: bomb', 14, G.H - 52, { size: 15, color: dim });
+        G.text('three orbs of one colour: weapon up', 14, G.H - 33, { size: 15, color: dim });
     }
 
     function draw(s, ctx) {
@@ -1020,10 +1083,10 @@
         title: 'PLASMA STORM',
         blurb: 'Thread the bullet storm, merge plasma orbs into weapons, break the boss.',
         controls: [
-            '← ↑ → ↓ move · SPACE fire (hold: slower, and the tiny hitbox shows)',
-            'X bomb: wipes every bullet · grazing bullets scores and earns bombs',
-            'Orbs change colour as they fall: three of one colour upgrade that weapon',
-            'cyan SPREAD · magenta BEAM · yellow HOMING'
+            '← ↑ → ↓ move · hold SPACE: fire, fly slower and show the tiny hitbox',
+            'X / BOMB wipes every bullet · grazing bullets scores and earns bombs',
+            'Phone: it fires by itself · drag on the screen (or the pad) to steer · SLOW for fine moves',
+            'Orbs change colour: three alike upgrade cyan SPREAD · magenta BEAM · yellow HOMING'
         ],
         levelNames: ['First Sparks', 'Ring Lightning', 'Crosswind', 'Lancers', 'Spiral Front', 'Dart Swarm', 'Minefield', 'Ion Gates', 'Prism Bloom', 'Eye of the Storm'],
         colors: { bg: BG, fg: FG, accent: CY, dim: '#9a8fc0' },
@@ -1041,6 +1104,9 @@
             drums: { k: 'x...x...x...x.x.', s: '....x.......x...', h: 'x.xxx.xxx.xxx.xx' },
             leadWave: 'sawtooth', bassWave: 'sawtooth', arpWave: 'square', leadOct: 1
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // The full 8-way pad. A is SLOW, not fire: on a phone the ship fires
+        // by itself, so A only does the other half of what SPACE does.
+        touch: { a: 'SLOW', b: 'BOMB' }
     });
 })();
