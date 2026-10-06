@@ -11,6 +11,9 @@
  * moving platforms and troopers that shoot back (5), lifts (6), hopping
  * mutants (7), laser gates (8), a blackout with only a torch (9) and the
  * Overlord, a mech that carries the keycard itself (10).
+ *
+ * Two things keep the pressure on: when the clock runs out the warhead ends
+ * the run outright, and whoever camps in one spot gets shelled.
  */
 (function () {
     'use strict';
@@ -19,6 +22,7 @@
     // A jump rises 108 px (3.6 tiles) and carries 5.4 tiles, so the chunks
     // below never ask for more than a 4-tile gap or a 3-tile step.
     var GRAV = 1500, RUN = 215, JUMP = 570;
+    var LEASH = 330;                                // how far a posted drone strays from its post
     var RED = '#ff0000', GOLD = '#ffd700', YEL = '#ffcc00', BLOOD = '#cc0000';
     var LIGHT = '#e0e0e0', GREY = '#3a3a3a', DARK = '#111111', ACID = '#7dff3a', SKIN = '#e8b890';
 
@@ -41,7 +45,8 @@
     //
     // The last string of a chunk is the ground row. Legend:
     //   # steel   c crate (shootable)   ~ acid   B barrel   K keycard   D exit
-    //   e ground enemy (type depends on the level)   t turret   d drone   X boss
+    //   e ground enemy (type depends on the level)   j hopper   t turret
+    //   d drone   X boss
     //   h health   s spread gun   r rapid gun   n grenades   ! laser gate
     //   M--- platform sliding along the dashes (W starts at the far end)
     //   L with | above it: a lift that rides up the bars
@@ -55,7 +60,7 @@
     var ARENA = [
         '                                      ',
         '      cc                      cc      ',
-        ' h    cc    B      X      B   cc    n ',
+        '   h  cc    B      X      B   cc  n   ',
         '######################################'
     ];
     var KEYS = [
@@ -72,15 +77,17 @@
         { min: 2, rows: ['            t     ', '     #    ####    ', '  e  #  e      h  ', '##################'] },
         { min: 2, rows: ['        t           ', '      #####     n   ', '                    ', '   e         ####   ', '             ####  e', '####################'] },
         { min: 3, rows: ['    d        d      ', '                    ', '       cc           ', '  e    cc    B   e  ', '####################'] },
+        { min: 3, rows: ['   d       d       d  ', '                      ', '      ##       ##     ', '  e        B       e  ', '######################'] },
         { min: 4, rows: ['                     ', '          h          ', '  e               e  ', '####~~~##~~~##~~~####'] },
         { min: 4, rows: ['     d          d     ', '                      ', '        ##    ##      ', '  B                 n ', '#####~~~~~~~~~~~~#####'] },
-        { min: 4, rows: ['          t            ', '          #            ', '  e       #         e  ', '####~~~~#####~~~~######'] },
+        { min: 4, rows: ['                       ', '  e       t         e  ', '####~~~~#####~~~~######'] },
         { min: 5, rows: ['          s             ', '                        ', '                      e ', '    M-------------      ', '####~~~~~~~~~~~~~~######'] },
         { min: 5, rows: ['       d             h      ', '                            ', '                            ', '    M--------  W--------    ', '####                    ####'] },
         { min: 5, rows: ['                          ', '             r         e  ', '     M------   W------    ', '####~~~~~~~~~~~~~~~~~~####'] },
         { min: 6, rows: ['            e t          ', '    |   ##########  |    ', '    |   ##########  |    ', '    |   ##########  |    ', '    |   ##########  |    ', '    |   ##########  |    ', '    L   ##########  L    ', '#########################'] },
         { min: 6, rows: ['                h           ', '       |      #####         ', '       |      ######        ', '       |      #######       ', '  ##   |      ########   e  ', '  ##   L      #########     ', '####~~~~~~~~~~##############'] },
-        { min: 7, rows: ['    ###      ###    ', '                    ', '  e   e  B   e   e  ', '####################'] },
+        { min: 7, rows: ['    ###      ###    ', '                    ', '  j   e  B   e   j  ', '####################'] },
+        { min: 7, rows: ['      j        j      ', '     ###      ###     ', '  e        B       e  ', '######################'] },
         { min: 8, rows: ['      !     !       ', '      !     !    r  ', '      !  e  !       ', '      !     !       ', '####################'] },
         { min: 8, rows: ['     !     !          ', '     !     !          ', '     !     !          ', '  e  !     !        e ', '####~~~##~~~~###~~####'] }
     ];
@@ -88,7 +95,7 @@
     var KINDS = {
         grunt: { w: 20, h: 26, hp: 2, score: 100 }, trooper: { w: 20, h: 26, hp: 3, score: 200 },
         hopper: { w: 22, h: 18, hp: 2, score: 150 }, turret: { w: 24, h: 20, hp: 4, score: 250 },
-        drone: { w: 28, h: 16, hp: 2, score: 200 }, boss: { w: 64, h: 72, hp: 80, score: 5000 }
+        drone: { w: 28, h: 16, hp: 2, score: 200 }, boss: { w: 64, h: 72, hp: 180, score: 5000 }
     };
 
     // x is the horizontal centre, feet the bottom edge. `seed` (0..1) spreads
@@ -107,7 +114,9 @@
     }
 
     function addEnemy(L, kind, c, r) {
-        L.enemies.push(makeEnemy(kind, c * T + T / 2, (r + 1) * T, L.level, L.rnd()));
+        var e = makeEnemy(kind, c * T + T / 2, (r + 1) * T, L.level, L.rnd());
+        L.enemies.push(e);
+        return e;
     }
 
     function addPickup(kind) {
@@ -118,10 +127,23 @@
     // platform itself is three tiles wide.
     function addMover(L, c, r, dx, dy, far) {
         var dist = Math.abs(dx) + Math.abs(dy);
-        L.movers.push({
-            ax: c * T, ay: r * T, bx: c * T + dx, by: r * T - dy, x: c * T, y: r * T, w: 3 * T, h: 12,
+        var m = {
+            ax: c * T, ay: r * T, bx: c * T + dx, by: r * T - dy, x: 0, y: 0, w: 3 * T, h: 12,
             dx: 0, dy: 0, phase: far ? 0.5 : 0, period: 2.6 + dist / 45
-        });
+        };
+        // Placed from its phase right away, so a level that has not been
+        // updated yet (the title screen preview) already draws it correctly.
+        placeMover(m, 0);
+        L.movers.push(m);
+    }
+
+    // Platforms ease between their two ends and rest there for a moment, so
+    // there is time to step on and off.
+    function placeMover(m, t) {
+        var f = (t / m.period + m.phase) % 1, tri = f < 0.5 ? f * 2 : 2 - f * 2;
+        var u = G.clamp((tri - 0.12) / 0.76, 0, 1);
+        u = u * u * (3 - 2 * u);
+        m.x = G.lerp(m.ax, m.bx, u); m.y = G.lerp(m.ay, m.by, u);
     }
 
     function runLength(rows, i, j, di, dj, ch) {
@@ -134,7 +156,9 @@
         // Early levels thin the crowd out; by level 10 every marker is used.
         e: function (L, c, r) { if (L.rnd() < 0.6 + L.level * 0.04) addEnemy(L, groundKind(L), c, r); },
         t: function (L, c, r) { if (L.level >= 2) addEnemy(L, 'turret', c, r); },
-        d: function (L, c, r) { if (L.level >= 3) addEnemy(L, 'drone', c, r); },
+        // A drone patrols the stretch it was posted to (`home`); see aiDrone.
+        d: function (L, c, r) { if (L.level >= 3) addEnemy(L, 'drone', c, r).home = c * T; },
+        j: function (L, c, r) { addEnemy(L, 'hopper', c, r); },
         X: function (L, c, r) { addEnemy(L, 'boss', c, r); L.arena = { x0: (c - 17) * T, x1: (c + 17) * T }; },
         B: function (L, c, r) { L.barrels.push({ x: c * T + 5, y: r * T + 4, w: 20, h: 26, fuse: -1 }); },
         h: addPickup('h'), s: addPickup('s'), r: addPickup('r'), n: addPickup('n'),
@@ -189,18 +213,39 @@
         return pool[Math.floor(L.rnd() * pool.length)].rows;
     }
 
+    // The chunks that first appear on this level. Every third slot of the
+    // stage is filled from this list, so the level's own feature shows up
+    // at least three times whatever the dice say.
+    function debutChunks(level) {
+        var list = [];
+        CHUNKS.forEach(function (c, i) { if (c.min === level && level > 1) list.push(i); });
+        return list;
+    }
+
+    // Tight enough that dawdling loses. A lift has to be waited for and
+    // ridden, so each one buys a few seconds; the Overlord buys two minutes.
+    function timeLimit(L, chunks) {
+        var lifts = L.movers.filter(function (m) { return m.by !== m.ay; }).length;
+        return 45 + 8 * chunks + 4 * lifts + (L.level === 10 ? 120 : 0);
+    }
+
     function buildLevel(level) {
-        var L = newLevel(level), n = level === 10 ? 5 : 5 + level, keyAt = Math.floor(n * 0.6), last = -1;
+        var L = newLevel(level), n = level === 10 ? 7 : 8 + level, keyAt = Math.floor(n * 0.6), last = -1;
+        var debut = debutChunks(level), used = 0;
         placeChunk(L, START);
         for (var i = 0; i < n; i++) {
             // On level 10 the Overlord carries the card, so no key chunk.
             if (i === keyAt && level < 10) { placeChunk(L, pickKeyChunk(L)); continue; }
-            last = pickChunk(L, last);
+            if (debut.length && i % 3 === 1) {
+                // Never the same chunk twice in a row, feature slot or not.
+                if (debut[used % debut.length] === last) used++;
+                last = debut[used++ % debut.length];
+            } else last = pickChunk(L, last);
             placeChunk(L, CHUNKS[last].rows);
         }
         if (level === 10) placeChunk(L, ARENA);
         placeChunk(L, END);
-        L.time = level === 10 ? 300 : 70 + n * 13;
+        L.time = timeLimit(L, n + 2);
         return L;
     }
 
@@ -219,7 +264,7 @@
         return {
             x: 60, y: y, w: 18, h: 26, vx: 0, vy: 0, ground: true, face: 1, hp: 100, inv: 0, cool: 0, muzzle: 0,
             weapon: 'gun', ammo: 0, nades: 3, coyote: 0, jbuf: 0, ride: null, crouch: false, inAcid: false,
-            anim: 0, prevFeet: y + 26, cx: 60, cy: y
+            anim: 0, zap: 0, prevFeet: y + 26, cx: 60, cy: y
         };
     }
 
@@ -231,7 +276,7 @@
             checks: L.checks, card: L.card, door: L.door, arena: L.arena, haveCard: false,
             boss: L.enemies.filter(function (e) { return e.kind === 'boss'; })[0] || null,
             p: newPlayer(), shots: [], nades: [], blasts: [], t: 0, clock: L.time, cam: 0,
-            msg: '', msgT: 0, gate: {}, finale: 0, dark: level === 9
+            msg: '', msgT: 0, gate: {}, finale: 0, dark: level === 9, anchor: 60, camp: 0
         };
     }
 
@@ -288,7 +333,19 @@
         if (p.hp <= 0) killPlayer(s);
     }
 
+    // Blast doors at both ends of the arena. Shut while the Overlord is up,
+    // so it cannot be shot from a spot it cannot reach, and nobody slips
+    // past it to the exit.
+    function sealArena(s, shut) {
+        [s.arena.x0 / T - 1, s.arena.x1 / T].forEach(function (c) {
+            for (var r = 1; r < FLOOR; r++) s.map[r][c] = shut ? '#' : ' ';
+        });
+        G.noise(0.4, { freq: 400, slide: 60, vol: 0.35 });
+        G.shake(6, 0.3);
+    }
+
     function bossDown(s, e) {
+        sealArena(s, false);
         s.card = { x: e.x + e.w / 2 - 15, y: FLOOR * T - 40 };
         s.finale = 1.6;
         G.flash('#ffffff', 0.4);
@@ -306,7 +363,8 @@
     }
 
     function damageEnemy(s, e, dmg) {
-        if (e.dead) return;
+        // The Overlord is armoured until the fight has actually started.
+        if (e.dead || (e.kind === 'boss' && !e.awake)) return;
         e.hp -= dmg; e.flash = 0.1;
         G.tone(240, 0.05, { slide: 120, vol: 0.12 });
         if (e.hp <= 0) killEnemy(s, e);
@@ -334,9 +392,11 @@
         }
     }
 
-    // One blast hurts everything in reach, friend or foe: enemies, crates,
-    // the player, and any barrel, which goes off a moment later (the chain).
-    function explode(s, x, y, r, dmg) {
+    // One blast hurts everything in reach: enemies, crates, the player, and
+    // any barrel, which goes off a moment later (the chain). Bombs dropped
+    // by the enemy (`hostile`) spare their own side, or a drone would blow
+    // itself up with its first bomb.
+    function explode(s, x, y, r, dmg, hostile) {
         var p = s.p;
         G.sfx(r > 60 ? 'bigboom' : 'boom');
         G.shake(r / 9, 0.3);
@@ -344,7 +404,7 @@
         G.burst(x, y, { n: Math.round(r / 5), color: RED, speed: r * 2, life: 0.7, size: 5 });
         s.blasts.push({ x: x, y: y, r: r, t: 0.35 });
         s.enemies.forEach(function (e) {
-            if (G.circRect(x, y, r, e.x, e.y, e.w, e.h)) damageEnemy(s, e, e.kind === 'boss' ? dmg + 2 : dmg);
+            if (!hostile && G.circRect(x, y, r, e.x, e.y, e.w, e.h)) damageEnemy(s, e, dmg);
         });
         s.barrels.forEach(function (b) {
             if (b.fuse < 0 && G.circRect(x, y, r, b.x, b.y, b.w, b.h)) b.fuse = 0.14;
@@ -444,10 +504,18 @@
             }
         }
         if (p.hp <= 0 || p.y > G.H + 30) { killPlayer(s); return; }
+        // A lit gate is a wall: it throws the player back out on the side
+        // they came from and burns, invulnerable or not, so a hit taken
+        // elsewhere never buys a way through.
         s.lasers.forEach(function (l) {
-            if (!laserOn(s, l) || p.inv > 0 || !G.aabb(p, l)) return;
+            if (!laserOn(s, l) || !G.aabb(p, l)) return;
+            var side = p.x + p.w / 2 < l.x + l.w / 2 ? -1 : 1;
+            p.x = side < 0 ? l.x - p.w - 1 : l.x + l.w + 1;
+            p.vx = side * 230;
+            if (p.zap > 0) return;
+            p.zap = 0.5; p.inv = 0;
             G.sfx('laser');
-            hurt(s, 22, p.x + p.w / 2 < l.x + 4 ? -1 : 1);
+            hurt(s, 22, side);
         });
     }
 
@@ -489,7 +557,7 @@
         if (s.haveCard) { G.win(Math.round(s.clock) * 10 + Math.round(p.hp) * 5); return; }
         if (gate(s, 'door', 1.2)) {
             G.tone(110, 0.25, { type: 'sawtooth', vol: 0.2 });
-            say(s, s.boss ? 'LOCKED - THE OVERLORD HAS THE KEYCARD' : 'LOCKED - FIND THE KEYCARD');
+            say(s, !s.boss ? 'LOCKED - FIND THE KEYCARD' : (s.boss.dead ? 'LOCKED - PICK UP THE KEYCARD' : 'LOCKED - THE OVERLORD HAS THE KEYCARD'));
         }
     }
 
@@ -548,10 +616,14 @@
 
     // Swings from side to side on a spring: high while it crosses over the
     // player (where it lets a bomb go), down at gun height at each end of
-    // the swing, which is the moment to shoot it.
+    // the swing, which is the moment to shoot it. A posted drone stays
+    // within LEASH of its home, so the drones of a whole level cannot pile
+    // up into a swarm behind a player who runs on; the Overlord's own
+    // drones have no home and hunt across the arena.
     function aiDrone(s, e, dt) {
         var p = s.p, swing = Math.sin(s.t * 0.9 + e.ph);
         var tx = p.x + swing * 130, ty = p.y - 88 + Math.abs(swing) * 88;
+        if (e.home !== undefined) tx = G.clamp(tx, e.home - LEASH, e.home + LEASH);
         e.vx += G.clamp((tx - e.x) * 4, -420, 420) * dt - e.vx * 1.6 * dt;
         e.vy += G.clamp((ty - e.y) * 4, -420, 420) * dt - e.vy * 1.6 * dt;
         e.x += e.vx * dt;
@@ -559,7 +631,7 @@
         e.cool -= dt;
         if (e.cool > 0 || Math.abs(p.x - e.x) > 60) return;
         e.cool = 2.4;
-        foeShot(s, e.x + e.w / 2, e.y + e.h, e.vx * 0.5, 40, { g: 600, bomb: true, r: 6, life: 4 });
+        foeShot(s, e.x + e.w / 2, e.y + e.h, e.vx * 0.5, 40, { g: 600, bomb: true, blast: 46, r: 6, life: 4 });
         G.tone(900, 0.2, { type: 'sine', slide: 300, vol: 0.1 });
     }
 
@@ -622,12 +694,29 @@
         BOSS_ACT[list[e.n++ % list.length]](s, e, phase);
     }
 
+    // The fight starts once the player is well inside: the doors shut, and
+    // from here on a lost life comes back inside the arena. The flag at the
+    // entrance now stands in the door, so it is retired along with every
+    // earlier one; touching it late (after jumping in over it) must not move
+    // the respawn point into the steel.
+    function wakeBoss(s, e) {
+        e.awake = true;
+        sealArena(s, true);
+        s.checks.forEach(function (c) { if (c.x < s.arena.x1) c.on = true; });
+        s.p.cx = s.arena.x0 + T;
+        say(s, 'THE OVERLORD');
+        G.tone(70, 0.9, { type: 'sawtooth', slide: 160, vol: 0.3 });
+    }
+
     // The mech ignores the tile grid (it smashes crates instead) and is only
     // held by the arena's ends and the floor. Its three phases follow its
     // health: each adds attacks and speed.
     function aiBoss(s, e, dt) {
         var p = s.p, phase = e.hp > e.max * 0.66 ? 1 : (e.hp > e.max * 0.33 ? 2 : 3), floorY = FLOOR * T - e.h;
-        if (!e.awake) { e.awake = true; say(s, 'THE OVERLORD'); G.tone(70, 0.9, { type: 'sawtooth', slide: 160, vol: 0.3 }); }
+        if (!e.awake) {
+            if (p.x < s.arena.x0 + T || p.x > s.arena.x1) return;
+            wakeBoss(s, e);
+        }
         e.vy += GRAV * dt; e.y += e.vy * dt;
         if (e.y >= floorY) {
             if (e.vy > 400) bossLand(s, e);
@@ -646,12 +735,14 @@
     var AI = { grunt: aiGrunt, trooper: aiTrooper, hopper: aiHopper, turret: aiTurret, drone: aiDrone, boss: aiBoss };
 
     // Only enemies near the screen think, so nothing far away wanders off
-    // its ledge or wastes shots before the player gets there.
+    // its ledge or wastes shots before the player gets there. The Overlord
+    // is the exception once the fight is on: the sealed arena is wider than
+    // that range, and it must not freeze when the player runs to the far end.
     function updateEnemies(s, dt) {
         var p = s.p;
         s.enemies.forEach(function (e) {
             if (e.flash > 0) e.flash -= dt;
-            if (e.dead || Math.abs(e.x - p.x) > 660) return;
+            if (e.dead || (Math.abs(e.x - p.x) > 660 && !e.awake)) return;
             AI[e.kind](s, e, dt);
             if (e.y > G.H + 60) e.dead = true;
             else if (G.aabb(hurtBox(p), e)) hurt(s, e.kind === 'boss' ? 25 : 18, p.x + p.w / 2 < e.x + e.w / 2 ? -1 : 1);
@@ -667,7 +758,7 @@
         var tx = Math.floor(b.x / T), ty = Math.floor(b.y / T);
         if (!s.solid(tx, ty)) return false;
         if (tileAt(s, tx, ty) === 'c') breakCrate(s, tx, ty);
-        if (b.bomb) explode(s, b.x, b.y - 6, 46, 2);
+        if (b.bomb) explode(s, b.x, b.y - 6, b.blast, 2, true);
         else G.burst(b.x, b.y, { n: 3, color: YEL, speed: 90, life: 0.2, size: 2 });
         return true;
     }
@@ -675,7 +766,7 @@
     function shotHitsPlayer(s, b) {
         var h = hurtBox(s.p);
         if (s.p.inv > 0 || !G.circRect(b.x, b.y, b.r, h.x, h.y, h.w, h.h)) return false;
-        if (b.bomb) explode(s, b.x, b.y, 46, 2);
+        if (b.bomb) explode(s, b.x, b.y, b.blast, 2, true);
         else hurt(s, b.dmg, b.vx < 0 ? -1 : 1);
         return true;
     }
@@ -733,16 +824,13 @@
         });
     }
 
-    // Platforms ease between their two ends and rest there for a moment, so
-    // there is time to step on and off. Whoever stands on one is carried.
+    // Whoever stands on a platform is carried along with it.
     function updateMovers(s) {
         var p = s.p;
         s.movers.forEach(function (m) {
-            var f = (s.t / m.period + m.phase) % 1, tri = f < 0.5 ? f * 2 : 2 - f * 2;
-            var u = G.clamp((tri - 0.12) / 0.76, 0, 1);
-            u = u * u * (3 - 2 * u);
-            var nx = G.lerp(m.ax, m.bx, u), ny = G.lerp(m.ay, m.by, u);
-            m.dx = nx - m.x; m.dy = ny - m.y; m.x = nx; m.y = ny;
+            var ox = m.x, oy = m.y;
+            placeMover(m, s.t);
+            m.dx = m.x - ox; m.dy = m.y - oy;
             if (p.ride === m) { p.x += m.dx; p.y = m.y - p.h; }
         });
     }
@@ -764,18 +852,36 @@
         if (p.inv > 0) p.inv -= dt;
         if (p.cool > 0) p.cool -= dt;
         if (p.muzzle > 0) p.muzzle -= dt;
+        if (p.zap > 0) p.zap -= dt;
         if (s.msgT > 0) s.msgT -= dt;
     }
 
+    // Camping is not an option. Whoever stays within a few steps of one spot
+    // for too long is warned and then shelled until they move on. It is off
+    // during the Overlord fight, where the arena is the whole world.
+    function airstrike(s, p, dt) {
+        if (Math.abs(p.x - s.anchor) > 220) { s.anchor = p.x; s.camp = 0; }
+        if (s.boss && s.boss.awake) return;
+        s.camp += dt;
+        if (s.camp < 9) return;
+        if (s.camp < 14) {
+            if (gate(s, 'warn', 1)) { say(s, 'AIRSTRIKE INBOUND - MOVE OUT'); G.sfx('alarm'); }
+            return;
+        }
+        if (!gate(s, 'shell', 1.1)) return;
+        foeShot(s, p.x + p.w / 2 + G.rnd(-24, 24), 2 * T, 0, 320, { g: 700, bomb: true, blast: 66, r: 6, life: 4 });
+        G.tone(1400, 0.5, { type: 'sine', slide: 300, vol: 0.12 });
+    }
+
     // The warhead: the last twenty seconds are counted out loud, and at zero
-    // the level is lost.
+    // it takes every life at once. There is no second try at a nuke.
     function countdown(s) {
         if (s.clock < 20 && s.clock > 0 && gate(s, 'tick', 1)) G.sfx(s.clock < 8 ? 'alarm' : 'blip');
         if (s.clock > 0) return;
         G.sfx('bigboom');
         G.flash('#ffffff', 0.8);
         G.shake(16, 0.8);
-        G.die();
+        while (G.loseLife() > 0) { /* every life goes in the same blast */ }
     }
 
     function follow(s, p, dt) {
@@ -801,6 +907,7 @@
         touchCheckpoints(s, p);
         touchGoal(s, p);
         follow(s, p, dt);
+        airstrike(s, p, dt);
         countdown(s);
     }
 
