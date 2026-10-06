@@ -5,20 +5,28 @@
  * blind spots of sweeping cameras and patrolling guards, pocket every data
  * drive and reach the exit before the trace completes. Vision cones are cut
  * off by walls, so cover is real. Being watched fills the detection meter;
- * a full meter means caught. Sprinting is fast but loud: noise pulls guards
- * and drones towards it. An EMP pulse blinds nearby electronics for a while.
- * Later levels add blinking tripwires, pressure plates, drones, travelling
- * beams and, on level 10, a grid of roaming searchlights.
+ * a full meter means caught, and so does touching a live beam or stepping on
+ * a pressure plate. A catch costs a life, hands back every drive and eats
+ * into the trace; when the trace completes the run is over. Sprinting is
+ * fast but loud: noise pulls guards and drones towards it. An EMP pulse
+ * switches nearby electronics off for a while. Later levels add blinking
+ * tripwires, pressure plates, drones, travelling beams and, on level 10, a
+ * grid of roaming searchlights that see over the walls.
  */
 (function () {
     'use strict';
     var G = window.SnoGame;
     var T = 30, COLS = 32, ROWS = 17, BODY = 14;      // the HUD is exactly tile row 0
     var GREEN = '#63f3a8', PHOS = '#bcffd4', GREY = '#88a197', RED = '#ff4d5c', BG = '#09100d', PANEL = '#101916';
-    var WALK = 118, SPRINT = 205, EMP_R = 150, EMP_TIME = 5, RAYS = 14;
-    var CAM = { range: 185, fov: 0.9, rate: 1.0 };
-    var GUARD = { range: 150, fov: 1.2, rate: 1.5 };
-    var DRONE_R = 62, LIGHT_R = 44;
+    var WALK = 118, SPRINT = 205, EMP_R = 150, EMP_TIME = 5;
+    // feel: a guard notices anyone this close whichever way it faces (drawn
+    // as a ring around it); a camera sees nothing outside its cone.
+    var CAM = { range: 185, fov: 0.9, rate: 1.0, feel: 0 };
+    var GUARD = { range: 150, fov: 1.2, rate: 1.5, feel: 16 };
+    var DRONE_R = 62, LIGHT_R = 44, BEAM_R = 7;
+    var RAY_STEP = 0.015;       // radians between the rays of a drawn cone
+    var CATCH_COST = 20;        // seconds of trace lost with every catch
+    var TIP_TIME = 8;           // seconds a level's hint stays on screen
     var DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     var FACING = { '>': 0, 'v': Math.PI / 2, '<': Math.PI, '^': -Math.PI / 2 };
 
@@ -27,23 +35,35 @@
      *   #  wall            S  start           X  exit            o  data drive
      *   e  EMP cell        _  pressure plate  D  drone home      1-9 guard waypoints
      *   < > ^ v  sweeping camera facing that way      r  camera turning full circle
+     *            (a camera's tile cannot be walked on)
      *   | -  blinking tripwire (a run of them is one beam)
      *   ! ~  beam that travels along its corridor (! moves sideways, ~ up and down)
+     * time: seconds until the trace completes. They are about twice what a
+     *       careful run takes, so standing still loses in one to two and a
+     *       half minutes.
      * guards: one string of waypoint digits per guard, walked in a loop
      *         ('1232' walks 1-2-3 and back). No route may overlook the start.
      * hop: seconds a drone spends at one D before flying to the next (0 = stays home).
      * lights: searchlights as [axis they travel on, lane in px, speed, optional
      *         nearest point they travel to — keeps the start corner dark].
+     * tip: the hint shown while the level starts.
+     *
+     * How the levels keep a blind dash from working (it must be stealth, not
+     * speed, that wins): on levels 2 and 3 the only way on is a corridor one
+     * tile wide that a guard walks from end to end, so whoever does not step
+     * aside into a side passage meets it; from level 4 on the short way
+     * always crosses a pressure plate. On levels 7, 9 and 10 a plate seals
+     * the only way in or out: that is what the EMP is for.
      */
     var LEVELS = [
-        { time: 90, emp: 2, guards: [], map: [
+        { time: 70, emp: 2, guards: [], tip: 'STAY OUT OF THE CONES - WALLS BLOCK THEM', map: [
             '################################',
             '#......#.....v.....#...........#',
             '#.S....#...........#.....o.....#',
             '#......#...........#...........#',
             '#......#.....o.....#...........#',
             '#..................#####..######',
-            '#......#.......................#',
+            '#......#.....................o.#',
             '#......#.......................#',
             '####.###########........########',
             '#..............#...............#',
@@ -51,172 +71,172 @@
             '#......o.......#...............#',
             '#..............#..............<#',
             '#..............................#',
-            '#..............................#',
-            '#..............#.............X.#',
+            '#.o............................#',
+            '#.........^....#.............X.#',
             '################################'] },
-        { time: 110, emp: 2, guards: ['1234'], map: [
+        { time: 80, emp: 2, guards: ['21', '34'], tip: 'A GUARD GRABS WHOEVER IT MEETS - LET IT PASS FROM A SIDE PASSAGE', map: [
             '################################',
-            '#..............v...............#',
-            '#.S...1.................2......#',
+            '#.......#.......v..............#',
+            '#.S.....#......................#',
+            '#..........###########.........#',
+            '#.......#.....o................#',
+            '##.#############################',
+            '##.######o#############o########',
+            '##.######.#############.########',
+            '##1..........................2##',
+            '################.############.##',
+            '################o############.##',
+            '#############################.##',
             '#..............................#',
-            '#.....########....########.....#',
-            '#.....#......#....#......#.....#',
-            '#.....#..o...#....#...o..#.....#',
-            '#.....#......#....#......#.....#',
-            '#.....###.####....####.###.....#',
-            '#..............................#',
-            '#.....4.................3......#',
-            '#..............................#',
-            '######..########..########..####',
-            '#..............................#',
-            '#...o........................X.#',
-            '#...............^..............#',
+            '#..3...##....##.4..##..........#',
+            '#......##....##..o.##........X.#',
+            '#........^.....................#',
             '################################'] },
-        { time: 120, emp: 2, guards: ['12'], map: [
+        { time: 90, emp: 2, guards: ['12'], tip: 'A LIVE RED BEAM CATCHES AT ONCE - CROSS WHILE IT IS DARK', map: [
             '################################',
             '#.......|.......|.............<#',
             '#.S.....|.......|..............#',
             '#.......|.......|............o.#',
-            '####################...#########',
-            '#...|.....|.....|..............#',
-            '#.o.|.....|.1...|.........2....#',
-            '#...|.....|.....|..............#',
-            '###...##########################',
+            '#############################.##',
+            '#############################.##',
+            '##1........|.........|.......2##',
+            '##.#####.#########.#############',
+            '##.#####o#########o#############',
+            '##.#############################',
             '#.........#..........#.........#',
-            '#.........#..........#.........#',
+            '#.........#..........#........<#',
             '#.........|....o.....|.........#',
             '#.........|..........|.......X.#',
+            '#>........#..........#.........#',
             '#.........#..........#.........#',
-            '#.........#..........#.........#',
-            '#...^.....#..........#....^....#',
             '################################'] },
-        { time: 130, emp: 2, guards: ['1234', '56'], map: [
+        { time: 90, emp: 2, guards: ['12', '34'], tip: 'PRESSURE PLATES CATCH AT ONCE - GO ROUND, OR SWITCH THEM OFF WITH AN EMP', map: [
             '################################',
-            '#.............v................#',
-            '#.S............................#',
-            '#....##...##...##...##...##....#',
-            '#....##_..##...##..o##.._##....#',
-            '#.......1..............2.......#',
-            '#..............................#',
-            '#....##...##...##...##...##....#',
-            '#....##...##_._##...##...##....#',
-            '#..o...........................#',
-            '#.......4..............3.......#',
-            '#....##...##...##...##...##....#',
-            '#....##...##...##_._##...##....#',
-            '#..............................#',
-            '#.......5......o.......6.....X.#',
-            '#.........^..........^.........#',
+            '#.........#.....v..............#',
+            '#.S.......#....3.....#...4...o.#',
+            '#.........#..........#....o....#',
+            '#....##...#...##.....#.........#',
+            '#....##...#.o.##.....#..##.....#',
+            '#.........#........o.#..##.....#',
+            '#.........#..........#.........#',
+            '#...o....._....o....._........<#',
+            '#.........#..........#.........#',
+            '#.........#..........#..##...o.#',
+            '#....##...#...##.....#..##.....#',
+            '#....##...#...##.....#.........#',
+            '#.........#.......o..#.....o...#',
+            '#....1....#....2.....#.......X.#',
+            '#...........o........#o......o.#',
             '################################'] },
-        { time: 150, emp: 3, guards: ['12'], map: [
+        { time: 95, emp: 3, guards: ['12'], tip: 'DRONES FLY TO THE NOISE OF A SPRINT - THEIR RING STOPS AT WALLS', map: [
             '################################',
             '#......#...............#.......#',
             '#.S....#.......o.......#...o...#',
-            '#......#...............#.......#',
+            '#......#.o.............#.......#',
             '#......#.......D.......#.......#',
             '#......|...............|...D...#',
             '#......#...............#.......#',
             '###_####......###......####.####',
-            '#..............................#',
+            '#o.............................#',
             '#...1......................2...#',
-            '#..............................#',
+            '#.............................o#',
             '####.######..######..######.####',
             '#.......#.........#............#',
-            '#...o...#....D....#............#',
+            '#...o...#....D....#......o.....#',
             '#.......#.........#..........X.#',
             '#......<#....o....#>...........#',
             '################################'] },
-        { time: 150, emp: 3, guards: ['12', '43'], map: [
+        { time: 100, emp: 3, guards: ['12', '43'], tip: 'THESE CAMERAS TURN FULL CIRCLE - THE PLATE LINES NEED AN EMP OR A DETOUR', map: [
             '################################',
             '#.......3..................4...#',
-            '#.S..#..#..#..#..#..#..#..#..o.#',
+            '#.S..#..#..#.o#..#..#..#..#..o.#',
             '#....#..#--#..#..#--#..#..#....#',
-            '#....#..#..#..#..#..#..#..#....#',
+            '#....#..#.o#..#..#o.#o.#..#....#',
             '#....#.o#..#..#..#..#..#..#....#',
-            '#..............................#',
-            '#.......r..............r.......#',
-            '#..............................#',
+            '#.........._........_..........#',
+            '#.......r.._...r...._..r....o..#',
+            '#.........._........_..........#',
             '#....#..#..#..#..#..#..#..#....#',
             '#....#..#..#..#o.#..#..#..#....#',
             '#....#--#..#..#..#..#..#--#....#',
-            '#....#..#..#..#..#..#..#.o#....#',
+            '#..o.#o.#..#..#..#..#o.#.o#....#',
             '#..............................#',
             '#.1...........r............2...#',
             '#............................X.#',
             '################################'] },
-        { time: 170, emp: 2, hop: 7, guards: ['1232', '56'], map: [
+        { time: 105, emp: 2, hop: 7, guards: ['1232', '56'], tip: 'THE VAULT DOORS ARE PLATES - ONE EMP TO GET IN, ONE TO GET OUT', map: [
             '################################',
             '#............................1.#',
             '#.S...................D......o.#',
             '#..............................#',
-            '#...###########--###########...#',
-            '#...#....5.................#...#',
-            '#...#..o....##....##....o..#...#',
+            '#...###########__###########...#',
+            '#...#.....5................#...#',
+            '#...#.o.....##....##....o..#...#',
             '#...#.......##....##.......#...#',
-            '#>..|..........D...........|..<#',
-            '#...#.......##....##.......#...#',
-            '#...#..e....##.o..##....o..#...#',
-            '#...#....6.................#...#',
-            '#...###########--###########...#',
+            '#...#..........D...........#..<#',
+            '#.o.#.......##....##.......#...#',
+            '#...#.e.....##.o..##....o..#...#',
+            '#...#.....6................#...#',
+            '#...###########__###########...#',
             '#..............................#',
             '#.3.....D....................2.#',
             '#............................X.#',
             '################################'] },
-        { time: 210, emp: 2, beam: 55, guards: ['12'], map: [
+        { time: 110, emp: 2, beam: 55, guards: ['12'], tip: 'TRAVELLING BEAMS NEVER GO DARK - DUCK INTO AN ALCOVE', map: [
             '################################',
-            '#S..#..##.o##..##..##..##..##..#',
+            '#S..#..##.o##..##..##..##.o##..#',
             '#......!.......................#',
             '#..............................#',
             '###########################..###',
             '#..o...........................#',
-            '#...............!..............#',
+            '#...............!............o.#',
             '#....1...................2.....#',
             '#..###..####..####..####..######',
             '#.........#.........#..........#',
-            '#....~....#....o....#.....~....#',
+            '#....~..o.#....o....#.....~....#',
             '#.........#.........#..........#',
-            '#..o...........r...............#',
+            '#......o.......r.........o.....#',
             '#.........#.........#..........#',
-            '#.........#....o....#........X.#',
+            '#.........#....o....#.o......X.#',
             '#....^....#.........#..........#',
             '################################'] },
-        { time: 200, emp: 2, hop: 8, beam: 62, guards: ['12', '34'], map: [
+        { time: 140, emp: 2, hop: 8, beam: 62, guards: ['12', '34'], tip: 'THE EXIT ROOM IS SEALED BY A PLATE - KEEP AN EMP FOR IT', map: [
             '################################',
             '#......#...............#.......#',
             '#.S....#.......o.......#...o...#',
             '#......#...............#...D...#',
-            '#......|.......r.......|.......#',
+            '#......|.......r.......|...e...#',
             '#......#...............#.......#',
             '####_#####...#####...#####_#####',
             '#..............................#',
-            '#.......1....!.........2.......#',
+            '#.o.....1....!.........2.....o.#',
             '#..............................#',
-            '######.#####_#####.#####.#######',
+            '######.#####_#####.#####_#######',
             '#.........#3.......4#..........#',
-            '#...o.....#....D....#..........#',
-            '#.........|.........|......e...#',
+            '#.......o.#....D....#.........<#',
+            '#.........|.........#..........#',
             '#.........#....o....#........X.#',
-            '#....^....#.........#.....^....#',
+            '#....^....#.........#..........#',
             '################################'] },
-        { time: 220, emp: 3, guards: ['12', '34'],
+        { time: 150, emp: 3, guards: ['12', '34'], tip: 'SEARCHLIGHTS SEE OVER WALLS - AN EMP PUTS THEM AND THE EXIT PLATE OUT',
             lights: [['x', 75, 70, 240], ['x', 210, 80], ['x', 330, -65], ['x', 450, 95],
                 ['y', 90, 50, 200], ['y', 315, 60], ['y', 555, -75], ['y', 810, 55]], map: [
             '################################',
-            '#......_.......v...............#',
+            '#......_.......v..............o#',
             '#.S......................o.....#',
             '#....###-----###.....###.......#',
             '#....###.....###..o..###.......#',
             '#.........|................1...#',
-            '#.o....2..|....D...............#',
+            '#.o....2..|....D.............o.#',
             '#....###.....###-----###.......#',
             '#....###..o..###.....###...e...#',
             '#.................|............#',
             '#.................|....o.......#',
-            '#....###-----###.....###.......#',
+            '#.o..###-----###.....###.......#',
             '#....###.....###.....###....o..#',
-            '#...._..............._.........#',
-            '#.....o.......3.........4....X.#',
-            '#..............^...............#',
+            '#...._..............._....######',
+            '#.....o.......3.........4._..X.#',
+            '#.o............^..........#....#',
             '################################'] }
     ];
 
@@ -233,12 +253,18 @@
         return row ? row.charAt(tx) : '';
     }
 
+    // Walls: nothing sees or walks through them.
     function solid(s, tx, ty) {
         var ch = tileAt(s, tx, ty);
         return ch === '#' || ch === '';
     }
 
-    function solidAt(s, x, y) { return solid(s, Math.floor(x / T), Math.floor(y / T)); }
+    // A camera stands on a post: it can be seen past but not walked through,
+    // so nobody can slip by underneath its lens.
+    function blocked(s, tx, ty) {
+        var ch = tileAt(s, tx, ty);
+        return solid(s, tx, ty) || ch === 'r' || FACING[ch] !== undefined;
+    }
 
     // Number of open tiles beyond (tx, ty) in one direction.
     function reach(s, tx, ty, dx, dy) {
@@ -251,19 +277,33 @@
 
     function turn(a, target, max) { return a + G.clamp(angDiff(target, a), -max, max); }
 
-    // Line of sight: samples the segment every few pixels for a wall.
-    function clear(s, ax, ay, bx, by) {
-        var n = Math.ceil(G.dist(ax, ay, bx, by) / 8);
-        for (var i = 1; i < n; i++) {
-            if (solidAt(s, G.lerp(ax, bx, i / n), G.lerp(ay, by, i / n))) return false;
+    // Distance from (x, y) along the unit vector (dx, dy) to the first wall,
+    // at most max. It steps from tile border to tile border, so no wall
+    // corner can be skipped however thin the slice of it that is crossed.
+    function castRay(s, x, y, dx, dy, max) {
+        var tx = Math.floor(x / T), ty = Math.floor(y / T), sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+        var nextX = dx ? ((tx + (dx > 0 ? 1 : 0)) * T - x) / dx : Infinity, perX = dx ? T / Math.abs(dx) : Infinity;
+        var nextY = dy ? ((ty + (dy > 0 ? 1 : 0)) * T - y) / dy : Infinity, perY = dy ? T / Math.abs(dy) : Infinity;
+        for (;;) {
+            var d = Math.min(nextX, nextY);
+            if (d >= max) return max;
+            if (nextX < nextY) { tx += sx; nextX += perX; } else { ty += sy; nextY += perY; }
+            if (solid(s, tx, ty)) return d;
         }
-        return true;
     }
 
-    function canSee(s, o, fov, range, x, y) {
+    // Line of sight between two points.
+    function clear(s, ax, ay, bx, by) {
+        var d = G.dist(ax, ay, bx, by);
+        return d < 0.001 || castRay(s, ax, ay, (bx - ax) / d, (by - ay) / d, d) >= d;
+    }
+
+    // kind is CAM or GUARD. This one test decides both what detects and
+    // (through castRay) what drawCone paints.
+    function canSee(s, o, kind, x, y) {
         var d = G.dist(o.x, o.y, x, y);
-        if (d > range) return false;
-        if (d > 14 && Math.abs(angDiff(Math.atan2(y - o.y, x - o.x), o.ang)) > fov / 2) return false;
+        if (d > kind.range) return false;
+        if (d > kind.feel && Math.abs(angDiff(Math.atan2(y - o.y, x - o.x), o.ang)) > kind.fov / 2) return false;
         return clear(s, o.x, o.y, x, y);
     }
 
@@ -276,7 +316,7 @@
             var k = queue[head++], kx = k % COLS, ky = Math.floor(k / COLS);
             for (var i = 0; i < 4; i++) {
                 var nx = kx + DIRS[i][0], ny = ky + DIRS[i][1], nk = ny * COLS + nx;
-                if (prev[nk] !== undefined || solid(s, nx, ny)) continue;
+                if (prev[nk] !== undefined || blocked(s, nx, ny)) continue;
                 prev[nk] = k;
                 queue.push(nk);
             }
@@ -350,7 +390,7 @@
         else if (ch === 'X') s.exit = at;
         else if (ch === 'o') s.drives.push({ x: at.x, y: at.y, got: false });
         else if (ch === 'e') s.cells.push({ x: at.x, y: at.y, got: false });
-        else if (ch === '_') s.plates.push({ tx: tx, ty: ty, cool: 0 });
+        else if (ch === '_') s.plates.push({ tx: tx, ty: ty, x: at.x, y: at.y, off: 0 });
         else if (ch === 'D') s.drones.push(newDrone(at, s.drones.length));
         else if (ch === 'r' || FACING[ch] !== undefined) s.cams.push(newCam(s, at, ch, rnd));
         else if (ch >= '1' && ch <= '9') s.marks[ch] = { tx: tx, ty: ty };
@@ -361,8 +401,6 @@
         return findPath(s, Math.floor(g.x / T), Math.floor(g.y / T), mark.tx, mark.ty);
     }
 
-    // Also used after the player is caught: guards go back to their posts so
-    // the respawn point is not camped.
     function resetGuard(s, g) {
         g.x = cx(g.pts[0].tx); g.y = cy(g.pts[0].ty);
         g.wp = 1; g.mode = 'patrol'; g.timer = 0; g.sees = false;
@@ -392,10 +430,10 @@
     function init(level) {
         var def = LEVELS[level - 1], rnd = G.rng(level * 7919);
         var s = {
-            def: def, map: def.map, level: level, start: { x: cx(1), y: cy(1) }, exit: { x: cx(30), y: cy(16) },
+            def: def, map: def.map, level: level, start: null, exit: null,      // every map has an S and an X
             drives: [], cells: [], plates: [], cams: [], lasers: [], drones: [], guards: [], lights: [], marks: {}, rings: [],
             det: 0, rate: 0, seen: false, time: def.time, clock: 0, emp: def.emp, empFx: 0, safe: 0, got: 0, open: false,
-            alarmT: 0, stepT: 0, zapT: 0, player: null
+            alarmT: 0, stepT: 0, player: null
         };
         for (var ty = 1; ty <= ROWS; ty++) {
             for (var tx = 0; tx < COLS; tx++) placeTile(s, tileAt(s, tx, ty), tx, ty, rnd);
@@ -455,7 +493,7 @@
         var sp = (p.run ? SPRINT : WALK) / (ix && iy ? Math.SQRT2 : 1), k = Math.min(1, (p.run ? 7 : 14) * dt);
         p.vx += (ix * sp - p.vx) * k;
         p.vy += (iy * sp - p.vy) * k;
-        G.tileMove(p, dt, T, function (tx, ty) { return solid(s, tx, ty); });
+        G.tileMove(p, dt, T, function (tx, ty) { return blocked(s, tx, ty); });
         p.cx = p.x + BODY / 2; p.cy = p.y + BODY / 2;
         if (moving) p.face = Math.atan2(iy, ix);
         footsteps(s, dt, moving);
@@ -471,7 +509,7 @@
         if (s.emp <= 0) { G.tone(140, 0.09, { vol: 0.1, slide: 100 }); return; }
         var p = s.player, hit = 0;
         s.emp--; s.empFx = 0.6;
-        [s.cams, s.lasers, s.drones, s.lights].forEach(function (list) {
+        [s.cams, s.lasers, s.drones, s.lights, s.plates].forEach(function (list) {
             list.forEach(function (o) { if (empReaches(p, o)) { o.off = EMP_TIME; hit++; } });
         });
         G.noise(0.5, { freq: 3000, slide: 120, vol: 0.3 });
@@ -513,6 +551,33 @@
     // than at the edge of a cone.
     function nearness(o, p, range) { return 1.5 - G.dist(o.x, o.y, p.cx, p.cy) / range; }
 
+    // The *Sees / *Hits tests below say whether a device would notice someone
+    // standing at (x, y) right now. They are the only detection rules: the
+    // update functions ask them about the player and nothing else.
+    function camSees(s, c, x, y) { return c.off <= 0 && canSee(s, c, CAM, x, y); }
+
+    function guardSees(s, g, x, y) { return canSee(s, g, GUARD, x, y); }
+
+    // Walls hide the player from a drone just as they do from a camera.
+    function droneSees(s, d, x, y) {
+        return d.off <= 0 && G.dist(d.x, d.y, x, y) < DRONE_R && clear(s, d.x, d.y, x, y);
+    }
+
+    // Searchlights shine down from the ceiling: walls give no cover.
+    function lightSees(l, x, y) { return l.off <= 0 && G.dist(l.x, l.y, x, y) < LIGHT_R; }
+
+    function beamHits(s, l, x, y) {
+        if (!laserLive(s, l)) return false;
+        var at = G.closestOnSeg(x, y, l.x1, l.y1, l.x2, l.y2);
+        return G.dist(x, y, at.x, at.y) <= BEAM_R;
+    }
+
+    // The live plate under (x, y), if any.
+    function plateAt(s, x, y) {
+        var tx = Math.floor(x / T), ty = Math.floor(y / T);
+        return s.plates.filter(function (pl) { return pl.off <= 0 && pl.tx === tx && pl.ty === ty; })[0] || null;
+    }
+
     function updateCams(s, dt) {
         var p = s.player;
         s.cams.forEach(function (c) {
@@ -520,7 +585,7 @@
             if (c.off > 0) return;
             c.t += dt;
             c.ang = camAngle(s, c);
-            c.sees = s.safe <= 0 && canSee(s, c, CAM.fov, CAM.range, p.cx, p.cy);
+            c.sees = s.safe <= 0 && camSees(s, c, p.cx, p.cy);
             if (c.sees) s.rate += CAM.rate * nearness(c, p, CAM.range);
         });
     }
@@ -560,19 +625,20 @@
         g.path = pathTo(s, g, g.pts[g.wp]);
     }
 
+    // The guard moves first and looks second, so it sees from where it is
+    // drawn this frame.
     function updateGuard(s, g, dt) {
         var p = s.player;
         g.repath -= dt;
-        g.sees = s.safe <= 0 && canSee(s, g, GUARD.fov, GUARD.range, p.cx, p.cy);
-        if (g.sees) {
-            s.rate += GUARD.rate * nearness(g, p, GUARD.range);
-            investigate(s, g, p.cx, p.cy);
-            g.ang = turn(g.ang, Math.atan2(p.cy - g.y, p.cx - g.x), 6 * dt);
-            if (G.dist(g.x, g.y, p.cx, p.cy) < 18) s.det = 1;      // grabbed
-        }
         if (g.mode === 'look') lookAround(s, g, dt);
         else if (!g.path.length) guardArrived(s, g);
         else walkGuard(s, g, dt);
+        g.sees = s.safe <= 0 && guardSees(s, g, p.cx, p.cy);
+        if (!g.sees) return;
+        s.rate += GUARD.rate * nearness(g, p, GUARD.range);
+        investigate(s, g, p.cx, p.cy);
+        g.ang = turn(g.ang, Math.atan2(p.cy - g.y, p.cx - g.x), 6 * dt);
+        if (G.dist(g.x, g.y, p.cx, p.cy) < 18) s.det = 1;      // grabbed
     }
 
     // Moves o straight towards a point; true once it is there.
@@ -583,8 +649,9 @@
         return false;
     }
 
-    // Drones fly over walls. At rest they circle their home; on patrol
-    // levels the home hops along the list of drone points.
+    // Drones fly over walls but cannot see through them. At rest they
+    // circle their home; on patrol levels the home hops along the list of
+    // drone points.
     function updateDrone(s, d, dt) {
         var p = s.player, x = d.tx, y = d.ty;
         d.sees = false;
@@ -597,33 +664,38 @@
         var there = glide(d, x, y, 95 * dt);
         if (d.mode === 'seek' && there) { d.mode = 'scan'; d.timer = 3; }
         else if (d.mode === 'scan' && (d.timer -= dt) <= 0) d.mode = 'idle';
-        d.sees = s.safe <= 0 && G.dist(d.x, d.y, p.cx, p.cy) < DRONE_R && clear(s, d.x, d.y, p.cx, p.cy);
+        d.sees = s.safe <= 0 && droneSees(s, d, p.cx, p.cy);
         if (d.sees) s.rate += 1.3;
     }
 
+    // Tripwires blink; the dark gap shrinks a little on later levels.
+    // Travelling beams never go dark.
     function laserLive(s, l) {
         if (l.off > 0) return false;
-        var on = 1.6, cycle = 3.1 - s.level * 0.04;       // the dark gap shrinks on later levels
+        var on = 1.5, cycle = on + 1.7 - s.level * 0.03;
         return !!l.move || (s.clock + l.phase) % cycle < on;
+    }
+
+    // Beams and plates are hard alarms: touching one is a catch at once.
+    function trip(s, x, y) {
+        s.det = 1;
+        G.tone(1900, 0.12, { type: 'sawtooth', slide: 700, vol: 0.14 });
+        G.tone(95, 0.2, { type: 'square', vol: 0.2 });
+        G.burst(x, y, { n: 8, color: RED, speed: 140, life: 0.3, size: 2 });
+    }
+
+    function moveBeam(l, dt) {
+        var m = l.move, pos = l[m.key + '1'] + m.v * dt;
+        if (pos > m.max) { pos = m.max; m.v = -Math.abs(m.v); }
+        if (pos < m.min) { pos = m.min; m.v = Math.abs(m.v); }
+        l[m.key + '1'] = l[m.key + '2'] = pos;
     }
 
     function updateLasers(s, dt) {
         var p = s.player;
         s.lasers.forEach(function (l) {
-            var m = l.move;
-            if (m && l.off <= 0) {
-                var pos = l[m.key + '1'] + m.v * dt;
-                if (pos > m.max) { pos = m.max; m.v = -Math.abs(m.v); }
-                if (pos < m.min) { pos = m.min; m.v = Math.abs(m.v); }
-                l[m.key + '1'] = l[m.key + '2'] = pos;
-            }
-            var at = G.closestOnSeg(p.cx, p.cy, l.x1, l.y1, l.x2, l.y2);
-            if (s.safe > 0 || !laserLive(s, l) || G.dist(p.cx, p.cy, at.x, at.y) > 8) return;
-            s.rate += 3.2;
-            if (s.zapT > 0) return;
-            s.zapT = 0.12;
-            G.tone(1900, 0.1, { type: 'sawtooth', slide: 700, vol: 0.12 });
-            G.burst(at.x, at.y, { n: 4, color: RED, speed: 120, life: 0.25, size: 2 });
+            if (l.move && l.off <= 0) moveBeam(l, dt);
+            if (s.safe <= 0 && beamHits(s, l, p.cx, p.cy)) trip(s, p.cx, p.cy);
         });
     }
 
@@ -635,28 +707,31 @@
             l[l.key] += l.v * dt;
             if (l[l.key] > l.max) { l[l.key] = l.max; l.v = -Math.abs(l.v); }
             if (l[l.key] < l.min) { l[l.key] = l.min; l.v = Math.abs(l.v); }
-            l.sees = s.safe <= 0 && G.dist(l.x, l.y, p.cx, p.cy) < LIGHT_R;
+            l.sees = s.safe <= 0 && lightSees(l, p.cx, p.cy);
             if (l.sees) s.rate += 1.1;
         });
     }
 
-    function updatePlates(s, dt) {
-        var p = s.player, tx = Math.floor(p.cx / T), ty = Math.floor(p.cy / T);
-        s.plates.forEach(function (pl) {
-            if (pl.cool > 0) { pl.cool -= dt; return; }
-            if (pl.tx !== tx || pl.ty !== ty || s.safe > 0) return;
-            pl.cool = 2.5;
-            s.det += 0.2;
-            emitNoise(s, p.cx, p.cy, 380);
-            G.tone(95, 0.2, { type: 'square', vol: 0.2 });
-            G.tone(760, 0.3, { type: 'square', vol: 0.12, delay: 0.08 });
-            G.shake(3, 0.15);
-        });
+    function updatePlates(s) {
+        var p = s.player;
+        if (s.safe > 0 || !plateAt(s, p.cx, p.cy)) return;
+        trip(s, p.cx, p.cy);
+        G.shake(3, 0.15);
     }
 
     // ------------------------------------------------------------------
     // Detection, timers and the main update
     // ------------------------------------------------------------------
+
+    // A catch throws the player back to the entrance empty-handed: drives
+    // and EMP cells return to their places, the charges are what the level
+    // started with, and the trace jumps ahead. Stealth is the only way to
+    // make progress; lives merely allow another attempt on the same trace.
+    function returnLoot(s) {
+        s.drives.concat(s.cells).forEach(function (o) { o.got = false; });
+        s.got = 0; s.open = false; s.emp = s.def.emp;
+        s.time -= CATCH_COST;
+    }
 
     function caught(s) {
         var p = s.player;
@@ -665,15 +740,20 @@
         G.tone(880, 0.5, { type: 'sawtooth', slide: 220, vol: 0.2 });
         G.noise(0.4, { freq: 1500, slide: 200, vol: 0.2 });
         if (G.loseLife() <= 0) return;
-        // Collected drives stay collected; only the position is lost.
         placePlayer(s);
+        returnLoot(s);
+        G.popup(p.cx, p.cy - 16, 'CAUGHT  TRACE -' + CATCH_COST, RED);
         s.det = 0; s.safe = 2.5; s.rings = [];
+        // Guards go back to their posts so the entrance is not camped.
         s.guards.forEach(function (g) { resetGuard(s, g); });
         s.drones.forEach(function (d) { d.mode = 'idle'; });
     }
 
     function updateMeter(s, dt) {
         s.seen = s.rate > 0;
+        // A tripped beam or plate has already filled the meter: it must not
+        // drain again before update() acts on it.
+        if (s.det >= 1) return;
         if (!s.seen) { s.det = Math.max(0, s.det - 0.3 * dt); return; }
         s.det += s.rate * dt;
         // The alarm beeps faster and higher as the meter fills.
@@ -686,8 +766,8 @@
     function tickTimers(s, dt) {
         var before = Math.ceil(s.time);
         s.clock += dt; s.time -= dt;
-        ['alarmT', 'zapT', 'empFx', 'safe'].forEach(function (k) { if (s[k] > 0) s[k] -= dt; });
-        [s.cams, s.lasers, s.drones, s.lights].forEach(function (list) {
+        ['alarmT', 'empFx', 'safe'].forEach(function (k) { if (s[k] > 0) s[k] -= dt; });
+        [s.cams, s.lasers, s.drones, s.lights, s.plates].forEach(function (list) {
             list.forEach(function (o) { if (o.off > 0) o.off -= dt; });
         });
         s.rings = s.rings.filter(function (r) { return (r.life -= dt) > 0; });
@@ -695,10 +775,13 @@
         if (s.time < 15 && Math.ceil(s.time) !== before) G.tone(1000, 0.05, { type: 'sine', vol: 0.14 });
     }
 
+    // A finished trace ends the run whatever lives are left: lives pay for
+    // catches, nothing pays for time. The engine only takes lives one at a
+    // time, hence the loop (bounded, in case it ever refuses).
     function traceComplete() {
         G.flash(RED, 0.4);
         G.tone(300, 0.7, { type: 'sawtooth', slide: 80, vol: 0.22 });
-        G.die();
+        for (var i = 0; i < 9 && G.loseLife() > 0; i++);
     }
 
     function update(s, dt) {
@@ -714,7 +797,7 @@
         s.drones.forEach(function (d) { updateDrone(s, d, dt); });
         updateLasers(s, dt);
         updateLights(s, dt);
-        updatePlates(s, dt);
+        updatePlates(s);
         updateMeter(s, dt);
         if (s.det >= 1) { caught(s); return; }
         if (s.open && G.dist(p.cx, p.cy, s.exit.x, s.exit.y) < 15) G.win(200 + Math.ceil(s.time) * 5 + G.lives * 150);
@@ -747,21 +830,23 @@
         ctx.stroke();
     }
 
-    function rayLen(s, x, y, a, range) {
-        var dx = Math.cos(a), dy = Math.sin(a);
-        for (var d = 6; d < range; d += 6) if (solidAt(s, x + dx * d, y + dy * d)) return d;
-        return range;
+    // Traces the outline of what can be seen from o between two angles: a
+    // fan of rays, each ending exactly where castRay (the detection test)
+    // meets a wall. Between two neighbouring rays the outline is a straight
+    // line, so at a wall's shadow edge it can be off by the gap between
+    // them: about 3 px at the far end of a camera cone, less nearer in.
+    function sightPath(s, ctx, o, from, to, range) {
+        var n = Math.ceil((to - from) / RAY_STEP);
+        for (var i = 0; i <= n; i++) {
+            var a = from + (to - from) * i / n, dx = Math.cos(a), dy = Math.sin(a), d = castRay(s, o.x, o.y, dx, dy, range);
+            ctx.lineTo(o.x + dx * d, o.y + dy * d);
+        }
     }
 
-    // The cone is a fan of rays, each cut short where it meets a wall, so
-    // the picture shows exactly the area that can be seen.
-    function drawCone(s, ctx, o, fov, range, hot) {
+    function drawCone(s, ctx, o, kind, hot) {
         ctx.beginPath();
         ctx.moveTo(o.x, o.y);
-        for (var i = 0; i <= RAYS; i++) {
-            var a = o.ang - fov / 2 + fov * i / RAYS, d = rayLen(s, o.x, o.y, a, range);
-            ctx.lineTo(o.x + Math.cos(a) * d, o.y + Math.sin(a) * d);
-        }
+        sightPath(s, ctx, o, o.ang - kind.fov / 2, o.ang + kind.fov / 2, kind.range);
         ctx.closePath();
         ctx.fillStyle = hot ? 'rgba(255,77,92,0.30)' : 'rgba(99,243,168,0.14)';
         ctx.fill();
@@ -770,16 +855,18 @@
         ctx.stroke();
     }
 
+    // A live plate is a red-rimmed pad; a dead one is grey and counts down.
     function drawPlates(s, ctx) {
         s.plates.forEach(function (pl) {
-            var x = pl.tx * T, y = pl.ty * T, hot = pl.cool > 0;
-            ctx.strokeStyle = hot ? RED : GREY;
+            var x = pl.tx * T, y = pl.ty * T, c = pl.off > 0 ? GREY : RED;
+            ctx.strokeStyle = c;
             ctx.lineWidth = 1;
             ctx.strokeRect(x + 4.5, y + 4.5, T - 9, T - 9);
-            ctx.globalAlpha = hot ? 0.5 : 0.18 + 0.08 * Math.sin(G.t * 3 + pl.tx);
-            ctx.fillStyle = hot ? RED : GREY;
+            ctx.globalAlpha = pl.off > 0 ? 0.12 : 0.3 + 0.15 * Math.sin(G.t * 3 + pl.tx);
+            ctx.fillStyle = c;
             ctx.fillRect(x + 8, y + 8, T - 16, T - 16);
             ctx.globalAlpha = 1;
+            if (pl.off > 0) G.text(Math.ceil(pl.off) + 's', pl.x, pl.y + 4, { size: 10, color: GREY, align: 'center' });
         });
     }
 
@@ -847,7 +934,7 @@
 
     function drawCams(s, ctx) {
         s.cams.forEach(function (c) {
-            if (c.off <= 0) drawCone(s, ctx, c, CAM.fov, CAM.range, c.sees);
+            if (c.off <= 0) drawCone(s, ctx, c, CAM, c.sees);
             ctx.save();
             ctx.translate(c.x, c.y);
             ctx.rotate(c.ang);
@@ -862,7 +949,11 @@
 
     function drawGuards(s, ctx) {
         s.guards.forEach(function (g) {
-            drawCone(s, ctx, g, GUARD.fov, GUARD.range, g.sees);
+            drawCone(s, ctx, g, GUARD, g.sees);
+            // The ring is the distance at which a guard notices someone behind it.
+            ctx.strokeStyle = g.sees ? RED : 'rgba(99,243,168,0.4)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(g.x, g.y, GUARD.feel, 0, Math.PI * 2); ctx.stroke();
             ctx.fillStyle = g.sees ? RED : PHOS;
             ctx.beginPath(); ctx.arc(g.x, g.y, 9, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = BG;
@@ -880,7 +971,8 @@
             ctx.globalAlpha = d.off > 0 ? 0.3 : 0.7;
             ctx.setLineDash([4, 4]);
             ctx.lineDashOffset = -d.spin * 20;
-            ctx.beginPath(); ctx.arc(d.x, d.y, DRONE_R, 0, Math.PI * 2); ctx.stroke();
+            // The ring is cut off by walls exactly as the drone's sight is.
+            ctx.beginPath(); sightPath(s, ctx, d, 0, Math.PI * 2, DRONE_R); ctx.stroke();
             ctx.setLineDash([]);
             ctx.globalAlpha = 1;
             ctx.save();
@@ -948,6 +1040,13 @@
         ctx.globalAlpha = 1;
     }
 
+    // Each level that brings a new rule says so in the top wall for its
+    // first seconds (and on the level-select preview, where the clock is 0).
+    function drawTip(s) {
+        if (!s.def.tip || s.clock >= TIP_TIME) return;
+        G.text(s.def.tip, G.W / 2, G.HUD + 20, { size: 13, color: s.clock > TIP_TIME - 1 ? GREY : PHOS, align: 'center', bold: true, max: G.W - 40 });
+    }
+
     function draw(s, ctx) {
         // Drone rings and searchlights near the top wall must not spill
         // into the engine's HUD strip.
@@ -966,6 +1065,7 @@
         drawPlayer(s, ctx);
         drawRings(s, ctx);
         drawConsole(s, ctx);
+        drawTip(s);
     }
 
     function hud(s) {
@@ -977,9 +1077,9 @@
         blurb: 'Steal every data drive and reach the exit without being seen.',
         controls: [
             '← ↑ ↓ → sneak · hold X to sprint (loud: guards and drones come looking)',
-            'SPACE EMP pulse: blinds cameras, beams, drones and searchlights nearby',
-            'Walls block every cone · a full detection meter costs a life',
-            'Beat the trace timer · pressure plates and red beams raise the alarm'
+            'SPACE EMP pulse: switches off cameras, beams, plates, drones and searchlights nearby',
+            'Walls block cones and drone rings, not searchlights · live beams and plates catch at once',
+            'Caught: a life, every drive and 20s of trace are gone · trace complete: game over'
         ],
         levelNames: ['Orientation', 'Night Shift', 'Tripwire', 'Pressure', 'Hive', 'Server Farm', 'The Vault', 'Sweep', 'Panopticon', 'Searchlight Grid'],
         colors: { bg: BG, fg: PHOS, accent: GREEN, dim: GREY },
