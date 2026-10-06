@@ -30,23 +30,23 @@
     var LEVELS = [
         { goal: 'bumper', need: 12, target: 1500, brief: ['Wake the table up:', 'ring the pop bumpers.'],
             bumpers: [[416, 170], [516, 170], [466, 236]] },
-        { goal: 'lane', need: 3, target: 2000, brief: ['Light all three top lanes.', 'Flippers shift the lights.'],
-            lanes: true, bumpers: [[400, 205], [532, 205]] },
-        { goal: 'target', need: 6, target: 3000, brief: ['Knock down both banks', 'of drop targets.'],
+        { goal: 'lane', need: 3, target: 2000, brief: ['Flip the ball up the top', 'lanes and light all three.'],
+            lanes: true, bumpers: [[366, 235], [566, 235]] },
+        { goal: 'target', need: 6, target: 3600, brief: ['Knock down both banks', 'of drop targets.'],
             banks: true, bumpers: [[466, 175]] },
-        { goal: 'spin', need: 30, target: 3500, brief: ['Crank the dynamo: shoot', 'through the spinner.'],
+        { goal: 'spin', need: 27, target: 4000, brief: ['Crank the dynamo: shoot', 'through the spinner.'],
             spinner: [466, 150], lanes: true, bumpers: [[384, 225], [548, 225]] },
-        { goal: 'lock', need: 2, target: 9000, brief: ['Lock two balls in the', 'saucers for multiball.'],
+        { goal: 'lock', need: 2, target: 15000, brief: ['Lock two balls in the', 'saucers for multiball.'],
             saucers: [[317, 170], [615, 170]], locks: true, bumpers: [[430, 205], [502, 205]] },
-        { goal: 'rover', need: 9, target: 4500, brief: ['Chase the Rover: hit the', 'bumper that will not sit still.'],
+        { goal: 'rover', need: 8, target: 4500, brief: ['Chase the Rover: hit the', 'bumper that will not sit still.'],
             rover: 190, centre: [118, 3], bumpers: [[362, 265], [570, 265]] },
-        { goal: 'zap', need: 5, target: 5000, brief: ['Feed the coils: let a live', 'magnet catch the ball.'],
+        { goal: 'zap', need: 3, target: 4200, brief: ['Feed the coils: flip the ball', 'into a live magnet.'],
             magnets: [[400, 255], [532, 255]], lanes: true, bumpers: [[466, 165]] },
-        { goal: 'hot', need: 8, target: 6000, brief: ['Only the flashing targets', 'are live. Hit those.'],
+        { goal: 'hot', need: 8, target: 5500, brief: ['Only the flashing targets', 'are live. Hit those.'],
             hot: true, spinner: [466, 160], bumpers: [[420, 228], [512, 228]] },
-        { goal: 'saucer', need: 4, target: 4000, brief: ['Blackout! Each saucer is a', 'fuse: every one widens the light.'],
+        { goal: 'saucer', need: 5, target: 5500, brief: ['Blackout! Each saucer is a', 'fuse: every one widens the light.'],
             dark: true, saucers: [[317, 170], [615, 170], [466, 125]], bumpers: [[416, 228], [516, 228]] },
-        { goal: 'wizard', need: 20, target: 14000, brief: ['Drop the targets, lock two', 'balls, then cash in jackpots.'],
+        { goal: 'wizard', need: 20, target: 15500, brief: ['Drop targets, lock two balls, then', 'ring bumpers during multiball.'],
             banks: true, saucers: [[317, 170], [615, 170]], locks: true, rover: 135, magnets: [[466, 305]],
             bumpers: [[400, 222], [532, 222]] }
     ];
@@ -128,7 +128,9 @@
         seg(s, m(XL), TOP + 60, m(XL), 288);
         seg(s, m(XL), 288, m(XL + 26), 322, { e: 0.3 });
         seg(s, m(XL + 26), 322, m(XL), 332);
-        seg(s, m(XL), 332, m(XL), G.H + 30);
+        // The wall runs on behind the bump: on the right that pocket would
+        // otherwise be open to the plunger lane.
+        seg(s, m(XL), 288, m(XL), G.H + 30);
         seg(s, m(XL + 24), 398, m(XL + 24), 420);
         seg(s, m(XL + 24), 420, m(CX - FLIP.dx - 2), FLIP.y - 6, { e: 0.2 });
         addSling(s, m);
@@ -201,7 +203,7 @@
     // Puts a ball on the plunger. An automatic serve launches itself; a
     // manual one arms the ball saver for when it leaves the lane.
     function serve(s, auto) {
-        s.balls.push({ x: LANE_X, y: PLUNGER_Y - BALL_R, vx: 0, vy: 0, nx: 0, ny: -1, inLane: true, held: false, locked: false, lane: -1, still: 0 });
+        s.balls.push({ x: LANE_X, y: PLUNGER_Y - BALL_R, vx: 0, vy: 0, nx: 0, ny: -1, inLane: true, held: false, locked: false, shot: false, lane: -1, still: 0 });
         s.autoT = auto ? 0.7 : 0;
         s.saveArmed = !auto;
     }
@@ -277,7 +279,14 @@
         return { label: 'JACKPOTS', done: s.done - 8, need: s.need - 8 };
     }
 
+    // Jackpots only count during multiball: once it has ended early the
+    // way back is to lock two balls again, so that is what is shown.
+    function mustRelock(s) {
+        return s.cfg.goal === 'wizard' && s.done >= 8 && s.done < s.need && !s.multiball;
+    }
+
     function goalText(s) {
+        if (mustRelock(s)) return 'RE-LOCK 2 BALLS ' + s.locked + '/2';
         var v = goalView(s);
         return v.label + ' ' + v.done + '/' + v.need;
     }
@@ -339,7 +348,10 @@
         var tx = f.px + Math.cos(f.a) * FLIP.len, ty = f.py + Math.sin(f.a) * FLIP.len;
         if (Math.abs(b.x - f.px) > FLIP.len + 20 || Math.abs(b.y - f.py) > FLIP.len + 20) return;
         var c = G.closestOnSeg(b.x, b.y, f.px, f.py, tx, ty);
-        bounce(b, c.x, c.y, BALL_R + FLIP.r, 0.3, -f.av * (c.y - f.py), f.av * (c.x - f.px));
+        var hit = bounce(b, c.x, c.y, BALL_R + FLIP.r, 0.3, -f.av * (c.y - f.py), f.av * (c.x - f.px));
+        // Only a ball struck by a rising flipper is a shot the player made;
+        // lanes and magnets count nothing else toward a mission.
+        if (hit > 0 && f.av * (f.up - f.rest) > 0) b.shot = true;
     }
 
     function popBumper(s, bp) {
@@ -413,7 +425,9 @@
     function crossSpinner(s, b, py) {
         var sp = s.spinner;
         if (!sp || Math.abs(b.x - sp.x) > sp.hw || (py - sp.y) * (b.y - sp.y) > 0) return;
-        sp.vel = G.clamp(b.vy * 0.1, -60, 60);
+        // A slow ball dribbling back must not brake a fast spin.
+        var v = G.clamp(b.vy * 0.1, -60, 60);
+        if (Math.abs(v) > Math.abs(sp.vel)) sp.vel = v;
         b.vy *= 0.9;
     }
 
@@ -430,9 +444,11 @@
     }
 
     // Equal masses: two free balls swap their velocities along the line
-    // between them. A ball held in a saucer acts as a fixed post.
+    // between them. A ball about to be kicked out of a saucer acts as a fixed
+    // post; a locked one sits down in its hole and is rolled over, or a ball
+    // coming down the wall beside it would wedge on it.
     function collidePair(a, b) {
-        if (a.held && b.held) return;
+        if (a.locked || b.locked || (a.held && b.held)) return;
         if (a.held) { bounce(b, a.x, a.y, BALL_R * 2, 0.5, 0, 0); return; }
         if (b.held) { bounce(a, b.x, b.y, BALL_R * 2, 0.5, 0, 0); return; }
         var dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
@@ -463,12 +479,18 @@
         s.save = 12 - s.level * 0.8;
     }
 
+    // MAX_V is a hard limit: it is what the sub-step count is sized for, so
+    // it is enforced before the move and again after the kicks of this step.
+    function limitSpeed(b) {
+        var sp = Math.hypot(b.vx, b.vy);
+        if (sp > MAX_V) { b.vx *= MAX_V / sp; b.vy *= MAX_V / sp; }
+    }
+
     function stepBall(s, b, h) {
         var py = b.y;
         b.vy += GRAV * h;
         pullMagnets(s, b, h);
-        var sp = Math.hypot(b.vx, b.vy);
-        if (sp > MAX_V) { b.vx *= MAX_V / sp; b.vy *= MAX_V / sp; }
+        limitSpeed(b);
         b.x += b.vx * h; b.y += b.vy * h;
         hitWalls(s, b);
         hitFlipper(b, s.flippers[0]);
@@ -476,7 +498,11 @@
         hitBumpers(s, b);
         hitTargets(s, b);
         crossSpinner(s, b, py);
-        if (b.inLane && b.x < XR - BALL_R - 1) leaveLane(s, b);
+        limitSpeed(b);
+        // Whatever is right of the lane wall is in the lane, however it got
+        // there, so the plunger will always serve it again.
+        if (b.x > XR) b.inLane = true;
+        else if (b.inLane && b.x < XR - BALL_R - 1) leaveLane(s, b);
     }
 
     function substep(s, h) {
@@ -526,7 +552,8 @@
     }
 
     // A nudge shoves every ball in play. The tilt meter drains slowly, so
-    // three nudges in quick succession kill the flippers for this ball.
+    // the thresholds sit a little under 2 and 3: the second nudge in quick
+    // succession warns, the third kills the flippers for this ball.
     function nudge(s) {
         s.nudgeT = 0.3; s.tilt += 1;
         G.shake(5, 0.15);
@@ -535,8 +562,8 @@
             if (b.held || b.inLane) return;
             b.vy -= 150; b.vx += G.rnd(-110, 110);
         });
-        if (s.tilt < 2) return;
-        if (s.tilt < 3) { say(s, 'DANGER'); G.sfx('alarm'); return; }
+        if (s.tilt < 1.5) return;
+        if (s.tilt < 2.3) { say(s, 'DANGER'); G.sfx('alarm'); return; }
         s.tilted = true; s.save = 0;
         say(s, 'TILT');
         SND.tilt();
@@ -575,8 +602,11 @@
         });
     }
 
-    function rollLane(s, l) {
-        if (l.lit) { score(s, 20); SND.tick(900); return; }
+    // A lane lights only for a ball the player has flipped: the plunge drops
+    // every ball through the lanes, and that alone must not do the mission.
+    function rollLane(s, l, b) {
+        if (!l.lit && !b.shot && s.cfg.goal === 'lane') say(s, 'FLIP IT UP TO LIGHT A LANE');
+        if (l.lit || !b.shot) { score(s, 20); SND.tick(900); return; }
         l.lit = true;
         score(s, 150, l.x, 120);
         SND.chime(660);
@@ -594,7 +624,7 @@
         s.balls.forEach(function (b) {
             var idx = -1;
             if (b.y > 60 && b.y < 98) s.lanes.forEach(function (l, i) { if (Math.abs(b.x - l.x) < 19) idx = i; });
-            if (idx >= 0 && b.lane !== idx) rollLane(s, s.lanes[idx]);
+            if (idx >= 0 && b.lane !== idx) rollLane(s, s.lanes[idx], b);
             b.lane = idx;
         });
     }
@@ -634,6 +664,7 @@
     function endMultiball(s) {
         s.multiball = false;
         s.lockLit = !!s.cfg.locks && (s.cfg.goal !== 'wizard' || s.done >= 6);
+        if (mustRelock(s)) say(s, 'RE-LOCK 2 BALLS');
     }
 
     function capture(s, sc, b) {
@@ -684,7 +715,11 @@
         score(s, 300, mg.x, mg.y - 20);
         SND.zap();
         G.burst(mg.x, mg.y, { n: 16, color: COL.cyan, speed: 260, life: 0.45 });
-        progress(s, 'zap');
+        // Magnets catch plenty of balls on their own, so the mission only
+        // counts a ball the player has flipped since its last zap.
+        if (b.shot) progress(s, 'zap');
+        else if (s.cfg.goal === 'zap' && s.done < s.need) say(s, 'FLIP IT IN TO COUNT');
+        b.shot = false;
     }
 
     // Magnets take turns: each is live for 2.8 of every 5 seconds.
@@ -725,13 +760,18 @@
         if (G.loseLife() > 0) { serve(s, false); say(s, 'NEXT BALL'); }
     }
 
+    function cradled(s, b) {
+        return s.flippers.some(function (f) {
+            return Math.abs(f.a - f.rest) > 0.1 && G.dist(b.x, b.y, f.px, f.py) < FLIP.len + 24;
+        });
+    }
+
     // Ball search: a ball lying dead on the table is kicked loose, unless
-    // the player is cradling it on a raised flipper on purpose.
+    // it is that ball the player is cradling on a raised flipper.
     function searchStuck(s, dt) {
-        var cradling = !s.tilted && (G.key.left || G.key.right);
         s.balls.forEach(function (b) {
             var dead = !b.held && !b.inLane && Math.abs(b.vx) + Math.abs(b.vy) < 25;
-            b.still = dead && !cradling ? b.still + dt : 0;
+            b.still = dead && !cradled(s, b) ? b.still + dt : 0;
             if (b.still < 2.5) return;
             b.still = 0;
             b.vx = G.rnd(-160, 160); b.vy = -320;
@@ -1080,7 +1120,7 @@
         controls: [
             '← → flippers (they also shift the top-lane lights)',
             'SPACE: hold to charge the plunger, release to serve',
-            '↓ nudge the table — three in a row and it tilts'
+            '↓ nudge the table — three in quick succession and it tilts'
         ],
         levelNames: ['First Spark', 'Lane Change', 'Drop Zone', 'Dynamo', 'Lock & Load', 'Rover', 'Magneto', 'Hot Wire', 'Blackout', 'Overload'],
         colors: { bg: COL.cabinet, fg: COL.ink, accent: COL.yellow, dim: COL.muted },
