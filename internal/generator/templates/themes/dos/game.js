@@ -11,11 +11,15 @@
  * Everything lives on a 20x10 grid of 48 px cells. Movers travel from cell
  * centre to cell centre at a speed in cells per second, so the grid stays
  * exact while motion is still integrated with dt.
+ *
+ * The field starts right under the engine's HUD strip, which leaves a 30 px
+ * prompt line at the bottom: tall enough for 20 px text, the smallest that
+ * is still readable on a phone.
  */
 (function () {
     'use strict';
     var G = window.SnoGame;
-    var T = 48, COLS = 20, ROWS = 10, OY = 40, BAR_Y = OY + ROWS * T;
+    var T = 48, COLS = 20, ROWS = 10, OY = G.HUD, BAR_Y = OY + ROWS * T;
     // CGA palette 1, high intensity: the only four colours on screen.
     var BLACK = '#000000', CYAN = '#55ffff', MAGENTA = '#ff55ff', WHITE = '#ffffff';
     var DIRS = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
@@ -25,7 +29,7 @@
     var NESTS = [{ c: 19, r: 0 }, { c: 0, r: 0 }];
     var RUN_SPEED = 4.8, DIG_SPEED = 3.4, SHOT_SPEED = 13;      // cells per second
     var BAG_G = 34, BAG_VMAX = 12;                              // cells per second (squared)
-    var REFILL_AGE = 8, FAR = 999;
+    var REFILL_AGE = 8, LOST_AGE = 3, FAR = 999;
     var GEM_NOTES = [523, 587, 659, 698, 784, 880, 988, 1047];  // a rising scale for emerald streaks
 
     function abs(v) { return Math.abs(v); }
@@ -35,19 +39,19 @@
     // always found. `kinds` is the spawn order: n nobbin, h hobbin, g ghost.
     var LEVELS = [
         { tunnels: [[19, 0, 10, 0], [10, 0, 10, 9]], bags: 3, rocks: 0, max: 1, spawn: 5, kinds: 'n', nests: 1,
-            gems: function (c, r) { return (c >= 2 && c <= 7 && r >= 2 && r <= 4) || (c >= 12 && c <= 17 && r >= 5 && r <= 7) || (c >= 3 && c <= 7 && r === 7); } },
+            gems: function (c, r) { return (c >= 2 && c <= 7 && r >= 2 && r <= 4) || (c >= 12 && c <= 17 && r >= 5 && r <= 7) || (c >= 3 && c <= 7 && r >= 7 && r <= 8); } },
         { tunnels: [[19, 0, 19, 4], [19, 4, 4, 4], [4, 4, 4, 9], [4, 9, 10, 9]], bags: 5, rocks: 0, max: 2, spawn: 5, kinds: 'n', nests: 1,
-            gems: function (c, r) { return (r === 1 || r === 7) && c >= 1 && c <= 18; } },
+            gems: function (c, r) { return (r === 1 || r === 6 || r === 8) && c >= 1 && c <= 18; } },
         { tunnels: [[19, 0, 14, 0], [14, 0, 14, 6], [14, 6, 6, 6], [6, 6, 6, 2], [10, 6, 10, 9]], bags: 5, rocks: 0, max: 2, spawn: 4.5, kinds: 'n', nests: 1, cherry: true,
-            gems: function (c, r) { return abs(c - 3) + abs(r - 4) <= 2 || abs(c - 17) + abs(r - 5) <= 2 || abs(c - 10) + abs(r - 3) <= 2; } },
+            gems: function (c, r) { return abs(c - 3) + abs(r - 4) <= 2 || abs(c - 17) + abs(r - 5) <= 2 || abs(c - 10) + abs(r - 3) <= 2 || abs(c - 4) + abs(r - 8) <= 1 || abs(c - 15) + abs(r - 8) <= 1; } },
         { tunnels: [[19, 0, 19, 2], [19, 2, 0, 2], [10, 2, 10, 9], [3, 2, 3, 7], [16, 2, 16, 7]], bags: 6, rocks: 14, max: 3, spawn: 4.5, kinds: 'n', nests: 1, cherry: true,
-            gems: function (c, r) { return (c + r) % 2 === 0 && r >= 4 && r <= 7; } },
+            gems: function (c, r) { return (c + r) % 2 === 0 && r >= 4 && r <= 8; } },
         { tunnels: [[19, 0, 12, 0], [12, 0, 12, 4], [12, 4, 7, 4], [7, 4, 7, 9], [7, 9, 10, 9]], bags: 6, rocks: 0, max: 3, spawn: 4.5, kinds: 'nnh', nests: 1, cherry: true,
             gems: function (c, r) { return c % 2 === 1 && r >= 2 && r <= 8; } },
         { tunnels: [[19, 0, 19, 8], [19, 8, 1, 8], [10, 8, 10, 9], [1, 8, 1, 1], [1, 1, 16, 1]], bags: 14, stack: true, rocks: 6, max: 3, spawn: 4, kinds: 'nnh', nests: 1, cherry: true,
-            gems: function (c, r) { return (r === 3 || r === 4 || r === 6) && c >= 3 && c <= 17; } },
+            gems: function (c, r) { return ((r === 3 || r === 4 || r === 6) && c >= 3 && c <= 17) || (r === 7 && c >= 6 && c <= 14); } },
         { tunnels: [[0, 0, 19, 0], [10, 0, 10, 9], [4, 0, 4, 5], [15, 0, 15, 5]], bags: 7, rocks: 0, max: 4, spawn: 4, kinds: 'nhn', nests: 2, cherry: true,
-            gems: function (c, r) { return (c + r * 2) % 8 < 2 && r >= 2; } },
+            gems: function (c, r) { return (c + r * 2) % 8 < 3 && r >= 2; } },
         { tunnels: [[19, 0, 19, 3], [19, 3, 13, 3], [13, 3, 13, 6], [13, 6, 7, 6], [7, 6, 7, 9], [7, 9, 10, 9]], bags: 7, rocks: 0, max: 4, spawn: 4, kinds: 'nnh', nests: 1, cherry: true, refill: true,
             gems: function (c, r) { return ((r === 1 || r === 8) && c >= 2 && c <= 17) || ((c === 2 || c === 17) && r >= 2 && r <= 7) || ((r === 4 || r === 5) && c >= 5 && c <= 11); } },
         { tunnels: [[19, 0, 10, 0], [10, 0, 10, 9], [2, 5, 17, 5]], bags: 8, rocks: 8, max: 4, spawn: 4, kinds: 'nhng', nests: 1, cherry: true,
@@ -516,7 +520,7 @@
         if (kind === 'g' && s.enemies.some(function (e) { return e.kind === 'g'; })) kind = 'n';
         var base = kind === 'g' ? 1.4 + s.level * 0.06 : (2.2 + s.level * 0.17) * (kind === 'h' ? 0.9 : 1);
         s.spawned++;
-        s.enemies.push({ kind: kind, c: nest.c, r: nest.r, dc: 0, dr: 0, ldc: 0, ldr: 0, p: 0, base: base, speed: base, born: 0.8, lost: 0, gone: false });
+        s.enemies.push({ kind: kind, c: nest.c, r: nest.r, dc: 0, dr: 0, ldc: 0, ldr: 0, p: 0, base: base, speed: base, born: 0.8, lost: 0, mutant: false, gone: false });
         beep(220, 0.1, 440, 0, 0.08); beep(330, 0.1, 660, 0.1, 0.08);
         if (s.spawned <= cfg.kinds.length) say(s, 'Loading ' + NAMES[kind] + '...');
     }
@@ -531,16 +535,27 @@
         spawnEnemy(s);
     }
 
-    // Where tunnels silt up, a nobbin can lose every route to the digger. It
-    // would idle in its pocket for the rest of the level and still hold a
-    // spawn slot, so after a few seconds it turns hobbin and digs itself out.
+    // A nobbin can lose every route to the digger: tunnels silt up on the
+    // DEFRAG levels, and on any level a bag that drops into a tunnel plugs
+    // it. It would idle for the rest of the level, hold a spawn slot and
+    // leave a digger behind the plug safe for ever, so after a while it
+    // turns hobbin and digs its way through. Where soil does not creep back
+    // the plug is the digger's own doing and buys a longer respite.
     function mutateLost(s, e, dt) {
-        if (!s.cfg.refill || e.kind !== 'n') return;
+        if (e.kind !== 'n') return;
         e.lost = s.dist[idx(e.c, e.r)] >= FAR ? e.lost + dt : 0;
-        if (e.lost < 3) return;
-        e.kind = 'h'; e.base *= 0.9;
+        if (e.lost < (s.cfg.refill ? LOST_AGE : LOST_AGE * 3)) return;
+        e.kind = 'h'; e.base *= 0.9; e.mutant = true;
         beep(180, 0.2, 90, 0, 0.1);
         say(s, 'NOBBIN.EXE mutated: ' + NAMES.h);
+    }
+
+    // The mutation lasts only as long as it is needed: back in a tunnel that
+    // leads to the digger the monster is a nobbin again, so the early levels
+    // never keep a digging enemy.
+    function revertMutant(s, e) {
+        if (!e.mutant || e.kind !== 'h' || s.dist[idx(e.c, e.r)] >= FAR) return;
+        e.kind = 'n'; e.base /= 0.9; e.mutant = false; e.lost = 0;
     }
 
     function touchPlayer(s, e) {
@@ -561,6 +576,7 @@
             // A freshly spawned monster materialises first: harmless and still.
             if (e.born > 0) { e.born -= dt; return; }
             mutateLost(s, e, dt);
+            revertMutant(s, e);
             stepMover(s, e, dt, enemyStart, null);
             touchPlayer(s, e);
         });
@@ -888,20 +904,26 @@
         box(ctx, MAGENTA, sh.x - sh.dc * 18 - 3, sh.y - sh.dr * 18 - 3, 6, 6);
     }
 
+    // The laser's charge as ten cells: stubs while it recharges, full bars
+    // (white once it is ready) as it fills.
+    function drawGauge(s, ctx) {
+        var cells = Math.floor(s.charge * 10), ready = s.charge >= 1;
+        G.text(ready ? 'LASER RDY' : 'LASER', 846, BAR_Y + 22, { size: 20, color: ready ? WHITE : MAGENTA, align: 'right', max: 100 });
+        for (var k = 0; k < 10; k++) {
+            box(ctx, k < cells ? (ready ? WHITE : CYAN) : MAGENTA, 854 + k * 10, BAR_Y + (k < cells ? 5 : 15), 8, k < cells ? 20 : 4);
+        }
+    }
+
     // The bottom line is a DOS prompt that types the latest event, next to
     // the laser's charge gauge (and the cherry timer while it runs).
     function drawStatus(s, ctx) {
         var shown = s.msg.slice(0, Math.floor((s.time - s.msgAt) * 40)), cursor = Math.floor(s.time * 3) % 2 ? '_' : ' ';
-        var cells = Math.floor(s.charge * 10), ready = s.charge >= 1;
         box(ctx, BLACK, 0, BAR_Y, G.W, G.H - BAR_Y);
-        G.text('C:\\DIGGER>' + shown + cursor, 8, BAR_Y + 15, { size: 15, color: CYAN, max: 560 });
-        G.text(ready ? 'LASER RDY' : 'LASER', 846, BAR_Y + 15, { size: 15, color: ready ? WHITE : MAGENTA, align: 'right' });
-        for (var k = 0; k < 10; k++) {
-            box(ctx, k < cells ? (ready ? WHITE : CYAN) : MAGENTA, 854 + k * 10, BAR_Y + (k < cells ? 3 : 9), 8, k < cells ? 13 : 3);
-        }
+        G.text('C:\\DIGGER>' + shown + cursor, 8, BAR_Y + 22, { size: 20, color: CYAN, max: 540 });
+        drawGauge(s, ctx);
         if (s.power <= 0) return;
-        G.text('TURBO', 640, BAR_Y + 15, { size: 15, color: WHITE, align: 'right' });
-        box(ctx, MAGENTA, 648, BAR_Y + 4, Math.max(0, s.power) * 12, 11);
+        G.text('TURBO', 614, BAR_Y + 22, { size: 20, color: WHITE, align: 'right', max: 56 });
+        box(ctx, MAGENTA, 622, BAR_Y + 7, Math.max(0, s.power) * 10, 16);
     }
 
     function draw(s, ctx) {
@@ -925,8 +947,8 @@
         title: 'DIGGER.EXE',
         blurb: 'Dig out every emerald. Drop gold bags on whatever crawls out of the nest.',
         controls: [
-            'ARROWS dig and drive · push gold bags sideways',
-            'SPACE fire the laser down the tunnel (slow recharge) · it bursts a bag too',
+            'ARROWS / PAD dig and drive · push gold bags sideways',
+            'SPACE / FIRE laser down the tunnel (slow recharge) · it bursts a bag too',
             'Undermined bags wobble, then fall: they crush monsters - and you',
             'A long fall bursts a bag into gold · the cherry makes monsters edible'
         ],
@@ -946,6 +968,9 @@
             drums: { k: 'x.......x.......', h: '..x...x...x...x.' },
             leadWave: 'square', bassWave: 'square', arpWave: 'square', leadOct: 1
         },
+        // Grid movement: one direction at a time, so a thumb a little off
+        // axis cannot hold two. A is the laser; nothing sits on B.
+        touch: { a: 'FIRE', hide: ['b'], dirs: 4 },
         init: init, update: update, draw: draw, hud: hud
     });
 })();
