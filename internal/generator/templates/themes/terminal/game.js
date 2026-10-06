@@ -2,7 +2,9 @@
  * kill -9 — the terminal theme's game: an ASCII twin-stick arena shooter.
  *
  * You are the `@`. WASD moves, the arrow keys fire in eight directions (or
- * hold the mouse button to aim at the pointer). Rogue processes come in waves
+ * hold the mouse button to aim at the pointer). On a phone the twin touch pad
+ * is the same two key clusters: left pad walks, right pad fires, and a finger
+ * held on the screen aims like the mouse. Rogue processes come in waves
  * from the edge of the screen: `Z` zombies shamble, `&` forks split when shot,
  * `d` daemons keep their distance and shoot, `>` pipes dash in straight lines,
  * `#` root shells soak damage, `[fork]` spawners keep making more until they
@@ -15,7 +17,7 @@
     // The arena: below the HUD, above the one-line shell prompt at the bottom.
     var L = 10, R = G.W - 10, T = G.HUD + 8, B = G.H - 24;
     var P_SPEED = 235, P_R = 7, FIRE_GAP = 0.13, SHOT_SPEED = 640, BOMB_R = 300, MAX_BOMBS = 3;
-    var FORK_PERIOD = 6, MAX_ENEMIES = 80, MAX_EBUL = 140;
+    var FORK_PERIOD = 7, MAX_ENEMIES = 80, MAX_EBUL = 140;
     var DASH = 0.85;                                        // seconds a pipe's full dash lasts
 
     // mass scales knockback and decides what a bomb kills outright (< 5).
@@ -24,9 +26,9 @@
         '&': { hp: 1, r: 9, speed: 100, mass: 1, score: 15, drop: 0.05, name: 'fork' },
         'd': { hp: 2, r: 10, speed: 92, mass: 1, score: 25, drop: 0.14, name: 'daemon' },
         '>': { hp: 2, r: 10, speed: 540, mass: 1.5, score: 30, drop: 0.14, name: 'pipe' },
-        '#': { hp: 12, r: 16, speed: 40, mass: 5, score: 80, drop: 1, name: 'rootsh' },
+        '#': { hp: 12, r: 16, speed: 40, mass: 5, score: 80, drop: 0.4, name: 'rootsh' },
         'S': { hp: 28, r: 26, speed: 0, mass: 1e6, score: 150, drop: 1, name: 'spawner' },
-        'I': { hp: 450, r: 38, speed: 40, mass: 40, score: 2000, drop: 0, name: 'init' }
+        'I': { hp: 500, r: 38, speed: 40, mass: 40, score: 2000, drop: 0, name: 'init' }
     };
     var DROPS = ['$', '$', '$', '$', '!', '!', '!', '*', '*', '+'];
 
@@ -36,33 +38,32 @@
     // waves: glyph -> count per wave. gen: how often a fork splits. blocks:
     // solid directories. spawners: nests that must be destroyed. forkBomb:
     // forks grow up and replicate by themselves, and the process table holds
-    // at most cap of them. supply: seconds between
-    // free pickups.
+    // at most cap of them. supply: seconds between free pickups.
     var LEVELS = [
         { waves: [{ Z: 5 }, { Z: 7 }, { Z: 9 }, { Z: 11 }, { Z: 13 }] },
-        { waves: [{ Z: 5, '&': 2 }, { Z: 6, '&': 3 }, { Z: 4, '&': 6 }, { Z: 8, '&': 5 }, { Z: 6, '&': 8 }] },
-        { waves: [{ Z: 6, d: 2 }, { Z: 5, '&': 3, d: 2 }, { Z: 6, d: 4 }, { Z: 8, '&': 4, d: 3 }, { Z: 6, '&': 4, d: 5 }] },
+        { waves: [{ Z: 5, '&': 2 }, { Z: 6, '&': 3 }, { Z: 4, '&': 6 }, { Z: 8, '&': 5 }, { Z: 6, '&': 8 }, { Z: 9, '&': 9 }] },
+        { waves: [{ Z: 6, d: 2 }, { Z: 5, '&': 3, d: 2 }, { Z: 6, d: 4 }, { Z: 8, '&': 4, d: 3 }, { Z: 6, '&': 4, d: 5 }, { Z: 9, '&': 3, d: 6 }] },
         {
-            waves: [{ Z: 6, '>': 2 }, { '>': 4, d: 2 }, { Z: 6, '&': 3, '>': 3 }, { Z: 8, d: 3, '>': 4 }],
+            waves: [{ Z: 6, '>': 2 }, { '>': 4, d: 2 }, { Z: 6, '&': 3, '>': 3 }, { Z: 8, d: 3, '>': 4 }, { Z: 6, '&': 5, '>': 4 }, { Z: 9, d: 4, '>': 5 }],
             blocks: [block(200, 150, 90, 56, '/tmp'), block(670, 150, 90, 56, '/var'), block(200, 350, 90, 56, '/etc'), block(670, 350, 90, 56, '/usr')]
         },
         {
-            waves: [{ Z: 6 }, { Z: 6, d: 2 }, { Z: 6, '>': 3 }, { Z: 8, d: 3, '&': 3 }],
+            waves: [{ Z: 6 }, { Z: 6, d: 2 }, { Z: 6, '>': 3 }, { Z: 8, d: 3, '&': 3 }, { Z: 8, '>': 4, d: 2 }, { Z: 9, d: 4, '>': 3 }],
             spawners: [nest(150, 130, '&', 3.5, 10), nest(810, 420, '&', 3.5, 10)]
         },
-        { waves: [{ '#': 1, Z: 6 }, { '#': 2, d: 3 }, { '#': 2, '&': 3, '>': 2 }, { '#': 3, Z: 8, d: 2 }, { '#': 3, '&': 4, d: 3, '>': 3 }], gen: 2 },
-        { waves: [{ '&': 10 }, { '&': 12 }, { '&': 14 }, { '&': 16 }], gen: 2, forkBomb: true, cap: 40, supply: 12 },
+        { waves: [{ '#': 1, Z: 6 }, { '#': 2, d: 3 }, { '#': 2, '&': 3, '>': 2 }, { '#': 3, Z: 8, d: 2 }, { '#': 3, '&': 4, d: 3, '>': 3 }, { '#': 3, Z: 8, d: 2, '>': 4 }, { '#': 4, '&': 4, d: 4, '>': 3 }], gen: 2 },
+        { waves: [{ '&': 8 }, { '&': 10 }, { '&': 10 }, { '&': 12 }, { '&': 14 }], gen: 2, forkBomb: true, cap: 40, supply: 7 },
         {
-            waves: [{ '>': 5, Z: 4 }, { '>': 5, d: 3 }, { '>': 6, '#': 1, Z: 6 }],
+            waves: [{ '>': 5, Z: 4 }, { '>': 4, d: 3 }, { '>': 5, '#': 1, Z: 6 }, { '>': 6, d: 3, '&': 4, '#': 1 }, { '>': 6, Z: 6, '#': 1 }],
             blocks: [block(300, 160, 360, 34, '/dev/null'), block(300, 350, 360, 34, '/dev/zero')],
-            spawners: [nest(110, 270, '>', 6, 8), nest(850, 270, '>', 6, 8)]
+            spawners: [nest(110, 270, '>', 7, 8), nest(850, 270, '>', 7, 8)]
         },
         {
             waves: [{ Z: 8, d: 3, '>': 3 }, { '#': 2, '&': 3, d: 3 }, { Z: 10, '>': 4, '#': 2, d: 4 }], gen: 2,
             blocks: [block(440, 140, 80, 40, '/proc'), block(440, 370, 80, 40, '/sys'), block(250, 235, 40, 80, '/dev'), block(670, 235, 40, 80, '/run')],
             spawners: [nest(120, 110, '&', 5, 10), nest(840, 110, '&', 5, 10), nest(480, 470, 'Z', 4, 10)]
         },
-        { waves: [{ I: 1 }], gen: 1, supply: 14 }
+        { waves: [{ I: 1 }], gen: 1, supply: 16 }
     ];
 
     // ---------------------------------------------------------------- setup
@@ -74,7 +75,8 @@
             kind: kind, x: x, y: y, vx: 0, vy: 0, hp: t.hp, r: t.r, pid: s.pid, born: 0.8, dead: false,
             t: s.rnd() * 6, side: s.rnd() < 0.5 ? -1 : 1, detour: 0, wall: false, flash: 0,
             cool: 1.2 + s.rnd() * 1.6, mode: 'rest', mt: 0.3 + s.rnd(), dx: 1, dy: 0,
-            gen: 0, age: s.rnd() * 3, dash: DASH, atk: -1, spiral: 0, spin: 0, gap: 0, nest: null
+            gen: 0, age: s.rnd() * 3, dash: DASH, atk: -1, spiral: 0, spin: 0, gap: 0, nest: null,
+            grip: 0, nx: 0, ny: 0, turn: 1                  // wall following, see gripWall
         };
         if (kind === '&') { e.gen = gen; e.r = 7 + gen * 3; }
         if (kind === 'I') { e.pid = 1; e.cool = 2; }
@@ -333,20 +335,13 @@
 
     // --------------------------------------------------------------- player
 
-    // WASD moves. Arrow keys also move while the mouse button aims, which is
-    // what makes the touch pad (it only has arrows) usable: finger on the
-    // canvas to shoot, pad to walk.
-    function axis(neg, pos, kNeg, kPos, aNeg, aPos) {
-        var free = G.mouse.down;
-        var n = G.down(kNeg) || (G.key[neg] && (free || !G.down(aNeg)));
-        var p = G.down(kPos) || (G.key[pos] && (free || !G.down(aPos)));
-        return (p ? 1 : 0) - (n ? 1 : 0);
-    }
-
+    // Only W A S D walk, read as raw codes: the arrow keys are the other
+    // stick (G.key.left and friends are true for both, so they cannot be
+    // used here). The twin touch pad sends the same codes from its left pad.
     function movePlayer(s, dt) {
         var p = s.p;
-        var ix = axis('left', 'right', 'KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight');
-        var iy = axis('up', 'down', 'KeyW', 'KeyS', 'ArrowUp', 'ArrowDown');
+        var ix = (G.down('KeyD') ? 1 : 0) - (G.down('KeyA') ? 1 : 0);
+        var iy = (G.down('KeyS') ? 1 : 0) - (G.down('KeyW') ? 1 : 0);
         var n = Math.hypot(ix, iy) || 1, k = Math.min(1, 11 * dt);
         // Velocity eases towards the stick: a little inertia, no ice.
         p.vx += (ix / n * P_SPEED - p.vx) * k;
@@ -357,8 +352,9 @@
         if (p.spread > 0) p.spread -= dt;
     }
 
-    // The mouse wins while its button is held; otherwise the arrow keys give
-    // one of eight directions. Returns null when not firing.
+    // The mouse (or a finger resting on the canvas) wins while it is held;
+    // otherwise the arrow keys, which are also the right touch pad, give one
+    // of eight directions. Returns null when not firing.
     function aimDir(s) {
         var p = s.p, dx, dy, d;
         if (G.mouse.down) {
@@ -387,7 +383,8 @@
     }
 
     // kill -9 -1: everything ordinary in range dies on the spot, heavy
-    // processes take a big hit, and every bullet on screen is wiped.
+    // processes take a big hit, and every bullet on screen is wiped. Button A
+    // (Space, or BOMB on the touch pad) or the right mouse button.
     function useBomb(s) {
         var p = s.p;
         if (!(G.hit.a || G.mouse.rhit) || p.bombs <= 0) return;
@@ -430,13 +427,30 @@
         s.ebul.push({ x: x, y: y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed });
     }
 
-    // Eases the velocity towards a heading. After bumping into a block the
-    // heading is turned to one side for a moment, which walks the process
-    // around the obstacle instead of leaving it pressed against it.
+    // Remembers the face of the block a process has run into: (nx, ny) is the
+    // push confine() gave it, the face's outward normal. Which way round to
+    // go is decided on first contact only (the way it was drifting anyway)
+    // and then kept, or it would turn back half way along a long wall.
+    function gripWall(e, nx, ny) {
+        var n = Math.hypot(nx, ny);
+        if (n < 0.0001) return;
+        nx /= n; ny /= n;
+        if (e.grip <= 0) {
+            var along = e.vy * nx - e.vx * ny;
+            e.turn = Math.abs(along) > 8 ? (along > 0 ? 1 : -1) : e.side;
+        }
+        e.nx = nx; e.ny = ny; e.grip = 0.4;
+    }
+
+    // Eases the velocity towards a heading. A process that grips a block
+    // slides along its face (leaning in a little, to keep the grip round the
+    // corners) until its heading points away from the block: that walks it
+    // round the obstacle wherever the player stands, where a fixed sidestep
+    // left it pressed against a long wall for ever.
     function steer(e, dx, dy, speed, dt) {
-        if (e.detour > 0) {
-            var c = Math.cos(e.side * 1.25), sn = Math.sin(e.side * 1.25), rx = dx * c - dy * sn;
-            dy = dx * sn + dy * c; dx = rx;
+        if (e.grip > 0 && speed > 0) {
+            if (dx * e.nx + dy * e.ny > 0.05) e.grip = 0;
+            else { dx = -e.ny * e.turn - e.nx * 0.25; dy = e.nx * e.turn - e.ny * 0.25; }
         }
         var k = Math.min(1, 4 * dt);
         e.vx += (dx * speed - e.vx) * k;
@@ -471,7 +485,8 @@
         if (s.cfg.forkBomb) forkLife(s, e, dt);
     }
 
-    // Daemons hold a ring around the player, strafe along it and shoot.
+    // Daemons hold a ring around the player, strafe along it and shoot. At a
+    // wall they turn about; detour is the pause before the next about-turn.
     function daemonAI(s, e, dt) {
         var v = toPlayer(s, e), want = v.d > 300 ? 1 : (v.d < 190 ? -1 : 0), strafe = want ? 0.35 : 1;
         var dx = v.x * want - v.y * e.side * strafe, dy = v.y * want + v.x * e.side * strafe, n = Math.hypot(dx, dy) || 1;
@@ -533,8 +548,12 @@
             var bumped = e.wall && e.mt < e.dash - 0.1;
             if (e.mt > 0 && !bumped) return;
             if (bumped) { G.noise(0.06, { filter: 'lowpass', freq: 500, vol: 0.14 }); G.burst(e.x, e.y, { n: 5, color: DIM, speed: 120 }); }
-            // After a corner hop the next aim follows quickly.
-            e.mode = 'rest'; e.mt = e.dash < DASH ? 0.25 : 0.75;
+            // After a corner hop the next aim follows quickly, and the pipe
+            // stops dead: coasting on would carry it past the corner and back
+            // behind the block, to hop to and fro there for ever.
+            var hop = e.dash < DASH;
+            if (hop) { e.vx = 0; e.vy = 0; }
+            e.mode = 'rest'; e.mt = hop ? 0.25 : 0.75;
             return;
         }
         steer(e, 0, 0, 0, dt);
@@ -575,7 +594,7 @@
     // init adopts orphans: fresh processes arrive from the edges.
     function bossAdopt(s, e, v, rage) {
         if (liveCount(s) > 10) return;
-        spawnAtEdge(s, 'Z'); spawnAtEdge(s, 'Z'); spawnAtEdge(s, rage ? 'd' : 'Z');
+        spawnAtEdge(s, 'Z'); spawnAtEdge(s, rage ? 'd' : 'Z'); spawnAtEdge(s, 'd');
         G.tone(520, 0.1, { type: 'square', vol: 0.1 });
         G.tone(390, 0.14, { type: 'square', vol: 0.1, delay: 0.1 });
     }
@@ -609,7 +628,7 @@
         }
         e.cool -= dt;
         if (e.cool > 0) return;
-        e.cool = rage ? 2.6 : 3.1;
+        e.cool = rage ? 1.8 : 2.5;
         e.atk = (e.atk + 1) % (rage ? 5 : 3);
         BOSS_ATTACKS[e.atk](s, e, v, rage);
     }
@@ -620,14 +639,15 @@
         e.t += dt;
         if (e.flash > 0) e.flash -= dt;
         if (e.detour > 0) e.detour -= dt;
+        if (e.grip > 0) e.grip -= dt;
         // A process that is still being spawned only blinks: it cannot hurt
         // and cannot be hurt, which is the player's warning.
         if (e.born > 0) { e.born -= dt; return; }
         BRAIN[e.kind](s, e, dt);
         e.x += e.vx * dt; e.y += e.vy * dt;
-        var hit = confine(s, e, e.r);
+        var x0 = e.x, y0 = e.y, hit = confine(s, e, e.r);
         e.wall = hit > 0;
-        if (hit === 2 && e.detour <= 0) e.detour = 0.7;
+        if (hit === 2) gripWall(e, e.x - x0, e.y - y0);
         if (G.circ(s.p.x, s.p.y, P_R, e.x, e.y, e.r - 2)) hitPlayer(s);
     }
 
@@ -641,6 +661,9 @@
                 if (Math.abs(dx) > min || Math.abs(dy) > min) continue;
                 var d = Math.hypot(dx, dy);
                 if (d >= min || d < 0.01) continue;
+                // Two wall followers that meet head-on would hold each other
+                // there for ever: the second falls in behind the first.
+                if (a.grip > 0 && b.grip > 0) b.turn = a.turn;
                 var wa = TYPES[a.kind].mass > 30 ? 0 : 1, wb = TYPES[b.kind].mass > 30 ? 0 : 1;
                 if (!wa && !wb) continue;
                 var push = (min - d) * 0.5 / (wa + wb);
@@ -722,7 +745,7 @@
             // The last three seconds blink as a "hurry up".
             if (k.t < 3 && Math.floor(k.t * 8) % 2) return;
             var bob = Math.sin(s.time * 5 + k.x) * 3;
-            glyph('[' + k.kind + ']', k.x, k.y + bob, 17, AMBER);
+            glyph('[' + k.kind + ']', k.x, k.y + bob, 20, AMBER);
         });
     }
 
@@ -774,7 +797,7 @@
         if (e.kind === 'S') { drawSpawner(ctx, e, color); return; }
         if (e.kind === 'I') { drawBoss(ctx, e); return; }
         if (e.kind === 'Z') { glyph('Z', e.x + Math.sin(e.t * 4) * 2, e.y, 24, color); return; }
-        if (e.kind === '&') { glyph('&', e.x, e.y, 15 + e.gen * 7, color); return; }
+        if (e.kind === '&') { glyph('&', e.x, e.y, 18 + e.gen * 6, color); return; }
         // A daemon turns red just before it fires.
         if (e.kind === 'd') { glyph('d', e.x, e.y, 23, e.cool < 0.4 ? RED : color); return; }
         glyph('#', e.x, e.y, 36, color);
@@ -787,7 +810,7 @@
             var oct = Math.round(Math.atan2(b.vy, b.vx) / (Math.PI / 4));
             glyph('-\\|/'.charAt(((oct % 4) + 4) % 4), b.x, b.y, 16, WHITE);
         });
-        s.ebul.forEach(function (b) { glyph('o', b.x, b.y, 15, RED); });
+        s.ebul.forEach(function (b) { glyph('o', b.x, b.y, 18, RED); });
     }
 
     function drawPlayer(s) {
@@ -837,9 +860,9 @@
         title: 'kill -9',
         blurb: 'Rogue processes are eating the box. Kill every one of them.',
         controls: [
-            'W A S D: move the @ · arrow keys: fire in eight directions',
-            'Mouse: hold the button to aim and fire · SPACE or right click: bomb',
-            'Touch: hold the screen to aim and fire; the pad arrows then walk',
+            'W A S D / left pad: move the @ · arrow keys / right pad: fire',
+            'Mouse or a finger on the screen: hold to aim and fire',
+            'SPACE / BOMB button / right click: bomb (kill -9 -1)',
             'Pickups: [$] score · [+] life · [!] spread shot · [*] bomb'
         ],
         levelNames: ['/bin/sh', 'fork()', 'daemons', '| pipes', '[fork] nests', 'su root', ':(){ :|:& };:', 'pipeline', 'kernel panic', 'init (pid 1)'],
@@ -855,6 +878,9 @@
             arp: '0123', drums: { k: 'x...x...x...x.x.', s: '....x.......x...', h: 'xxx.xxx.xxx.xxx.' },
             leadWave: 'square', bassWave: 'triangle', arpWave: 'square', leadOct: 1
         },
-        init: init, update: update, draw: draw, hud: hud, cursor: 'crosshair'
+        init: init, update: update, draw: draw, hud: hud, cursor: 'crosshair',
+        // Twin-stick: W A S D on the left pad, the arrows on the right one,
+        // and the bomb on A just above the firing thumb. B does nothing here.
+        touch: { twin: true, a: 'BOMB', hide: ['b'] }
     });
 })();
