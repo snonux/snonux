@@ -20,9 +20,16 @@
     // The avalanche never falls further behind than this, and a crash throws
     // it back this far; just outside the view, so it is always a real threat.
     var LEASH = 300;
+    // A chute's tree walls stand at least CHUTE from the racing line, and
+    // nothing else stands within LANE of it.
+    var CHUTE = 132, LANE = 78;
     var GREEN = '#00ffb3', TEAL = '#00cfe8', PURPLE = '#c084fc', NAVY = '#050d1a', SNOW = '#e0f8f0', RED = '#ff5d7a';
     var PINE_TIERS = ['#0b4a44', '#0f6457', '#14806b'];
     var TAU = Math.PI * 2;
+    // Overlay text is 20px: on a phone the canvas is drawn at 40-60% size and
+    // anything smaller cannot be read at speed. Labels beside the skier stay
+    // below POP_TOP, clear of the status row and the yeti marker under the sky.
+    var LABEL = 20, POP_TOP = HORIZON + 84;
 
     // ------------------------------------------------------------------
     // Course generation
@@ -44,8 +51,10 @@
             rocks: level >= 2, ramps: level >= 2, cracks: level >= 3,
             wind: level >= 3 ? Math.min(90, 50 + level * 6) : 0,
             // The yeti is a little faster than an upright skier going straight
-            // and much faster than one who is carving: speed is the defence.
-            yeti: level >= 4 ? 312 + level * 4 : 0,
+            // (cruise + 18) and much faster than one who is carving, but far
+            // slower than a tuck: an upright skier who keeps turning is caught
+            // within the seven seconds of a chase, speed is the defence.
+            yeti: level >= 4 ? 318 + level * 4 : 0,
             chasm: level < 5 ? 0 : (level === 5 ? 0.36 : 0.2),
             bumps: level >= 6,
             aval: level >= 8 ? 266 + level * 4 : 0,
@@ -83,12 +92,21 @@
         return G.lerp(g[i].x, g[i + 1].x, (y - g[i].y) / s.cfg.gap);
     }
 
+    // A ramp sits on the racing line and is built facing along it: `aim` is
+    // the sideways travel per unit of descent that its launch gives the
+    // skier. A flight can hardly be steered, so a ramp just below a gate
+    // (where the line turns) would otherwise throw the skier off the course.
+    function addRamp(s, y) {
+        var aim = (lineX(s, y + 300) - lineX(s, y + 20)) / 280;
+        s.obs.push({ k: 'ramp', x: lineX(s, y), y: y, w: 52, h: 16, aim: aim });
+    }
+
     // A chasm lies across the racing line and has to be jumped; half of them
     // come with a ramp just uphill, which carries the skier over for points.
     function addChasm(s, x, y) {
         var w = 300 + s.rnd() * 140;
         s.obs.push({ k: 'crev', x: G.clamp(x, EDGE + w / 2, G.W - EDGE - w / 2), y: y, w: w, h: 26 });
-        if (s.rnd() < 0.5) s.obs.push({ k: 'ramp', x: lineX(s, y - 70), y: y - 70, w: 52, h: 16 });
+        if (s.rnd() < 0.5) addRamp(s, y - 70);
     }
 
     function addMoguls(s, x, y) {
@@ -104,23 +122,38 @@
         for (var i = 1; i < g.length - 1; i++) {
             var v = s.rnd(), y = g[i].y + cfg.gap * 0.5, x = lineX(s, y);
             if (v < cfg.chasm) addChasm(s, x, y);
-            else if (cfg.ramps && v < cfg.chasm + 0.22) s.obs.push({ k: 'ramp', x: lineX(s, g[i].y + 70), y: g[i].y + 70, w: 52, h: 16 });
+            else if (cfg.ramps && v < cfg.chasm + 0.22) addRamp(s, g[i].y + 70);
             else if (cfg.bumps && v < cfg.chasm + 0.4) addMoguls(s, x, y);
             else if (cfg.bumps && v < cfg.chasm + 0.58) s.obs.push({ k: 'ice', x: x, y: y, rx: 90 + s.rnd() * 60, ry: 55 + s.rnd() * 35 });
         }
     }
 
-    // A ramp flight cannot be steered much, so the strip it lands in (along
-    // the racing line below the ramp) is kept free of scattered hazards.
-    function inLanding(ramps, y, off) {
-        return off < 85 && ramps.some(function (r) { return y > r.y && y < r.y + 470; });
+    // A flight cannot be steered much, so the strip it lands in (along the
+    // racing line) is kept free of scattered hazards: a long one below every
+    // ramp, and a shorter, wider one below every chasm, because that jump is
+    // forced and its landing spot is not the player's choice either.
+    function landingStrips(obs) {
+        var strips = [];
+        obs.forEach(function (o) {
+            if (o.k === 'ramp') strips.push({ y: o.y, len: 470, half: 100 });
+            else if (o.k === 'crev') strips.push({ y: o.y, len: 270, half: 110 });
+        });
+        return strips;
+    }
+
+    function inLanding(strips, y, off) {
+        return strips.some(function (r) { return off < r.half && y > r.y && y < r.y + r.len; });
     }
 
     // Scattered hazards are rejected when they would sit on the racing line:
     // that clearance is what guarantees every course can be skied.
-    function addHazard(s, x, y, ramps) {
+    function addHazard(s, x, y, strips) {
         var cfg = s.cfg, v = s.rnd(), off = Math.abs(x - lineX(s, y));
-        if (inLanding(ramps, y, off)) return;
+        if (inLanding(strips, y, off)) return;
+        // Inside a chute the two tree walls are the hazard; loose trees and
+        // rocks are only allowed close to them, or there would be no lane
+        // left once the wind pushes.
+        if (chuteAt(cfg, y) && off < LANE) return;
         if (cfg.cracks && v < 0.1) {
             var w = 60 + s.rnd() * 60;
             if (off > cfg.clear + w / 2) s.obs.push({ k: 'crev', x: x, y: y, w: w, h: 22 });
@@ -132,17 +165,18 @@
 
     function addWalls(s, y) {
         for (var side = -1; side <= 1; side += 2) {
-            var x = lineX(s, y) + side * (132 + s.rnd() * 30);
+            var x = lineX(s, y) + side * (CHUTE + s.rnd() * 30);
             s.obs.push({ k: 'pine', x: x, y: y, r: 13 });
             s.obs.push({ k: 'pine', x: x + side * (40 + s.rnd() * 50), y: y + s.rnd() * 30, r: 13 });
         }
     }
 
     function buildRows(s) {
-        var cfg = s.cfg, ramps = s.obs.filter(function (o) { return o.k === 'ramp'; });
+        // Only the set pieces exist yet, so every crevasse here is a chasm.
+        var cfg = s.cfg, strips = landingStrips(s.obs);
         for (var y = 420; y < cfg.len - 260; y += cfg.rowGap) {
             var n = 2 + (s.rnd() < cfg.level * 0.09 ? 1 : 0) + (s.rnd() < cfg.level * 0.04 ? 1 : 0);
-            for (var j = 0; j < n; j++) addHazard(s, 40 + s.rnd() * 880, y + s.rnd() * cfg.rowGap * 0.8, ramps);
+            for (var j = 0; j < n; j++) addHazard(s, 40 + s.rnd() * 880, y + s.rnd() * cfg.rowGap * 0.8, strips);
             if (chuteAt(cfg, y)) addWalls(s, y);
         }
     }
@@ -179,17 +213,24 @@
     // Skier
     // ------------------------------------------------------------------
 
-    // Floating labels are kept in screen space: the engine's popups are tied
-    // to the world, which at skiing speed streaks them up under the HUD.
-    function say(s, x, y, text, color) {
-        s.pops.push({ x: G.clamp(x, 80, G.W - 100), y: G.clamp(y - s.cam, HORIZON + 90, G.H - 30), text: text, color: color, life: 1 });
-        if (s.pops.length > 10) s.pops.shift();
+    // Labels are kept in screen space: the engine's popups are tied to the
+    // world, which at skiing speed streaks them up under the HUD. A label
+    // appears beside the skier, on the side with more room, so it covers
+    // neither the skier nor the slope ahead, and fades where it is. There
+    // are two lines at most, the newer one below, so that two events at once
+    // (a gate and a jump) both stay readable and the stack never reaches up
+    // into the yeti marker's row.
+    function say(s, text, color, alert) {
+        var sk = s.sk, right = sk.x < G.W / 2, y = Math.max(POP_TOP + 24, sk.y - s.cam + 6);
+        // A warning is not pushed out by score labels: the older score goes.
+        if (s.pops.length > 1) s.pops.splice(s.pops[0].alert && !s.pops[1].alert ? 1 : 0, 1);
+        if (s.pops.length) s.pops[0].y = Math.min(s.pops[0].y, y - 24);
+        s.pops.push({ x: sk.x + (right ? 28 : -28), y: y, align: right ? 'left' : 'right', text: text, color: color, alert: !!alert, life: 1.1 });
     }
 
     function updatePops(s, dt) {
         s.pops = s.pops.filter(function (p) {
             p.life -= dt;
-            p.y = Math.max(HORIZON + 84, p.y - 30 * dt);
             return p.life > 0;
         });
     }
@@ -226,7 +267,9 @@
     // the speed the slope can hold, a tuck raises it but steers worse.
     function steerGround(s, dt, dir) {
         var sk = s.sk, cfg = s.cfg;
-        sk.tuck = G.key.down;
+        // ↓ on the keyboard; on a phone the TUCK button (B), kept off the
+        // direction pad so that a sliding thumb never tucks by accident.
+        sk.tuck = G.key.down || G.key.b;
         if (sk.buf > 0) { jump(s, 230, false); return; }
         var lat = sk.tuck ? 190 : 270, grip = sk.ice ? 0.5 : 7;
         sk.vx += (dir * lat + s.wind.v - sk.vx) * Math.min(1, grip * dt);
@@ -244,8 +287,14 @@
         if (sk.z > 0) {
             // Airborne: no edges to carve with. Leaning still drifts the
             // skier a little, enough to line up the landing after a ramp.
+            // Only half the wind counts up here, so that leaning always
+            // beats a gust and a flight cannot be blown off its landing.
             sk.tuck = false;
-            sk.vx += (dir * 130 + s.wind.v - sk.vx) * 1.5 * dt;
+            sk.vx += (dir * 130 + s.wind.v * 0.5 - sk.vx) * 1.5 * dt;
+            // The slope still pulls a slow skier along: without this a jump
+            // from a standstill (after a crash) hops on the spot, and hopping
+            // again and again never gets away from the avalanche.
+            if (sk.vy < s.cfg.cruise) sk.vy += (s.cfg.cruise - sk.vy) * dt;
         } else {
             steerGround(s, dt, dir);
         }
@@ -260,7 +309,7 @@
         if (!sk.big || sk.air < 0.6) return;
         var pts = Math.floor(sk.air * 15) * 10;
         G.addScore(pts);
-        say(s, sk.x, sk.y - 24, 'AIR +' + pts, TEAL);
+        say(s, 'AIR +' + pts, TEAL);
         G.sfx('coin');
     }
 
@@ -303,7 +352,7 @@
         if (o.done) return;
         o.done = true;
         G.addScore(pts);
-        say(s, o.x, o.y - 20, label + ' +' + pts, GREEN);
+        say(s, label + ' +' + pts, GREEN);
         G.sfx('blip');
     }
 
@@ -323,6 +372,9 @@
             o.done = true;
             jump(s, pop || G.key.a ? 390 : 300, true);
             sk.vy += 40;
+            // The ramp faces down the racing line (see addRamp), so the
+            // flight ends in the strip that was kept clear for it.
+            sk.vx = o.aim * sk.vy;
         },
         mogul: function (s, o) {
             var sk = s.sk;
@@ -365,7 +417,7 @@
         g.state = 1; s.passed++; s.streak++;
         var pts = 50 * Math.min(s.streak, 8);
         G.addScore(pts);
-        say(s, g.x, g.y - 30, '+' + pts, GREEN);
+        say(s, '+' + pts, GREEN);
         // The chime climbs with the streak so a clean run sounds like one.
         var f = 660 * Math.pow(1.06, Math.min(s.streak, 12));
         G.tone(f, 0.08, { type: 'triangle', vol: 0.16 });
@@ -375,7 +427,7 @@
     function missGate(s, g) {
         g.state = 2; s.streak = 0;
         s.time = Math.max(0, s.time - 3);
-        say(s, s.sk.x, s.sk.y - 30, 'MISSED -3s', RED);
+        say(s, 'MISSED -3s', RED, true);
         G.tone(150, 0.3, { type: 'sawtooth', slide: 90, vol: 0.18 });
     }
 
@@ -397,7 +449,7 @@
         if (s.time < 10 && Math.floor(before) !== Math.floor(s.time)) G.tone(990, 0.07, { vol: 0.12 });
         if (s.time > 0) return;
         s.time = 0;
-        say(s, s.sk.x, s.sk.y - 40, 'OUT OF TIME', RED);
+        say(s, 'OUT OF TIME', RED, true);
         G.die();
     }
 
@@ -441,7 +493,7 @@
         ye.x = G.clamp(sk.x + (s.rnd() < 0.5 ? -220 : 220), 40, G.W - 40);
         ye.y = sk.y - 240;
         roar();
-        say(s, sk.x, sk.y - 44, 'YETI! TUCK ↓', PURPLE);
+        say(s, 'YETI! TUCK!', PURPLE, true);
     }
 
     function chase(s, dt) {
@@ -461,7 +513,7 @@
             ye.mode = 'feast'; ye.cool = 6;
         } else if (ye.t <= 0 || sk.y - ye.y > 400) {
             ye.mode = 'lurk'; ye.cool = 5;
-            say(s, sk.x, sk.y - 44, 'ESCAPED +150', GREEN);
+            say(s, 'ESCAPED +150', GREEN);
             G.addScore(150);
             G.sfx('power');
         }
@@ -494,7 +546,7 @@
             if (sk.y < 1400) return;
             av.on = true; av.y = sk.y - LEASH;
             G.sfx('alarm'); G.shake(6, 0.8);
-            say(s, sk.x, sk.y - 44, 'AVALANCHE! TUCK ↓', SNOW);
+            say(s, 'AVALANCHE! TUCK!', SNOW, true);
         }
         var v = (s.cfg.aval + 30 * sk.y / s.cfg.len) * (sk.stun > 0 || sk.inv > 0 ? 0.3 : 1);
         av.y = Math.max(av.y + v * dt, sk.y - LEASH);
@@ -803,20 +855,25 @@
     // Drawing: weather, sky and overlays
     // ------------------------------------------------------------------
 
-    // Night run: only a pool of lamp light around and ahead of the skier.
+    // Night run: only a pool of lamp light around and ahead of the skier. It
+    // is wide enough that a tree is still told from the dark about 230px
+    // out, two thirds of a second ahead at speed.
     function drawDarkness(s, ctx) {
-        var sk = s.sk, y = sk.y - s.cam + 80;
-        var grad = ctx.createRadialGradient(sk.x, y, 70, sk.x, y, 330);
+        var sk = s.sk, y = sk.y - s.cam + 100;
+        var grad = ctx.createRadialGradient(sk.x, y, 90, sk.x, y, 390);
         grad.addColorStop(0, 'rgba(2,6,14,0)'); grad.addColorStop(1, 'rgba(2,6,14,0.93)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, HORIZON, G.W, G.H - HORIZON);
     }
 
+    // Storm fog thickens toward the bottom edge, where things first appear.
+    // It stays thin enough that a pale tree can still be made out there on a
+    // small screen: the storm shortens the view, it must not blind.
     function drawFog(ctx) {
-        var grad = ctx.createLinearGradient(0, 300, 0, G.H);
-        grad.addColorStop(0, 'rgba(150,190,214,0)'); grad.addColorStop(1, 'rgba(150,190,214,0.78)');
+        var grad = ctx.createLinearGradient(0, 320, 0, G.H);
+        grad.addColorStop(0, 'rgba(150,190,214,0)'); grad.addColorStop(1, 'rgba(150,190,214,0.62)');
         ctx.fillStyle = grad;
-        ctx.fillRect(0, 300, G.W, G.H - 300);
+        ctx.fillRect(0, 320, G.W, G.H - 320);
     }
 
     function drawFlakes(s, ctx) {
@@ -840,17 +897,24 @@
         ctx.globalAlpha = 1;
     }
 
+    // The status row under the sky strip: avalanche on the left, wind in the
+    // middle, the last seconds on the right. Dark plates keep the labels
+    // readable on top of the avalanche.
+    function plate(ctx, x, w) {
+        ctx.fillStyle = 'rgba(5,13,26,0.72)';
+        ctx.fillRect(x, HORIZON + 6, w, 30);
+    }
+
     function drawWind(s, ctx) {
         var n = Math.round(Math.abs(s.wind.v) / 30), dir = s.wind.v > 0 ? 1 : -1;
         if (!n) return;
-        // A dark plate keeps the label readable on top of the avalanche.
-        ctx.fillStyle = 'rgba(5,13,26,0.7)';
-        ctx.fillRect(G.W / 2 - 26 - (dir < 0 ? n * 13 + 12 : 0), HORIZON + 8, 52 + n * 13 + 12, 22);
-        G.text('WIND', G.W / 2, HORIZON + 24, { size: 13, color: SNOW, align: 'center', bold: true });
+        var arrows = n * 16 + 10;
+        plate(ctx, G.W / 2 - 40 - (dir < 0 ? arrows : 0), 80 + arrows);
+        G.text('WIND', G.W / 2, HORIZON + 28, { size: LABEL, color: SNOW, align: 'center', bold: true, max: 68 });
         ctx.fillStyle = TEAL;
         for (var i = 1; i <= n; i++) {
-            var x = G.W / 2 + dir * (22 + i * 13);
-            tri(ctx, x, HORIZON + 12, x, HORIZON + 26, x + dir * 9, HORIZON + 19);
+            var x = G.W / 2 + dir * (26 + i * 16);
+            tri(ctx, x, HORIZON + 12, x, HORIZON + 30, x + dir * 11, HORIZON + 21);
         }
     }
 
@@ -914,42 +978,55 @@
 
     // Both chasers start out of sight above the slope, so the top edge says
     // where they are until they can be seen.
-    function drawChasers(s, ctx) {
-        var ye = s.yeti, av = s.av, pulse = 0.6 + 0.4 * Math.sin(s.clock * 10);
-        var gap = av && av.on ? s.sk.y - av.y : LEASH;
-        if (gap < LEASH - 10) {
-            var band = ctx.createLinearGradient(0, HORIZON, 0, HORIZON + 60);
-            band.addColorStop(0, 'rgba(240,250,255,' + ((1 - gap / LEASH) * (0.5 + 0.4 * pulse)).toFixed(3) + ')');
-            band.addColorStop(1, 'rgba(240,250,255,0)');
-            ctx.fillStyle = band;
-            ctx.fillRect(0, HORIZON, G.W, 60);
-            ctx.fillStyle = 'rgba(5,13,26,0.7)'; ctx.fillRect(14, HORIZON + 8, 150, 22);
-            G.text('AVALANCHE ' + Math.max(0, Math.round(gap / 10)) + 'm', 22, HORIZON + 24, { size: 13, bold: true, color: gap < 150 ? RED : SNOW });
-        }
+    function drawAvalancheWarning(s, ctx, pulse) {
+        var av = s.av, gap = av && av.on ? s.sk.y - av.y : LEASH;
+        if (gap >= LEASH - 10) return;
+        var band = ctx.createLinearGradient(0, HORIZON, 0, HORIZON + 60);
+        band.addColorStop(0, 'rgba(240,250,255,' + ((1 - gap / LEASH) * (0.5 + 0.4 * pulse)).toFixed(3) + ')');
+        band.addColorStop(1, 'rgba(240,250,255,0)');
+        ctx.fillStyle = band;
+        ctx.fillRect(0, HORIZON, G.W, 60);
+        plate(ctx, 12, 216);
+        G.text('AVALANCHE ' + Math.max(0, Math.round(gap / 10)) + 'm', 20, HORIZON + 28, { size: LABEL, bold: true, color: gap < 150 ? RED : SNOW, max: 200 });
+    }
+
+    // The yeti's marker sits one row below the status row and keeps its
+    // label beside the arrow, so it collides with neither the wind and
+    // avalanche plates above nor the floating labels below.
+    function drawYetiMarker(s, ctx, pulse) {
+        var ye = s.yeti;
         if (!ye || ye.mode !== 'chase' || ye.y - s.cam > HORIZON + 20) return;
+        var x = G.clamp(ye.x, 24, G.W - 190);
         ctx.globalAlpha = pulse;
         ctx.fillStyle = PURPLE;
-        // One row below the wind and avalanche labels, so they never collide.
-        tri(ctx, ye.x - 11, HORIZON + 48, ye.x + 11, HORIZON + 48, ye.x, HORIZON + 35);
+        tri(ctx, x - 11, HORIZON + 60, x + 11, HORIZON + 60, x, HORIZON + 43);
         ctx.globalAlpha = 1;
-        G.text('YETI ' + Math.round((s.sk.y - ye.y) / 10) + 'm', ye.x, HORIZON + 64, { size: 13, bold: true, color: PURPLE, align: 'center' });
+        G.text('YETI ' + Math.round((s.sk.y - ye.y) / 10) + 'm', x + 18, HORIZON + 60, { size: LABEL, bold: true, color: PURPLE, max: 140 });
+    }
+
+    function drawChasers(s, ctx) {
+        var pulse = 0.6 + 0.4 * Math.sin(s.clock * 10);
+        drawAvalancheWarning(s, ctx, pulse);
+        drawYetiMarker(s, ctx, pulse);
     }
 
     function drawPops(s, ctx) {
         s.pops.forEach(function (p) {
             ctx.globalAlpha = Math.min(1, p.life * 2);
-            G.text(p.text, p.x, p.y, { size: 16, bold: true, color: p.color, align: 'center' });
+            G.text(p.text, p.x, p.y, { size: LABEL, bold: true, color: p.color, align: p.align });
         });
         ctx.globalAlpha = 1;
     }
 
     function drawAlerts(s) {
+        // The last seconds flash at the right end of the status row, where
+        // nothing else is ever drawn.
         if (s.time < 10 && Math.floor(s.clock * 4) % 2) {
-            G.text(s.time.toFixed(1), G.W / 2, HORIZON + 62, { size: 34, bold: true, color: RED, align: 'center', glow: RED });
+            G.text(s.time.toFixed(1), G.W - 30, HORIZON + 34, { size: 30, bold: true, color: RED, align: 'right', glow: RED });
         }
         // Only once the run is under way: the title screen draws this state
         // too and has its own text there.
-        if (s.clock > 0 && s.clock < 2.5) G.text('Follow the gates — ↓ to tuck', G.W / 2, 470, { size: 17, color: SNOW, align: 'center' });
+        if (s.clock > 0 && s.clock < 2.5) G.text('Follow the gates — tuck for speed', G.W / 2, 470, { size: LABEL, color: SNOW, align: 'center' });
     }
 
     function draw(s, ctx) {
@@ -979,10 +1056,15 @@
         title: 'POLAR RUSH',
         blurb: 'Ski the gates down to the finish before the clock runs out.',
         controls: [
-            '← → carve (turning bleeds speed) · ↓ tuck for speed',
-            'SPACE jump rocks and crevasses — on a ramp it pops you higher',
+            '← → carve — turning bleeds speed',
+            '↓ / TUCK: much faster, but steers worse',
+            'SPACE / JUMP hops rocks and crevasses — a ramp throws you far',
             'A missed gate costs 3 seconds · tuck to outrun the yeti and the avalanche'
         ],
+        // Two big carve buttons, with the tuck on B instead of ▼: on the
+        // 8-way pad a thumb sliding between ◀ and ▶ would hold ▼ half the
+        // time, and an unwanted tuck (faster, worse steering) wrecks a line.
+        touch: { a: 'JUMP', b: 'TUCK', hide: ['up', 'down'] },
         levelNames: ['Bunny Slope', 'Pine Forest', 'Windy Ridge', 'Yeti Country', 'Blue Crevasse',
             'Moguls and Ice', 'Tree Chute', 'White Thunder', 'Moonless Glacier', 'Polar Storm'],
         colors: { bg: NAVY, fg: SNOW, accent: GREEN, dim: '#7fa8b8' },
