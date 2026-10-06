@@ -7,6 +7,11 @@
  * cover and fire; every agent drops its gun, guns hold little ammunition, and
  * an agent can always be taken down by running into its back. Sentinel
  * drones ignore bullet time altogether. Clear the room to win the level.
+ *
+ * A mouse aims by hovering, which a phone cannot do. On a coarse pointer the
+ * game therefore aims for the player: FIRE shoots the nearest hostile in
+ * sight, a tap on the canvas shoots the hostile under the finger, and a
+ * reticle shows which one the next round is for. Desktop play is unchanged.
  */
 (function () {
     'use strict';
@@ -17,6 +22,8 @@
     var TAU = Math.PI * 2;
     var CRAWL = 0.1;                              // world speed while the player stands still
     var RUN = 220, PLAYER_SHOT = 720;
+    var TAP_SNAP = 70;                            // a fingertip covers about this much of the canvas
+    var SEALED = 8;                               // world seconds an agent stays shut in behind glass
     var GREEN = '#00ff41', MID = '#008f11', DARK = '#003b00', PALE = '#d8ffe0', RED = '#ff3b4e';
     var GLYPHS = '01<>[]{}=+*#$%&/|:;?ZXKTNHM';
 
@@ -92,30 +99,31 @@
                 [['a', 30, 16], ['s', 30, 2], ['d', 16, 16]],
                 [['a', 1, 2], ['a', 30, 9], ['s', 1, 16], ['d', 16, 2]]]
         },
-        { // 8: glass offices: glass stops people but not eyes, and bullets shatter it
-            start: [3, 9], ammo: 8, cache: [2, 16], guns: [[3, 15, 'pistol'], [18, 10, 'shotgun']],
+        { // 8: glass offices: glass stops people but not eyes, and bullets shatter it (agents shut in shoot
+          // their way out). A full magazine, because the first rounds go into the panes.
+            start: [3, 9], ammo: 12, cache: [2, 16], guns: [[3, 15, 'pistol'], [18, 10, 'shotgun']],
             walls: [[10, 2, 1, 5], [10, 12, 1, 5], [21, 2, 1, 5], [21, 12, 1, 5]],
             glass: [[10, 7, 1, 5], [21, 7, 1, 5], [5, 8, 1, 3], [14, 5, 4, 1], [14, 13, 4, 1], [25, 6, 1, 3]],
-            waves: [[['a', 12, 3, 19, 3], ['s', 12, 15, 19, 15], ['d', 16, 9, 16, 7], ['a', 27, 3, 27, 8],
-                ['a', 28, 15, 23, 15], ['s', 29, 9, 29, 5], ['d', 24, 11, 29, 11]],
+            waves: [[['a', 12, 3, 19, 3], ['a', 12, 15, 19, 15], ['d', 16, 9, 16, 7], ['a', 27, 3, 27, 8],
+                ['s', 28, 15, 23, 15], ['s', 29, 9, 29, 5], ['d', 24, 11, 29, 11]],
                 [['a', 30, 2], ['a', 30, 16], ['d', 16, 2], ['s', 16, 16]],
                 [['a', 30, 9], ['d', 1, 2], ['s', 30, 2], ['a', 11, 9]]]
         },
-        { // 9: rooftop: agents lead their shots, and the second wave brings a second sentinel
+        { // 9: rooftop: agents lead their shots, and each later wave brings another sentinel
             start: [2, 9], ammo: 8, cache: [2, 16], guns: [[3, 3, 'shotgun'], [14, 9, 'pistol']],
             walls: [[5, 5, 2, 2], [12, 3, 2, 2], [10, 11, 2, 2], [17, 7, 2, 3], [23, 4, 2, 2], [22, 12, 3, 2], [28, 8, 1, 2], [6, 13, 2, 1]],
-            waves: [[['z', 29, 2], ['a', 9, 3, 9, 9], ['a', 15, 14, 15, 5], ['s', 20, 3, 20, 15], ['d', 27, 14, 27, 3]],
+            waves: [[['z', 29, 2], ['a', 9, 3, 9, 9], ['a', 15, 14, 15, 5], ['s', 20, 3, 20, 15], ['d', 27, 14, 27, 3], ['a', 25, 9, 25, 15]],
                 [['z', 30, 16], ['a', 30, 2], ['d', 16, 2], ['s', 16, 16], ['a', 1, 2]],
-                [['a', 30, 9], ['s', 1, 16], ['d', 16, 9], ['a', 30, 2]]]
+                [['a', 30, 9], ['s', 1, 16], ['d', 16, 9], ['a', 30, 2], ['d', 1, 2], ['z', 30, 16]]]
         },
-        { // 10: the lobby: rows of pillars and four waves of everything
+        { // 10: the lobby: rows of pillars, four waves of everything and a sentinel in each wave after the first
             start: [2, 9], ammo: 8, cache: [2, 16], guns: [[3, 3, 'pistol'], [3, 15, 'shotgun']],
             walls: [[5, 5, 2, 2], [10, 5, 2, 2], [15, 5, 2, 2], [20, 5, 2, 2], [25, 5, 2, 2],
                 [5, 12, 2, 2], [10, 12, 2, 2], [15, 12, 2, 2], [20, 12, 2, 2], [25, 12, 2, 2], [28, 8, 1, 3]],
             waves: [[['a', 8, 3, 8, 15], ['a', 13, 15, 13, 3], ['s', 18, 3, 18, 15], ['d', 23, 15, 23, 3], ['a', 29, 4, 29, 6], ['s', 29, 14, 29, 12]],
-                [['a', 30, 2], ['a', 30, 16], ['d', 17, 2], ['d', 17, 16], ['s', 30, 9]],
-                [['z', 30, 2], ['z', 30, 16], ['a', 1, 2], ['a', 1, 16], ['s', 30, 7]],
-                [['d', 30, 2], ['s', 30, 16], ['a', 16, 9]]]
+                [['a', 30, 2], ['a', 30, 16], ['d', 17, 2], ['d', 17, 16], ['s', 30, 9], ['z', 30, 12]],
+                [['z', 30, 2], ['z', 30, 16], ['a', 1, 2], ['a', 1, 16], ['s', 30, 7], ['d', 16, 9]],
+                [['d', 30, 2], ['s', 30, 16], ['a', 16, 9], ['d', 1, 16], ['a', 1, 2], ['z', 16, 2]]]
         }
     ];
 
@@ -214,8 +222,14 @@
             face: spec.length > 3 ? Math.atan2(py - y, px - x) : Math.atan2(s.p.y - y, s.p.x - x),
             home: { x: x, y: y }, post: { x: px, y: py }, out: true,
             cool: 0.3 + s.rnd() * 0.7, wind: 0, react: late ? 0.4 : 0, spawn: late ? 0.9 : 0,
-            dodge: 0, dodgeCool: 0, dvx: 0, dvy: 0, cover: null, flash: 0, dead: false
+            dodge: 0, dodgeCool: 0, dvx: 0, dvy: 0, mx: 0, my: 0, sealed: 0, cover: null, flash: 0, dead: false
         });
+    }
+
+    // A phone has no hover and no right button, so there the game aims for
+    // the player (see touchAim). Asked on every init and kept in s.
+    function coarse() {
+        return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
     }
 
     function init(level) {
@@ -225,10 +239,10 @@
             solid: function (tx, ty) { return tx < 0 || ty < 0 || tx >= COLS || ty >= ROWS || grid[ty * COLS + tx] !== FLOOR; },
             rnd: G.rng(level * 7919),
             p: { x: mid(lv.start[0]), y: mid(lv.start[1]), r: 8, vx: 0, vy: 0, face: 0 },
-            aim: 0, mouse: false, mx: G.mouse.x, my: G.mouse.y,
+            aim: 0, mouse: false, mx: G.mouse.x, my: G.mouse.y, touch: coarse(), lock: null,
             gun: 'pistol', ammo: { pistol: lv.ammo, shotgun: 0 }, fireT: 0, shootT: 0,
             agents: [], drones: [], bullets: [], pickups: [], wave: 0,
-            ts: CRAWL, clock: 0, anim: 0, alert: false, slow: true, cueT: 0, beatT: 0, tickT: 0, grazeT: 0, still: 0,
+            ts: CRAWL, clock: 0, anim: 0, alert: false, slow: true, cueT: 0, beatT: 0, tickT: 0, grazeT: 0, lockT: 0, still: 0,
             dropT: 0, doneT: 0, dead: false, msg: '', msgT: 0
         };
         (lv.guns || []).forEach(function (g) { s.pickups.push({ x: mid(g[0]), y: mid(g[1]), kind: g[2], n: GUNS[g[2]].drop + 2 }); });
@@ -307,10 +321,37 @@
         return best;
     }
 
+    // The hostile in the player's sight that is nearest to (x, y) and no
+    // further from it than max.
+    function nearestFoe(s, x, y, max) {
+        var p = s.p, best = null, bestD = max;
+        s.agents.concat(s.drones).forEach(function (e) {
+            var d = G.dist(x, y, e.x, e.y);
+            if (d < bestD && los(s, p.x, p.y, e.x, e.y)) { bestD = d; best = e; }
+        });
+        return best;
+    }
+
+    // Touch aiming. A finger on the canvas picks the hostile under it (a
+    // fingertip is blunt, so anything within TAP_SNAP counts) or, with none
+    // there, the spot itself; without a finger FIRE goes to the nearest
+    // hostile in sight. The pick is kept in s.lock and drawn as a reticle,
+    // so the player sees what the next round is for before spending it.
+    // A walking agent is led, which a thumb cannot do the way a mouse can.
+    function touchAim(s) {
+        var p = s.p, m = G.mouse, finger = m.down || m.hit;
+        var e = finger ? nearestFoe(s, m.x, m.y, TAP_SNAP) : nearestFoe(s, p.x, p.y, FAR);
+        s.lock = e;
+        if (!e) return finger ? Math.atan2(m.y - p.y, m.x - p.x) : p.face;
+        var t = G.dist(p.x, p.y, e.x, e.y) / PLAYER_SHOT;
+        return Math.atan2(e.y + (e.my || 0) * t - p.y, e.x + (e.mx || 0) * t - p.x);
+    }
+
     // The mouse takes over the aim once it moves or clicks; SPACE hands it
     // back to the keyboard. So a mouse that never moved is never read.
     function updateAim(s) {
         var p = s.p, m = G.mouse;
+        if (s.touch) { s.aim = touchAim(s); return; }
         if (m.x !== s.mx || m.y !== s.my || m.hit) { s.mouse = true; s.mx = m.x; s.my = m.y; }
         if (G.hit.a) s.mouse = false;
         s.aim = s.mouse ? Math.atan2(m.y - p.y, m.x - p.x) : keyAim(s);
@@ -340,7 +381,8 @@
     function fire(s, dt) {
         s.fireT -= dt * s.ts; s.shootT -= dt;
         if (G.hit.b || G.mouse.rhit) switchGun(s);
-        if (!(G.key.a || G.mouse.down) || s.fireT > 0) return;
+        // mouse.hit as well: a tap that lifts before the next tick still counts.
+        if (!(G.key.a || G.mouse.down || G.mouse.hit) || s.fireT > 0) return;
         if (!s.ammo[s.gun] && !switchGun(s)) {
             if (G.hit.a || G.mouse.hit) { G.tone(180, 0.04, { vol: 0.12 }); say(s, 'EMPTY — TAKE THEM FROM BEHIND'); }
             return;
@@ -377,12 +419,15 @@
 
     // Running into an agent anywhere in its rear half deletes it without a
     // shot. The takedown makes no noise, so it does not raise the alarm.
+    // Bodies do not block each other, so a player charging an agent head-on
+    // would come out behind it: that does not count. The run has to go the
+    // way the agent looks, or across it.
     function takedowns(s) {
-        var p = s.p;
+        var p = s.p, heading = Math.atan2(p.vy, p.vx);
         s.agents.forEach(function (a) {
             if (a.dead || G.dist(p.x, p.y, a.x, a.y) > p.r + a.r + 3) return;
             var side = Math.cos(angDiff(a.face, Math.atan2(p.y - a.y, p.x - a.x)));
-            if (side < 0) killAgent(s, a, 'takedown');
+            if (side < 0 && Math.cos(angDiff(a.face, heading)) > -0.5) killAgent(s, a, 'takedown');
         });
     }
 
@@ -429,12 +474,33 @@
         turn(a, Math.atan2(to.y - a.y, to.x - a.x), 5 * wdt);
     }
 
+    // Sealed in behind glass with the alarm ringing, an agent does not wait
+    // for ever: after SEALED seconds it shoots out the nearest pane it can
+    // see. Without this a player hiding out of sight of a sealed office
+    // could never be found, and standing still would be safe for good.
+    function breakOut(s, a, wdt) {
+        var best = -1, bestD = FAR;
+        a.sealed += wdt;
+        if (a.sealed < SEALED || a.cool > 0) return;
+        for (var i = 0; i < s.grid.length; i++) {
+            var d = G.dist(a.x, a.y, tileX(i), tileY(i));
+            if (s.grid[i] === GLASS && d < bestD && los(s, a.x, a.y, tileX(i), tileY(i))) { bestD = d; best = i; }
+        }
+        if (best < 0) return;
+        var ang = Math.atan2(tileY(best) - a.y, tileX(best) - a.x);
+        turn(a, ang, 6 * wdt);
+        if (Math.abs(angDiff(a.face, ang)) > 0.05) return;
+        shoot(s, a, a.face, a.k.gun, s.tune.shot);
+        a.cool = a.k.cool; a.flash = 0.1;
+    }
+
     // One tile downhill on the flow field. An agent the player cannot reach
-    // (sealed behind glass) finds no lower neighbour and holds its ground.
+    // (sealed behind glass) finds no lower neighbour; it holds its ground
+    // for a while and then breaks out.
     function chase(s, a, wdt, look) {
         var c = tileAt(a.x, a.y), best = c;
         for (var i = 0; i < 4; i++) if (s.flow[c + DIRS[i]] < s.flow[best]) best = c + DIRS[i];
-        if (best === c) return;
+        if (best === c) { if (s.flow[c] === FAR) breakOut(s, a, wdt); return; }
         steer(s, a, tileX(best), tileY(best), a.k.speed, wdt);
         if (look) turn(a, Math.atan2(tileY(best) - a.y, tileX(best) - a.x), 6 * wdt);
     }
@@ -530,7 +596,9 @@
         if (a.cool > 0) { if (dist > a.k.keep) chase(s, a, wdt, false); return; }
         if (friendInWay(s, a)) { a.wind = 0; chase(s, a, wdt, false); return; }
         if (Math.abs(angDiff(a.face, aim)) > 0.25) return;
-        if (a.wind === 0) G.tone(900, 0.06, { type: 'sine', slide: 1500, vol: 0.07 });
+        // The lock-on chirp is gated: an aim that a passing colleague keeps
+        // breaking would otherwise chirp on every other tick.
+        if (a.wind === 0 && s.lockT <= 0) { s.lockT = 0.15; G.tone(900, 0.06, { type: 'sine', slide: 1500, vol: 0.07 }); }
         a.wind += wdt;
         if (a.wind >= a.k.wind * s.tune.wind) agentFire(s, a);
     }
@@ -688,7 +756,7 @@
         var rest = CRAWL + G.clamp((s.still - 8) / 8, 0, 1) * 0.25;
         s.ts += ((acting ? 1 : rest) - s.ts) * Math.min(1, dt * (acting ? 14 : 7));
         s.anim += dt * (0.45 + 0.55 * s.ts);
-        s.cueT -= dt; s.beatT -= dt; s.tickT -= dt; s.grazeT -= dt; s.msgT -= dt;
+        s.cueT -= dt; s.beatT -= dt; s.tickT -= dt; s.grazeT -= dt; s.lockT -= dt; s.msgT -= dt;
         var slow = s.ts < 0.5;
         if (slow !== s.slow && s.cueT <= 0) {     // tape-stop down, spin-up back
             s.slow = slow; s.cueT = 0.35;
@@ -744,7 +812,11 @@
     }
 
     function updateEnemies(s, dt, wdt) {
-        s.agents.forEach(function (a) { if (!a.dead) updateAgent(s, a, wdt); });
+        s.agents.forEach(function (a) {
+            var ox = a.x, oy = a.y;
+            if (!a.dead) updateAgent(s, a, wdt);
+            a.mx = (a.x - ox) / wdt; a.my = (a.y - oy) / wdt;     // how it really walked: touchAim leads by this
+        });
         s.drones.forEach(function (d) { updateDrone(s, d, dt); });
         s.bullets = s.bullets.filter(function (b) { return stepBullet(s, b, wdt); });
         s.agents = s.agents.filter(function (a) { return !a.dead; });
@@ -822,11 +894,11 @@
         var x = mid(s.lv.cache[0]), y = mid(s.lv.cache[1]), k = G.clamp(s.dropT / s.tune.drop, 0, 1);
         ctx.strokeStyle = k > 0 ? PALE : MID; ctx.lineWidth = 1.5;
         ctx.setLineDash([5, 4]);
-        ctx.strokeRect(x - 12, y - 12, 24, 24);
+        ctx.strokeRect(x - 20, y - 12, 40, 24);   // wide enough to hold its label
         ctx.setLineDash([]);
         ctx.fillStyle = 'rgba(216,255,224,0.3)';
-        ctx.fillRect(x - 12, y + 12 - 24 * k, 24, 24 * k);
-        G.text('DROP', x, y + 4, { size: 11, color: k > 0 ? PALE : MID, align: 'center' });
+        ctx.fillRect(x - 20, y + 12 - 24 * k, 40, 24 * k);
+        G.text('DROP', x, y + 4, { size: 12, color: k > 0 ? PALE : MID, align: 'center' });
     }
 
     function drawPickups(s, ctx) {
@@ -939,6 +1011,17 @@
         ctx.beginPath(); ctx.arc(p.x, p.y, 17, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - s.fireT / GUNS[s.gun].rate)); ctx.stroke();
     }
 
+    // Touch only (s.lock is never set elsewhere): brackets around the
+    // hostile the next round will go to. Hidden while there is no round.
+    function drawLock(s, ctx) {
+        var e = s.lock, r = 20 + 2 * Math.sin(s.anim * 8);
+        if (!e || e.dead || s.dead || !(s.ammo.pistol + s.ammo.shotgun)) return;
+        ctx.strokeStyle = PALE; ctx.lineWidth = 2.5;
+        for (var i = 0; i < 4; i++) {
+            ctx.beginPath(); ctx.arc(e.x, e.y, r, i * Math.PI / 2 + 0.35, (i + 1) * Math.PI / 2 - 0.35); ctx.stroke();
+        }
+    }
+
     function drawOverlay(s, ctx) {
         var slow = 1 - s.ts;
         if (slow > 0.05) {                        // the edges glow green while time hangs
@@ -948,15 +1031,17 @@
             ctx.fillStyle = g;
             ctx.fillRect(0, G.HUD, G.W, G.H - G.HUD);
         }
-        G.text('TIME', 12, G.H - 9, { size: 15, color: MID });
-        ctx.fillStyle = DARK; ctx.fillRect(50, G.H - 20, 100, 10);
-        ctx.fillStyle = s.ts > 0.5 ? PALE : GREEN; ctx.fillRect(50, G.H - 20, 100 * s.ts, 10);
+        // The time gauge and the texts are 20 px so that they still read on
+        // a phone, where the canvas is drawn at about half size.
+        G.text('TIME', 12, G.H - 8, { size: 20, color: MID });
+        ctx.fillStyle = DARK; ctx.fillRect(72, G.H - 23, 150, 15);
+        ctx.fillStyle = s.ts > 0.5 ? PALE : GREEN; ctx.fillRect(72, G.H - 23, 150 * s.ts, 15);
         if (!s.alert) {
-            G.text('UNDETECTED · TRACE ' + Math.max(0, s.tune.trace - s.clock).toFixed(1), G.W - 12, G.H - 9, { size: 15, color: MID, align: 'right' });
+            G.text('UNDETECTED · TRACE ' + Math.max(0, s.tune.trace - s.clock).toFixed(1), G.W - 12, G.H - 8, { size: 20, color: MID, align: 'right' });
         }
         if (s.msgT > 0) {
             ctx.globalAlpha = Math.min(1, s.msgT * 2);
-            G.text(s.msg, G.W / 2, 52, { size: 18, color: PALE, align: 'center', glow: GREEN });
+            G.text(s.msg, G.W / 2, 54, { size: 20, color: PALE, align: 'center', glow: GREEN });
             ctx.globalAlpha = 1;
         }
     }
@@ -972,6 +1057,7 @@
         drawBullets(s, ctx);
         drawPlayer(s, ctx);
         s.drones.forEach(function (d) { drawDrone(s, ctx, d); });
+        drawLock(s, ctx);
         drawOverlay(s, ctx);
     }
 
@@ -985,10 +1071,10 @@
         title: 'BULLET TIME',
         blurb: 'Time only moves when you do. Stand still, read the bullets, clear the room.',
         controls: [
-            'WASD / arrows: move — the world runs only while you move or shoot',
-            'Mouse: aim and click to shoot · SPACE: shoot the way you face (auto-aims)',
-            'X or right click: switch gun · walk over dropped guns for ammo',
-            'Out of ammo? Run into an agent from behind. One hit kills you.'
+            'WASD / arrows / pad: move — time runs only while you move or shoot',
+            'Mouse: aim, click to shoot · SPACE: shoot the way you face (auto-aims)',
+            'Touch: FIRE shoots the marked agent · tap another agent to shoot that one',
+            'X / right click / GUN: switch gun · no ammo? run into an agent from behind'
         ],
         levelNames: ['Wake Up', 'Corridor', 'Dojo', 'Shotgun Hall', 'Server Farm', 'Deja Vu', 'Sentinel', 'Glass Office', 'Rooftop', 'The Lobby'],
         colors: { bg: '#000000', fg: GREEN, accent: GREEN, dim: MID },
@@ -1003,6 +1089,8 @@
             drums: { k: 'x.....x...x.....', s: '....x.......x..x', h: '..x...x...x.x.x.' },
             leadWave: 'sawtooth', bassWave: 'sawtooth', arpWave: 'triangle', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud, cursor: 'crosshair'
+        init: init, update: update, draw: draw, hud: hud, cursor: 'crosshair',
+        // The whole pad: eight-way movement, and both buttons carry a gun control.
+        touch: { a: 'FIRE', b: 'GUN' }
     });
 })();
