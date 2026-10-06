@@ -850,9 +850,9 @@
     // --- pad layout: pure geometry, applied by resize() ---
 
     // A pad cell is normally at least 48 CSS px, the smallest target a thumb
-    // hits reliably. Only where that would leave next to no playfield (two
-    // direction pads on a small phone held sideways) may it shrink, down to
-    // MIN_UNIT, until the canvas is MIN_CANVAS_W wide.
+    // hits reliably. Only where that would leave next to no playfield (a very
+    // small phone held sideways, or two direction pads on a small one) may it
+    // shrink, down to MIN_UNIT, until the canvas is MIN_CANVAS_W wide.
     var MIN_UNIT = 40, MIN_CANVAS_W = 280;
 
     function box(x, y, size) { return { x: x, y: y, w: size.w, h: size.h }; }
@@ -1233,11 +1233,18 @@
         if (sc === 'title') { G.score = 0; beginLevel(cur.sel); }
         else if (sc === 'intro') setScreen('play');
         else if (sc === 'paused') togglePause();
-        else if (sc === 'error') G.quit();
+        else if (sc === 'error') quitSoon();
         else if (cur.age < 0.5) return;
         else if (sc === 'clear') beginLevel(cur.level + 1);
         else if (sc === 'over') { G.score = 0; beginLevel(cur.level); }
         else if (sc === 'victory') toTitle();
+    }
+
+    // Leaves the crashed-game screen a moment after the tap that asked for it.
+    // Quitting on the spot would remove the overlay before that tap's click
+    // fires, and the click would land on the blog underneath (maybe a link).
+    function quitSoon() {
+        setTimeout(function () { G.quit(); }, 350);
     }
 
     function menuKey(code) {
@@ -1450,8 +1457,19 @@
     // gutters and the space under the canvas confirm a menu like the canvas
     // does. Pad parts and the close button are targets of their own and the
     // canvas has its own handler; none of them arrive here as e.target.
+    // A thumb aiming at the ✕ that lands just beside it must not confirm the
+    // menu instead (that would start or restart a level).
+    var CLOSE_SLOP = 28;
+
+    function nearClose(e) {
+        var r = dom.close.getBoundingClientRect();
+        return e.clientX > r.left - CLOSE_SLOP && e.clientX < r.right + CLOSE_SLOP &&
+            e.clientY > r.top - CLOSE_SLOP && e.clientY < r.bottom + CLOSE_SLOP;
+    }
+
     function onOverlayTap(e) {
         if (!pad || !dom || e.target !== dom.root || !cur || cur.screen === 'play') return;
+        if (nearClose(e)) return;
         audio();
         menuConfirm();
     }

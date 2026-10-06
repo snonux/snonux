@@ -127,9 +127,9 @@ The pad holds keys, so a game needs no touch code of its own:
 The direction pad is an 8-way stick: its corners give diagonals (two
 directions held at once) and a thumb can slide from one direction to the next.
 Each part of the pad follows its own finger, so holding a direction while
-pressing A or B works. Buttons are at least 48 CSS px; only a `twin` pad on a
-small phone held sideways shrinks them (to 40 at the least) so that the canvas
-stays about 280 px wide.
+pressing A or B works. Buttons are at least 48 CSS px; only on a very small
+phone held sideways (or with a `twin` pad on a small one) do they shrink, to 40
+at the least, so that the canvas stays about 280 px wide.
 
 `def.touch` tunes the pad; every field is optional, and a game that declares
 nothing gets the full pad above.
