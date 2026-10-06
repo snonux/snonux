@@ -7,15 +7,17 @@
  * reeling the chain. Concrete structures stand on a grid with gravity: a
  * block stays up while something holds it from below, or while its row is
  * anchored on both sides (a lintel). Knock out the support and everything
- * above comes down and breaks. Demolish the target share before time is up,
- * and keep the cab out from under what falls.
+ * above comes down and breaks. The crane cannot drive through a standing
+ * wall, and a ball that is merely dragged along does no damage: only a real
+ * swing counts. Demolish the target share before time is up, and keep the
+ * cab out from under what falls.
  */
 (function () {
     'use strict';
     var G = window.SnoGame;
     var GROUND = 470, CW = 40, CH = 30, COLS = 24, ROWS = 13, PIVOT_Y = 62, BALL_R = 15;
     var GRAV = 900, L_MIN = 70, L_MAX = GROUND - BALL_R - PIVOT_Y - 2, REEL = 170, SUB = 4;
-    var CAB_ACC = 620, CAB_MAX = 250, CAB_HALF = 30, CAB_H = 36, BLAST = 78;
+    var CAB_ACC = 620, CAB_MAX = 250, CAB_HALF = 30, CAB_H = 36, BLAST = 78, MARK = 68;
     var CONC = 0, REBAR = 1, GLASS = 2, CHARGE = 3;
     var RED = '#ff2200';
 
@@ -24,102 +26,117 @@
     // fall hurts (fall) and the score.
     var KINDS = [
         { hp: 1, minV: 80, base: 0, fall: 1, score: 10 },
-        { hp: 1.5, minV: 320, base: 0.5, fall: 0, score: 40 },
+        { hp: 1, minV: 300, base: 0.5, fall: 0, score: 40 },
         { hp: 0.2, minV: 20, base: 1, fall: 10, score: 60 },
         { hp: 1, minV: 60, base: 0, fall: 1, score: 25 }
     ];
+    // Ball damage is (impact speed - minV) / HIT_SCALE + base; a landing does
+    // (landing speed / FALL_SCALE) * fall.
+    var HIT_SCALE = 200, FALL_SCALE = 600;
+    // Timers are roughly twice what a practised player needs, so they bind
+    // for a newcomer; running out ends the run, which is also what makes
+    // doing nothing lose.
     var LEVELS = [
-        { time: 75, target: 0.7 }, { time: 90, target: 0.75 }, { time: 100, target: 0.75 },
-        { time: 110, target: 0.75 }, { time: 120, target: 0.75 }, { time: 120, target: 0.7 },
-        { time: 130, target: 0.65 }, { time: 140, target: 0.7, wind: true },
-        { time: 150, target: 0.7, tremor: true }, { time: 180, target: 0.75, wind: true, tremor: true }
+        { time: 100, target: 0.7 }, { time: 100, target: 0.7 }, { time: 110, target: 0.7 },
+        { time: 130, target: 0.65 }, { time: 130, target: 0.7 }, { time: 130, target: 0.7 },
+        { time: 150, target: 0.6 }, { time: 160, target: 0.65, wind: true },
+        { time: 170, target: 0.65, tremor: true }, { time: 190, target: 0.7, wind: true, tremor: true }
     ];
 
     // ------------------------------------------------------------------
     // Structures: each builder writes block kinds into a ROWS x COLS grid
     // (row 0 stands on the ground). Everything must be held up at the start.
+    // The crane starts on the left and cannot pass a standing wall, so every
+    // structure is worked from its left face inward; rebar is placed where
+    // it can be broken, cleared around or swung over.
     // ------------------------------------------------------------------
 
     function fill(g, c0, r0, w, h, kind) {
         for (var r = r0; r < r0 + h; r++) for (var c = c0; c < c0 + w; c++) g[r][c] = kind;
     }
 
-    function buildWall(g) { fill(g, 9, 0, 6, 4, CONC); fill(g, 17, 0, 2, 2, CONC); }
+    function buildWall(g) { fill(g, 9, 0, 5, 3, CONC); fill(g, 16, 0, 2, 2, CONC); }
 
-    function buildStacks(g) { fill(g, 6, 0, 2, 8, CONC); fill(g, 10, 0, 2, 3, CONC); fill(g, 15, 0, 3, 9, CONC); }
+    function buildStacks(g) { fill(g, 7, 0, 2, 7, CONC); fill(g, 11, 0, 1, 3, CONC); fill(g, 14, 0, 3, 8, CONC); }
 
     // Concrete frame with glass infill on every other floor.
     function buildGlassHouse(g) {
-        for (var r = 0; r < 8; r++) {
-            for (var c = 7; c < 17; c++) g[r][c] = (r % 2 === 1 && (c - 7) % 3 !== 0) ? GLASS : CONC;
+        for (var r = 0; r < 7; r++) {
+            for (var c = 8; c < 16; c++) {
+                var pillar = c === 8 || c === 11 || c === 12 || c === 15;
+                g[r][c] = (r % 2 === 1 && !pillar) ? GLASS : CONC;
+            }
         }
     }
 
+    // The rebar stub in the middle is a wall the crane cannot pass: break
+    // it with a full swing, or work on the far half over its top.
     function buildRebarCore(g) {
-        fill(g, 9, 0, 7, 9, CONC); fill(g, 12, 0, 1, 9, REBAR);
-        fill(g, 5, 0, 2, 5, CONC); fill(g, 18, 0, 2, 6, CONC);
+        fill(g, 5, 0, 2, 4, CONC);
+        fill(g, 10, 0, 7, 7, CONC); fill(g, 13, 0, 1, 2, REBAR);
     }
 
     // Pillars with doorways between them: the slab above only holds while
     // both of its ends are still standing.
     function buildArcade(g) {
-        for (var c = 5; c <= 19; c += 2) fill(g, c, 0, 1, 2, (c === 5 || c === 19) ? REBAR : CONC);
+        for (var c = 5; c <= 19; c += 2) fill(g, c, 0, 1, 2, c === 19 ? REBAR : CONC);
         fill(g, 5, 2, 15, 1, CONC);
         for (c = 5; c <= 19; c++) fill(g, c, 3, 1, 2, (c - 5) % 2 === 1 ? GLASS : CONC);
-        fill(g, 5, 5, 15, 1, CONC); fill(g, 9, 6, 7, 2, CONC); fill(g, 12, 6, 1, 2, REBAR);
+        fill(g, 5, 5, 15, 1, CONC); fill(g, 9, 6, 7, 2, CONC); fill(g, 15, 6, 1, 2, REBAR);
     }
 
     // Rebar footings make the usual trick (take out the ground floor)
     // useless; the charges on the faces are the way in.
     function buildShortFuse(g) {
         fill(g, 5, 0, 4, 8, CONC); fill(g, 5, 0, 4, 1, REBAR);
-        g[1][5] = CHARGE; g[5][8] = CHARGE;
+        g[2][5] = CHARGE; g[5][8] = CHARGE;
         fill(g, 13, 0, 6, 10, CONC); fill(g, 13, 0, 6, 1, REBAR);
-        fill(g, 13, 1, 1, 3, REBAR); fill(g, 18, 1, 1, 3, REBAR);
-        g[4][13] = CHARGE; g[6][18] = CHARGE; g[9][15] = CHARGE;
+        fill(g, 13, 1, 1, 2, REBAR); fill(g, 18, 1, 1, 2, REBAR);
+        g[3][13] = CHARGE; g[6][18] = CHARGE; g[9][15] = CHARGE;
     }
 
     function buildSilos(g) {
-        [[5, 12], [11, 11], [17, 12]].forEach(function (t) {
-            fill(g, t[0], 0, 2, t[1], CONC);
-            for (var r = 0; r < t[1]; r += 4) fill(g, t[0], r, 2, 1, REBAR);
-            fill(g, t[0], t[1] - 1, 2, 1, GLASS);
+        [[5, 11], [11, 10], [17, 11]].forEach(function (t) {
+            fill(g, t[0], 0, 3, t[1], CONC);
+            fill(g, t[0], 5, 3, 1, REBAR);
+            fill(g, t[0], t[1] - 1, 3, 1, GLASS);
         });
-        g[2][11] = CHARGE; g[6][18] = CHARGE; g[9][5] = CHARGE;
+        g[7][5] = CHARGE; g[2][11] = CHARGE; g[4][17] = CHARGE;
     }
 
     function buildZiggurat(g) {
-        for (var r = 0; r < 8; r++) {
-            for (var c = 4 + r; c <= 19 - r; c++) {
-                var edge = c === 4 + r || c === 19 - r;
-                g[r][c] = (c === 11 || c === 12) ? REBAR : (r % 2 === 1 && edge ? GLASS : CONC);
+        for (var r = 0; r < 7; r++) {
+            for (var c = 6 + r; c <= 19 - r; c++) {
+                var edge = c === 6 + r || c === 19 - r, core = (c === 12 || c === 13) && r < 2;
+                g[r][c] = core ? REBAR : (r % 2 === 1 && edge ? GLASS : CONC);
             }
         }
-        g[2][6] = CHARGE; g[4][15] = CHARGE;
+        g[2][8] = CHARGE; g[4][15] = CHARGE;
     }
 
-    // A slab block riddled with window holes, on a rebar skeleton.
+    // A slab block riddled with window holes, with a rebar stub in the
+    // middle and a rebar end wall.
     function buildCondemned(g) {
-        fill(g, 4, 0, 16, 10, CONC);
-        fill(g, 4, 0, 1, 5, REBAR); fill(g, 19, 0, 1, 5, REBAR); fill(g, 11, 0, 2, 10, REBAR);
+        fill(g, 6, 0, 14, 10, CONC);
+        fill(g, 12, 0, 2, 2, REBAR); fill(g, 19, 0, 1, 5, REBAR);
         for (var r = 1; r < 10; r += 2) {
-            for (var c = 5; c < 19; c += 3) g[r][c] = (r === 3 || r === 7) ? GLASS : null;
+            for (var c = 7; c < 19; c += 3) g[r][c] = (r === 3 || r === 7) ? GLASS : null;
         }
-        g[2][4] = CHARGE; g[6][19] = CHARGE; g[9][9] = CHARGE;
+        g[2][6] = CHARGE; g[5][11] = CHARGE; g[9][9] = CHARGE;
     }
 
-    // Podium on pillars, two towers with rebar cores and a glazed skybridge
-    // that hangs between them.
+    // Podium on pillars, two towers with rebar in their cores and a glazed
+    // skybridge that hangs between them.
     function buildMega(g) {
-        for (var c = 5; c <= 18; c++) {
-            if ((c - 5) % 2 === 0 || c === 18) fill(g, c, 0, 1, 2, (c === 5 || c === 18 || c === 11) ? REBAR : CONC);
+        for (var c = 6; c <= 19; c++) {
+            if ((c - 6) % 2 === 0 || c === 19) fill(g, c, 0, 1, 2, (c === 12 || c === 19) ? REBAR : CONC);
         }
-        fill(g, 5, 2, 14, 1, CONC);
-        fill(g, 5, 3, 4, 9, CONC); fill(g, 7, 3, 1, 9, REBAR);
-        fill(g, 15, 3, 4, 8, CONC); fill(g, 16, 3, 1, 8, REBAR);
-        fill(g, 10, 3, 4, 2, CONC); fill(g, 9, 7, 6, 1, CONC); fill(g, 9, 8, 6, 1, GLASS);
-        for (var r = 4; r < 11; r += 2) { g[r][6] = GLASS; g[r][17] = GLASS; }
-        g[5][5] = CHARGE; g[6][18] = CHARGE; g[3][11] = CHARGE; g[11][8] = CHARGE;
+        fill(g, 6, 2, 14, 1, CONC);
+        fill(g, 6, 3, 4, 9, CONC); fill(g, 8, 3, 1, 2, REBAR);
+        fill(g, 16, 3, 4, 8, CONC); fill(g, 17, 3, 1, 2, REBAR);
+        fill(g, 11, 3, 4, 2, CONC); fill(g, 10, 7, 6, 1, CONC); fill(g, 10, 8, 6, 1, GLASS);
+        for (var r = 4; r < 11; r += 2) { g[r][7] = GLASS; g[r][18] = GLASS; }
+        g[5][6] = CHARGE; g[6][19] = CHARGE; g[3][12] = CHARGE; g[11][9] = CHARGE;
     }
 
     var BUILD = [buildWall, buildStacks, buildGlassHouse, buildRebarCore, buildArcade,
@@ -238,6 +255,16 @@
         if (b.kind === CHARGE) explode(s, b); else rubble(b);
     }
 
+    // A block lost to something other than the player's demolition (it broke
+    // on the cab, or a tremor threw it) leaves the job instead of counting
+    // as progress; the target shrinks with it so the level stays winnable.
+    function discard(s, b) {
+        removeBlock(s, b);
+        s.total--;
+        s.need = Math.ceil(s.total * s.cfg.target);
+        rubble(b);
+    }
+
     function lightFuse(s, b, t) {
         if (b.fuse > 0) { b.fuse = Math.min(b.fuse, t); return; }
         b.fuse = t;
@@ -351,7 +378,7 @@
     }
 
     function land(s, b, row) {
-        var v = b.vy, dmg = v / 520, under = row > 0 ? s.grid[row - 1][b.c] : null;
+        var v = b.vy, dmg = v / FALL_SCALE, under = row > 0 ? s.grid[row - 1][b.c] : null;
         b.falling = false; b.r = row; b.y = cellY(row); b.vy = 0;
         s.grid[row][b.c] = b;
         s.dirty = true;
@@ -377,11 +404,21 @@
         G.loseLife();
     }
 
+    // A slab only hurts once it has really dropped (about 20 px): a block
+    // that lets go right beside the cab must not hit before it has moved.
+    function crushes(s, b) {
+        return b.vy > 190 && hitsCab(s, b.c * CW, b.y, CW, CH);
+    }
+
     function updateFalling(s, dt) {
         s.falling = s.falling.filter(function (b) {
             if (b.dead) return false;
             b.vy += GRAV * dt; b.y += b.vy * dt;
-            if (hitsCab(s, b.c * CW, b.y, CW, CH)) { destroy(s, b); hurtCab(s); return false; }
+            if (crushes(s, b)) {
+                if (b.kind === CHARGE) destroy(s, b); else discard(s, b);
+                hurtCab(s);
+                return false;
+            }
             var row = landingRow(s, b);
             if (b.y < cellY(row)) return true;
             land(s, b, row);
@@ -403,10 +440,14 @@
         });
     }
 
+    // Debris only hurts on its way down and only while all of it is over
+    // its landing mark (MARK wide), so the red mark on the ground is exactly
+    // the place to keep the cab off.
     function updateChunks(s, dt) {
         s.chunks = s.chunks.filter(function (k) {
             k.vy += GRAV * dt; k.x += k.vx * dt; k.y += k.vy * dt; k.rot += k.spin * dt;
-            var hit = hitsCab(s, k.x - k.size / 2, k.y - k.size / 2, k.size, k.size);
+            var over = k.vy > 0 && Math.abs(k.x - k.tx) <= (MARK - k.size) / 2;
+            var hit = over && hitsCab(s, k.x - k.size / 2, k.y - k.size / 2, k.size, k.size);
             if (!hit && k.y < GROUND - k.size / 2) return true;
             if (hit) hurtCab(s);
             thud(s, 0.3);
@@ -451,11 +492,41 @@
         }
     }
 
+    function collapsing(s, c) {
+        function inColumn(b) { return b.c === c && !b.dead; }
+        return s.loose.some(inColumn) || s.falling.some(inColumn);
+    }
+
+    // A column with blocks in both of its two lowest rows is a wall the
+    // tracks cannot climb; a single block of rubble is driven past. A column
+    // that is coming down is barred as well: when the ball knocks out the
+    // wall the cab is pushing against, the cab must not lurch under the
+    // collapse before the player can let go of the key.
+    function walled(s, c) {
+        if (c < 0 || c >= COLS) return false;
+        return (!!s.grid[0][c] && !!s.grid[1][c]) || collapsing(s, c);
+    }
+
+    // Moves the cab by dx, stopping at the site edge or at the first wall
+    // its leading edge would enter. Returns true when it was stopped. A cab
+    // that already stands inside a walled column (rubble settled around it)
+    // can still drive out.
+    function shiftCab(s, dx) {
+        var cab = s.cab, dir = dx > 0 ? 1 : -1, edge = cab.x + dir * CAB_HALF;
+        var want = cab.x + dx, to = G.clamp(want, 40, G.W - 40) + dir * CAB_HALF;
+        var stopped = to !== want + dir * CAB_HALF;
+        for (var c = Math.floor(edge / CW) + dir; dir > 0 ? c * CW < to : (c + 1) * CW > to; c += dir) {
+            if (!walled(s, c)) continue;
+            to = dir > 0 ? c * CW - 0.01 : (c + 1) * CW + 0.01;
+            stopped = true;
+            break;
+        }
+        cab.x = to - dir * CAB_HALF;
+        return stopped;
+    }
+
     function moveCab(s, h) {
-        var cab = s.cab;
-        cab.x += cab.vx * h;
-        if (cab.x < 40) { cab.x = 40; cab.vx = Math.max(0, cab.vx); }
-        if (cab.x > G.W - 40) { cab.x = G.W - 40; cab.vx = Math.min(0, cab.vx); }
+        if (s.cab.vx && shiftCab(s, s.cab.vx * h)) s.cab.vx = 0;
     }
 
     // The chain is a rope, not a rod: it only acts when taut. It then takes
@@ -478,15 +549,18 @@
     }
 
     // A ball caught on a structure holds the crane back: the chain can
-    // stretch 30 px and no further. If the ball hangs too low for that, the
-    // winch slips instead.
+    // stretch 30 px and no further. If the crane cannot give way either (a
+    // wall, or the ball hangs too low), the winch slips and pays out chain.
     function snag(s) {
         var b = s.ball, cab = s.cab, dx = b.x - cab.x, dy = b.y - PIVOT_Y, max = s.L + 30;
         if (dx * dx + dy * dy <= max * max) return;
-        if (Math.abs(dy) >= max) { s.L = G.clamp(Math.hypot(dx, dy) - 30, L_MIN, L_MAX); return; }
-        var reach = Math.sqrt(max * max - dy * dy);
-        cab.x = G.clamp(b.x - (dx > 0 ? reach : -reach), 40, G.W - 40);
-        if (cab.vx * dx < 0) cab.vx = 0;
+        if (Math.abs(dy) < max) {
+            var reach = Math.sqrt(max * max - dy * dy);
+            if (cab.vx * dx < 0) cab.vx = 0;
+            shiftCab(s, b.x - (dx > 0 ? reach : -reach) - cab.x);
+        }
+        var d = Math.hypot(b.x - cab.x, dy);
+        if (d > s.L + 30.5) s.L = G.clamp(d - 30, L_MIN, L_MAX);
     }
 
     // What the ball does to a block it hits at speed v. Returns true when
@@ -507,7 +581,7 @@
             clang(0.12);
             G.burst(s.ball.x, s.ball.y, { n: 8, color: RED, speed: 260, life: 0.3, size: 3 });
         }
-        return damage(s, blk, (v - K.minV) / 140 + K.base);
+        return damage(s, blk, (v - K.minV) / HIT_SCALE + K.base);
     }
 
     // Unit vector from the block's surface to the ball's centre, and how far
@@ -527,9 +601,14 @@
         var n = contact(b, rx, ry), vn = b.vx * n.x + b.vy * n.y;
         b.x += n.x * (BALL_R - n.d); b.y += n.y * (BALL_R - n.d);
         if (vn >= 0) return;
-        // A block that breaks only slows the ball, so one good swing can
-        // plough through several; a block that holds bounces it back.
-        if (strike(s, blk, -vn)) { b.vx *= 0.8; b.vy *= 0.8; return; }
+        // Only swing counts: the impact is the slower of the ball's speed
+        // over the ground and its speed relative to the crane, so a ball
+        // that is just dragged into a wall by driving does nothing.
+        var swing = -(vn - s.cab.vx * n.x), impact = Math.min(-vn, swing);
+        // A block that breaks costs the ball nearly half its speed, so one
+        // swing ploughs through two blocks at most; one that holds bounces
+        // it back.
+        if (impact > 0 && strike(s, blk, impact)) { b.vx *= 0.55; b.vy *= 0.55; return; }
         b.vx -= 1.35 * vn * n.x; b.vy -= 1.35 * vn * n.y;
     }
 
@@ -554,6 +633,9 @@
         snag(s);
         if (b.y < G.HUD + BALL_R) { b.y = G.HUD + BALL_R; b.vy = Math.abs(b.vy) * 0.4; }
         if (b.y > GROUND - BALL_R) { b.y = GROUND - BALL_R; b.vy = -Math.abs(b.vy) * 0.3; }
+        // The site fence keeps the ball on screen.
+        if (b.x < BALL_R) { b.x = BALL_R; b.vx = Math.abs(b.vx) * 0.5; }
+        if (b.x > G.W - BALL_R) { b.x = G.W - BALL_R; b.vx = -Math.abs(b.vx) * 0.5; }
     }
 
     // ------------------------------------------------------------------
@@ -575,10 +657,13 @@
         G.noise(2.4, { filter: 'bandpass', freq: 500, slide: 1400, q: 2, vol: 0.14, attack: 0.6 });
     }
 
+    // Roof blocks a tremor may throw. Only blocks from the fourth floor up
+    // qualify: thrown from there, debris clears the cab by a wide margin on
+    // the way out and can be seen coming.
     function topBlocks(s) {
         var tops = [];
         for (var c = 0; c < COLS; c++) {
-            for (var r = ROWS - 1; r >= 0; r--) {
+            for (var r = ROWS - 1; r >= 3; r--) {
                 var b = s.grid[r][c];
                 if (!b) continue;
                 if (firm(b) && b.kind !== CHARGE) tops.push(b);
@@ -595,11 +680,10 @@
         var tops = topBlocks(s), n = Math.min(tops.length, G.level >= 10 ? 3 : 2);
         G.shake(12, 0.5); G.sfx('boom');
         for (var i = 0; i < n; i++) {
-            var b = tops.splice(Math.floor(Math.random() * tops.length), 1)[0];
+            var b = tops.splice(Math.floor(G.rnd(0, tops.length)), 1)[0];
             var x = blockX(b), y = b.y + CH / 2, tx = i === 0 ? s.cab.x : G.rnd(60, G.W - 60);
-            removeBlock(s, b);
-            s.gone++;
-            addChunk(s, x, y, (tx - x) / flightTime(y, -240), -240);
+            discard(s, b);
+            addChunk(s, x, y, (tx - x) / flightTime(y, -300), -300);
         }
     }
 
@@ -644,7 +728,9 @@
         var before = s.time;
         s.time -= dt;
         if (s.time <= 10 && Math.ceil(before) !== Math.ceil(s.time)) G.sfx('alarm');
-        if (s.time <= 0) G.die();
+        // Missing the deadline loses the contract outright; lives only pay
+        // for hits on the cab.
+        if (s.time <= 0) for (var n = G.lives; n > 0; n--) G.loseLife();
     }
 
     function tickTimers(s, dt) {
@@ -775,7 +861,7 @@
         s.chunks.forEach(function (k) {
             // Landing mark on the ground.
             ctx.fillStyle = RED;
-            ctx.fillRect(k.tx - 16, GROUND + 6, 32, 5);
+            ctx.fillRect(k.tx - MARK / 2, GROUND + 6, MARK, 5);
             ctx.save();
             ctx.translate(k.x, k.y); ctx.rotate(k.rot);
             ctx.fillStyle = '#9a9a9a';
@@ -884,7 +970,7 @@
             '← → drive the crane: the ball swings by its own momentum',
             '↑ ↓ reel the chain in / out · SPACE (touch: A) hard brake, whips the ball forward',
             'Red-barred rebar needs a fast hit · TNT blows 1.6 s after it is struck',
-            'Stay out from under falling slabs and flying debris'
+            'Walls stop the crane; time up ends the job · keep clear of slabs and debris'
         ],
         levelNames: ['Garden Wall', 'Twin Stacks', 'Glass House', 'Rebar Core', 'Arcade',
             'Short Fuse', 'Silos', 'Crosswind', 'Aftershock', 'Megastructure'],
