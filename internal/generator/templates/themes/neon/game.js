@@ -18,8 +18,10 @@
     var KEYS = ['right', 'down', 'left', 'up'];             // logical button per direction
     var WALL = 7;                                           // grid value of blocks; 1..6 are cycle ids
     var MAX_RING = 15;                                      // the collapse stops here, leaving a 50x12 core
-    var BOOST = 1.75, COUNT_STEP = 0.6, LOCK_AT = 30;
+    var BOOST = 1.75, COUNT_STEP = 0.6;
+    var LOCK_AT = 20;                                       // seconds of a round after which fading trails stop fading
     var GRACE = 3;                                          // seconds of a round before riders hunt or boost
+    var REACT = 0.25;                                       // seconds of the player's path ahead that riders keep out of
     var C = { bg: '#0b001a', cyan: '#00f5ff', magenta: '#ff00cc', yellow: '#ffe700', fg: '#e0f8ff', dim: '#7d6aa8', block: '#8a4dff' };
     var RIDER_COLORS = ['#ff00cc', '#ffe700', '#ff7a1a', '#5dff6e', '#b78cff'];
     // Start cell and heading: the player first, then up to five riders. No two
@@ -49,7 +51,7 @@
         { need: 2, speed: 17, riders: ['scout', 'hunter', 'rookie'], pods: true },
         { need: 2, speed: 17, riders: ['hunter', 'scout', 'rookie'], pods: true, decay: 70 },
         { need: 3, speed: 18, riders: ['hunter', 'scout', 'scout', 'rookie'], pods: true, layout: 'bars', blocks: 6 },
-        { need: 3, speed: 19, riders: ['ace', 'hunter', 'scout', 'rookie'], pods: true, decay: 90, layout: 'pillars', blocks: 4 },
+        { need: 2, speed: 19, riders: ['ace', 'hunter', 'scout', 'rookie'], pods: true, decay: 90, layout: 'pillars', blocks: 4 },
         { need: 3, speed: 20, riders: ['hunter', 'hunter', 'scout'], pods: true, shrink: { start: 8, every: 4.5 } },
         { need: 2, speed: 21, riders: ['hunter', 'hunter', 'scout', 'rookie', 'rookie'], pods: true, decay: 110, layout: 'bars', blocks: 4, shrink: { start: 10, every: 5 } },
         { need: 3, speed: 23, riders: ['expert'], pods: true, layout: 'pillars', blocks: 2, shrink: { start: 6, every: 3.6 } }
@@ -229,10 +231,33 @@
         return { x: prey.x + DX[prey.dir] * lead, y: prey.y + DY[prey.dir] * lead };
     }
 
-    function rate(c, o, maxArea, tgt, wobble) {
+    // How much a wall dropped on this cell would crowd the player: 1 for the
+    // cells straight ahead that it reaches within REACT seconds, 0.5 for the
+    // other cells in front of it that it could reach in that time by turning,
+    // else 0. A human cannot dodge a wall that appears there, so riders cut
+    // the player off further ahead than that, or not at all.
+    function crowding(s, x, y) {
+        var me = s.me, reach = Math.ceil(s.cfg.speed * (me.boosting ? BOOST : 1) * REACT);
+        var ahead = (x - me.x) * DX[me.dir] + (y - me.y) * DY[me.dir];
+        var aside = Math.abs((x - me.x) * DY[me.dir] - (y - me.y) * DX[me.dir]);
+        if (!me.alive || ahead < 0 || ahead + aside > reach) return 0;
+        return aside ? 0.5 : 1;
+    }
+
+    // A rider puts a wall right under the player's nose only when its other
+    // ways out are dead ends: those options are dropped while a roomy one is left.
+    function clearOfNose(s, c, opts, maxArea) {
+        var keep = opts.filter(function (o) {
+            return crowding(s, c.x + DX[o.d], c.y + DY[o.d]) < 1 && o.area >= maxArea / 4;
+        });
+        return keep.length ? keep : opts;
+    }
+
+    function rate(s, c, o, maxArea, tgt, wobble) {
         var sk = c.skill, sc = o.free * 2 + G.rnd(0, sk.jitter);
         if (o.straight) sc += wobble ? -6 : 6;              // going straight is the default
         if (maxArea) sc += 80 * o.area / maxArea;           // never trade room for anything else
+        sc -= 60 * crowding(s, c.x + DX[o.d], c.y + DY[o.d]);   // keep out of the player's face
         if (tgt) {
             var now = Math.abs(c.x - tgt.x) + Math.abs(c.y - tgt.y);
             var then = Math.abs(c.x + DX[o.d] - tgt.x) + Math.abs(c.y + DY[o.d] - tgt.y);
@@ -257,8 +282,8 @@
         if (!opts.length) { virt = false; opts = options(s, c, virt); }
         if (!opts.length) return;
         var maxArea = measure(s, c, opts, virt), tgt = target(s, c), wobble = Math.random() < sk.wobble;
-        opts.forEach(function (o) {
-            var sc = rate(c, o, maxArea, tgt, wobble);
+        clearOfNose(s, c, opts, maxArea).forEach(function (o) {
+            var sc = rate(s, c, o, maxArea, tgt, wobble);
             if (sc > bestSc) { bestSc = sc; best = o; }
         });
         c.dir = best.d;
@@ -310,13 +335,14 @@
         }
     }
 
-    // Two cycles meeting nose to nose in the same cell on the same tick take
-    // each other out. Anything else — including ramming a head from the side —
-    // only costs the one that ran into the wall.
+    // Two cycles meeting nose to nose take each other out, whichever of them
+    // happens to move first on the tick they meet (the player always moves
+    // first, and must not lose a head-on for that). Anything else — including
+    // ramming a head from the side — only costs the one that ran into the wall.
     function crash(s, c, nx, ny) {
         var inside = nx >= 0 && ny >= 0 && nx < COLS && ny < ROWS;
         var o = inside ? s.cycles[s.grid[ny * COLS + nx] - 1] : null;
-        var headOn = o && o !== c && o.alive && o.x === nx && o.y === ny && o.stepTick === s.tick && o.dir === (c.dir + 2) % 4;
+        var headOn = o && o !== c && o.alive && o.x === nx && o.y === ny && o.dir === (c.dir + 2) % 4;
         if (headOn) derez(s, o);
         derez(s, c);
     }
@@ -648,8 +674,8 @@
         title: 'LIGHT CYCLES',
         blurb: 'Every cycle leaves a wall of light. Box the riders in and outlast them all.',
         controls: [
-            '← → ↑ ↓ turn the cycle (it never stops)',
-            'SPACE boost while the charge lasts',
+            '← → ↑ ↓ (touch: pad) turn the cycle — it never stops',
+            'SPACE (touch: BOOST) boost while the charge lasts',
             'Recharge: yellow pods, or ride right beside a rival wall',
             'Win the rounds shown to clear the level — a crash costs a life'
         ],
@@ -667,6 +693,9 @@
             drums: { k: 'x...x...x...x.x.', s: '....x.......x...', h: '..x...x...x...xx' },
             leadWave: 'sawtooth', bassWave: 'sawtooth', arpWave: 'triangle', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // Grid turns: one direction at a time, so a thumb a little off axis
+        // never queues a second turn. B is unused.
+        touch: { a: 'BOOST', hide: ['b'], dirs: 4 }
     });
 })();
