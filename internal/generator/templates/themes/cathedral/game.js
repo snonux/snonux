@@ -13,10 +13,16 @@
     'use strict';
     var G = window.SnoGame;
     var FIRE_Y = 506, LEDGE_H = 16, GRAV = 720, DEMON_GRAV = 520, MAX_VX = 280;
-    // Orbs hover on the fire's updraft, high enough that one drifting over the
-    // altar comes to rest on top of it instead of in the gap underneath.
+    // Orbs hover on the fire's updraft, within reach of a gargoyle that
+    // stands on the altar.
     var ORB_FLOOR = FIRE_Y - 70;
-    var PLAYER_ROOF = 24;                       // the gargoyle's ceiling is this much lower than the demons'
+    // Demons follow the gargoyle down to here, so skimming the fire is no
+    // refuge: nothing fits between a demon at this height and the flames.
+    var DEMON_FLOOR = FIRE_Y - 50;
+    // The gargoyle's ceiling is this much lower than the demons': the vault
+    // tracery (see drawVault) stops stone, not spirits.
+    var PLAYER_ROOF = 24;
+    var BUMP = 170;                             // the gargoyle's rebound off the underside of a ledge
     var HOLD_FLAP = 0.51, COMBO_T = 4, COMBO_MAX = 5, PORTAL_GRACE = 0.5;
     var CRUMBLE_T = 0.9, REGROW_T = 6;
     var GEYSER_WARN = 1.2, GEYSER_BURN = 0.9, GEYSER_H = 300;
@@ -49,14 +55,20 @@
     var BOSS_LOOK = { body: '#a8324f', wing: '#5c1a2c', eye: COL.bright, horn: COL.gold, k: 2.1, tail: true };
 
     // Ledge layouts as [x, y, width]; the first ledge is the altar the
-    // gargoyle starts and respawns on, so it never crumbles.
+    // gargoyle starts and respawns on, so it never crumbles. The altar is a
+    // solid block down to the floor: there is no gap beneath it to hide in.
+    // A ledge may reach across the wrap seam (x + width > 960): it is one
+    // piece of stone, not two that meet there, so nothing snags on the joint.
+    // Every layout keeps ledges in its lower half: souls settle on them
+    // instead of hovering just above the fire, and they give the gargoyle
+    // somewhere to land between dives.
     var LAYOUTS = {
         nave: [[380, 440, 200], [50, 350, 170], [740, 350, 170], [340, 262, 280], [110, 170, 170], [680, 170, 170]],
-        aisles: [[400, 446, 160], [0, 300, 120], [840, 300, 120], [170, 384, 150], [640, 384, 150], [395, 236, 170], [230, 136, 120], [610, 136, 120]],
+        aisles: [[400, 446, 160], [840, 300, 240], [170, 384, 150], [640, 384, 150], [395, 236, 170], [230, 136, 120], [610, 136, 120]],
         hall: [[400, 440, 160], [40, 196, 150], [770, 196, 150], [110, 330, 170], [680, 330, 170], [390, 326, 180]],
         stairs: [[400, 446, 160], [60, 400, 120], [230, 318, 120], [60, 226, 120], [780, 400, 120], [610, 318, 120], [780, 226, 120], [410, 150, 140]],
-        sparse: [[410, 440, 140], [90, 286, 150], [720, 286, 150], [405, 200, 150]],
-        twin: [[400, 446, 160], [0, 330, 110], [850, 330, 110], [400, 300, 160], [410, 170, 140]],
+        choir: [[410, 440, 140], [90, 286, 150], [720, 286, 150], [405, 200, 150], [235, 380, 110], [615, 380, 110]],
+        twin: [[400, 446, 160], [850, 330, 220], [400, 300, 160], [410, 170, 140], [205, 392, 110], [645, 392, 110]],
         sanctum: [[410, 446, 140], [70, 330, 150], [740, 330, 150], [60, 180, 130], [770, 180, 130]]
     };
 
@@ -65,16 +77,16 @@
     // them. censers: [pivot x, chain length, start angle]. hatch: seconds an
     // orb waits before it re-hatches.
     var LEVELS = [
-        { layout: 'nave', waves: [[0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], hatch: 9, hint: 'STRIKE FROM ABOVE' },
-        { layout: 'nave', waves: [[0, 0, 1], [0, 1, 1], [0, 0, 1, 1], [1, 1, 1, 0]], hatch: 8.5, hint: 'FIENDS HUNT YOU' },
-        { layout: 'aisles', waves: [[0, 0, 1, 1], [1, 1, 1, 0], [1, 1, 1, 1], [1, 1, 1, 0, 0]], bats: 8, hatch: 8, hint: 'BATS IN THE BELFRY' },
-        { layout: 'stairs', waves: [[0, 1, 1], [1, 1, 1, 0], [1, 1, 2], [1, 1, 2, 2]], crumble: [1, 2, 3, 4, 5, 6, 7], hatch: 8, hint: 'THE STONE CRUMBLES' },
-        { layout: 'hall', waves: [[0, 1, 1], [1, 1, 2], [1, 2, 2, 0], [1, 1, 2, 2]], censers: [[480, 230, 0.9]], hatch: 7.5, hint: 'BEWARE THE CENSER' },
-        { layout: 'sparse', waves: [[1, 1, 2], [2, 2, 1], [2, 2, 1, 1], [2, 2, 2, 1, 1]], bats: 11, hatch: 7, hint: 'WRAITHS RISE HIGH' },
-        { layout: 'nave', waves: [[1, 2, 2], [1, 1, 2, 2], [2, 2, 2, 1], [2, 2, 2, 1, 1]], geysers: 4.5, hatch: 7, hint: 'HOLY FIRE ERUPTS' },
-        { layout: 'twin', waves: [[1, 2, 2], [2, 2, 3], [2, 2, 1, 1, 3], [2, 2, 2, 3, 1]], censers: [[240, 200, 0.75], [720, 200, -0.75]], crumble: [1, 2, 3], bats: 10, hatch: 6.5, hint: 'TWIN THURIBLES' },
-        { layout: 'stairs', waves: [[2, 2, 1], [2, 3, 1, 1], [3, 3, 2, 2], [2, 2, 3, 3, 1]], crumble: [2, 5, 7], geysers: 7, dark: true, hatch: 6.5, hint: 'THE CANDLES GO OUT' },
-        { layout: 'sanctum', waves: [[1, 2, 2], [2, 2, 3], [2, 3, 3, 2, 1], ['B', 2, 2]], censers: [[480, 170, 0.8]], bats: 12, geysers: 8, hatch: 6.5, hint: 'THE LAST VIGIL' }
+        { layout: 'nave', waves: [[0, 0, 0], [0, 0, 0, 0]], hatch: 9, hint: 'STRIKE FROM ABOVE' },
+        { layout: 'nave', waves: [[0, 0, 1], [0, 1, 1], [0, 0, 1, 1]], hatch: 8.5, hint: 'FIENDS HUNT YOU' },
+        { layout: 'aisles', waves: [[0, 0, 1], [0, 1, 1, 1], [1, 1, 1, 0]], bats: 9, hatch: 8, hint: 'BATS IN THE BELFRY' },
+        { layout: 'stairs', waves: [[0, 0, 1], [0, 1, 1], [1, 1, 0], [1, 1, 2]], crumble: [1, 2, 3, 4, 5, 6, 7], hatch: 8, hint: 'THE STONE CRUMBLES' },
+        { layout: 'hall', waves: [[0, 1, 1], [1, 1, 2], [1, 2, 0], [1, 2, 2, 1]], censers: [[480, 230, 0.9]], hatch: 7.5, hint: 'BEWARE THE CENSER' },
+        { layout: 'choir', waves: [[1, 1, 2], [1, 1, 2], [2, 1, 1], [2, 2, 1]], bats: 11, hatch: 7, hint: 'WRAITHS RISE HIGH' },
+        { layout: 'nave', waves: [[1, 2, 2], [1, 1, 2], [2, 2, 1], [2, 2, 1]], geysers: 4.5, hatch: 7, hint: 'HOLY FIRE ERUPTS' },
+        { layout: 'twin', waves: [[1, 2, 2], [2, 2, 3], [2, 3, 1, 1], [2, 2, 3, 3], [3, 3, 2, 2, 1]], censers: [[240, 200, 0.75], [720, 200, -0.75]], crumble: [1, 2], bats: 10, hatch: 6.5, hint: 'TWIN THURIBLES' },
+        { layout: 'stairs', waves: [[2, 2, 1], [2, 3, 1], [3, 2, 2], [2, 3, 3, 1]], crumble: [2, 5, 7], geysers: 7, dark: true, hatch: 6.5, hint: 'THE CANDLES GO OUT' },
+        { layout: 'sanctum', waves: [[1, 2, 2], [2, 2, 3], [2, 3, 3, 1], ['B', 2, 2]], censers: [[480, 170, 0.8]], bats: 12, geysers: 8, hatch: 6.5, hint: 'THE LAST VIGIL' }
     ];
 
     // ------------------------------------------------------------------
@@ -109,7 +121,7 @@
     function buildLedges(cfg) {
         var crumble = cfg.crumble || [];
         return LAYOUTS[cfg.layout].map(function (l, i) {
-            return { x: l[0], y: l[1], w: l[2], crumble: crumble.indexOf(i) >= 0, wear: 0, gone: 0 };
+            return { x: l[0], y: l[1], w: l[2], h: i === 0 ? G.H - l[1] : LEDGE_H, crumble: crumble.indexOf(i) >= 0, wear: 0, gone: 0 };
         });
     }
 
@@ -131,7 +143,7 @@
         var home = s.ledges[0];
         return {
             x: home.x + home.w / 2, y: home.y - 14, vx: 0, vy: 0, hw: 13, hh: 14, face: 1,
-            wing: 0, flapCd: 0, hold: 0, inv: 2, batCd: 0, combo: 0, comboT: 0, roof: PLAYER_ROOF, ground: null
+            wing: 0, flapCd: 0, hold: 0, inv: 2, batCd: 0, combo: 0, comboT: 0, roof: PLAYER_ROOF, bump: BUMP, ground: null
         };
     }
 
@@ -159,7 +171,7 @@
         return {
             x: x, y: y, vx: 0, vy: 0, hw: 13, hh: 13, tier: tier, boss: false, hp: 1,
             dir: x < G.W / 2 ? 1 : -1, face: 1, targetY: 200, think: 0, flapCd: 0, wing: 0,
-            spawn: delay, grace: PORTAL_GRACE, stun: 0, dead: false, ground: null
+            spawn: delay, grace: PORTAL_GRACE, stun: 0, dead: false, ground: null, round: false
         };
     }
 
@@ -189,21 +201,25 @@
     // Movement shared by gargoyle, demons and orbs
     // ------------------------------------------------------------------
 
+    // Landing on a ledge or hitting its underside. The gargoyle rebounds off
+    // an underside with at least its `bump` speed: it cannot cling there,
+    // where nothing could ever get above it.
     function restOrBump(e, l, dy) {
         if (dy < 0) { e.y = l.y - e.hh; if (e.vy > 0) e.vy = 0; e.ground = l; }
-        else { e.y = l.y + LEDGE_H + e.hh; e.vy = Math.abs(e.vy) * 0.4; }
+        else { e.y = l.y + l.h + e.hh; e.vy = Math.max(Math.abs(e.vy) * 0.4, e.bump || 0); e.ceil = l; }
     }
 
     // Pushes a body out of every standing ledge along the axis it overlaps
-    // least, which is the side it came in through. Sets e.ground, and
-    // e.blocked to the ledge whose end it ran into.
+    // least, which is the side it came in through. Sets e.ground, e.ceil
+    // (the ledge it hit from below) and e.blocked (the ledge whose end it
+    // ran into).
     function collideLedges(s, e) {
-        e.ground = null; e.blocked = null;
+        e.ground = null; e.ceil = null; e.blocked = null;
         for (var i = 0; i < s.ledges.length; i++) {
             var l = s.ledges[i];
             if (l.gone > 0) continue;
-            var dx = wrapDx(e.x, l.x + l.w / 2), dy = e.y - (l.y + LEDGE_H / 2);
-            var ox = e.hw + l.w / 2 - Math.abs(dx), oy = e.hh + LEDGE_H / 2 - Math.abs(dy);
+            var dx = wrapDx(e.x, l.x + l.w / 2), dy = e.y - (l.y + l.h / 2);
+            var ox = e.hw + l.w / 2 - Math.abs(dx), oy = e.hh + l.h / 2 - Math.abs(dy);
             if (ox <= 0 || oy <= 0) continue;
             if (oy < ox) { restOrBump(e, l, dy); continue; }
             var side = dx < 0 ? -1 : 1;
@@ -282,7 +298,7 @@
 
     function crumble(l) {
         l.gone = REGROW_T;
-        G.burst(l.x + l.w / 2, l.y + 8, { n: 22, color: '#8d849c', speed: 150, gravity: 700, spread: Math.PI, angle: Math.PI / 2, size: 4 });
+        G.burst(wrapX(l.x + l.w / 2), l.y + 8, { n: 22, color: '#8d849c', speed: 150, gravity: 700, spread: Math.PI, angle: Math.PI / 2, size: 4 });
         G.noise(0.45, { freq: 420, slide: 70, vol: 0.3 });
         G.shake(3, 0.15);
     }
@@ -324,7 +340,7 @@
             if (Math.random() < 0.3) d.dir = -d.dir;
             d.targetY = G.rnd(80, 400);
         }
-        d.targetY = G.clamp(d.targetY, T.top, FIRE_Y - 90);
+        d.targetY = G.clamp(d.targetY, T.top, DEMON_FLOOR);
     }
 
     // The soul is flung sideways and cannot be grabbed for a moment, so a
@@ -349,6 +365,43 @@
         G.noise(0.2, { filter: 'bandpass', freq: 1800, slide: 400, vol: 0.14 });
     }
 
+    // A demon that flew into the end of a ledge goes round it on the
+    // gargoyle's side, so stone is never a shield to hide behind. Going under,
+    // it scrapes along the underside: any lower and a gargoyle hugging the
+    // ledge from below would be the higher one and could strike every demon
+    // that came for it. Where a demon cannot pass underneath (the altar, or a
+    // ledge so low that the way under is below the height demons keep above
+    // the fire) it goes over instead of staying pressed against the stone.
+    function detour(s, d) {
+        var l = d.blocked, under = l.y + l.h + d.hh + 2;
+        d.targetY = s.p.y > l.y && under <= DEMON_FLOOR ? under : l.y - 34;
+        d.think = 0.7;
+    }
+
+    // The ledge that pins a demon: the one whose underside it presses
+    // against while it wants to rise, or the one it stands on while what it
+    // wants is below.
+    function pinnedBy(d) {
+        if (d.ceil && d.y > d.targetY) return d.ceil;
+        return d.ground && d.targetY > d.ground.y + d.ground.h ? d.ground : null;
+    }
+
+    // Against an underside a demon flutters in place instead of dropping
+    // away: under a ledge it then is the higher one, as it is everywhere
+    // else. If what it is after is on the far side of the stone it makes for
+    // the nearer end, so a gargoyle on top of a ledge, or under one, is never
+    // shielded by it. It picks that way out once (`round`) and keeps to it
+    // until it is free, instead of turning back with every new decision.
+    function goRound(d, l) {
+        if (d.ceil === l) {
+            d.vy = 0; d.flapCd = 0;
+            if (d.targetY >= l.y) return;        // its prey is under this ledge too
+        }
+        if (!d.round) d.dir = wrapDx(d.x, l.x + l.w / 2) < 0 ? -1 : 1;
+        d.round = true;
+        d.think = Math.max(d.think, 0.3);
+    }
+
     function updateDemon(s, d, dt) {
         if (d.spawn > 0) { d.spawn -= dt; return; }
         var T = statsOf(d);
@@ -360,14 +413,14 @@
         d.vx += (d.dir * T.speed - d.vx) * Math.min(1, 3 * dt);
         d.face = d.dir;
         // Near the fire every demon flaps for its life, whatever it wanted.
-        if ((d.y > d.targetY || d.y > FIRE_Y - 90) && d.flapCd <= 0) {
+        if ((d.y > d.targetY || d.y > DEMON_FLOOR) && d.flapCd <= 0) {
             d.vy = Math.max(Math.min(d.vy, 80) - T.lift, -300);
             d.flapCd = T.flap; d.wing = 0.16;
         }
         moveBody(s, d, dt, DEMON_GRAV);
-        // A demon that flew into the end of a ledge goes round it on the
-        // gargoyle's side, so stone is never a shield to hide behind.
-        if (d.blocked) { d.targetY = s.p.y > d.blocked.y ? d.blocked.y + LEDGE_H + 30 : d.blocked.y - 34; d.think = 0.7; }
+        if (d.blocked) detour(s, d);
+        var pin = pinnedBy(d);
+        if (pin) goRound(d, pin); else d.round = false;
         if (d.y + d.hh <= FIRE_Y) return;
         if (d.boss) { d.y = FIRE_Y - d.hh; d.vy = -300; }
         else smite(s, d);
@@ -655,6 +708,26 @@
         });
     }
 
+    // The vault tracery: a row of hanging arches as deep as the strip only
+    // demons can enter. It shows the player where the gargoyle's ceiling is
+    // and that a demon can still be above it there.
+    function drawVault(ctx) {
+        var bay = 60, tip = G.HUD + PLAYER_ROOF;
+        ctx.fillStyle = '#2b2436';
+        ctx.strokeStyle = 'rgba(224,196,127,0.45)';
+        ctx.lineWidth = 1.5;
+        for (var x = 0; x < G.W; x += bay) {
+            ctx.beginPath();
+            ctx.moveTo(x, G.HUD);
+            ctx.lineTo(x, tip);
+            ctx.quadraticCurveTo(x + bay * 0.1, G.HUD + 6, x + bay / 2, G.HUD + 4);
+            ctx.quadraticCurveTo(x + bay * 0.9, G.HUD + 6, x + bay, tip);
+            ctx.lineTo(x + bay, G.HUD);
+            ctx.fill();
+            ctx.stroke();
+        }
+    }
+
     function drawBackdrop(s, ctx) {
         var g = ctx.createLinearGradient(0, 0, 0, G.H);
         g.addColorStop(0, '#1c1524'); g.addColorStop(1, '#09080d');
@@ -674,17 +747,28 @@
             ctx.fillRect(wrapX(m.x + s.t * m.v), m.y + Math.sin(s.t * 0.7 + m.ph) * 10, 2, 2);
         });
         ctx.globalAlpha = 1;
+        drawVault(ctx);
     }
 
-    function drawLedge(s, ctx, l) {
+    // The altar's plinth, from its slab down into the fire.
+    function drawPlinth(ctx, l) {
+        ctx.fillStyle = '#2b2436';
+        ctx.fillRect(l.x, l.y + LEDGE_H, l.w, l.h - LEDGE_H);
+        ctx.fillStyle = 'rgba(224,196,127,0.3)';
+        ctx.fillRect(l.x + 8, l.y + LEDGE_H + 6, l.w - 16, 2);
+        ctx.fillRect(l.x + l.w / 2 - 1, l.y + LEDGE_H + 12, 2, l.h - LEDGE_H - 12);
+    }
+
+    function drawLedgeAt(s, ctx, l, x0) {
         if (l.gone > 0) {
             // A ghost outline that fills in shows when the stone returns.
             ctx.strokeStyle = 'rgba(141,132,156,0.3)';
             ctx.lineWidth = 1;
-            ctx.strokeRect(l.x + 0.5, l.y + 0.5, l.w * (1 - l.gone / REGROW_T), LEDGE_H);
+            ctx.strokeRect(x0 + 0.5, l.y + 0.5, l.w * (1 - l.gone / REGROW_T), LEDGE_H);
             return;
         }
-        var shakeX = l.wear > 0.15 ? Math.sin(s.t * 70) * 2 * l.wear : 0, x = l.x + shakeX;
+        var shakeX = l.wear > 0.15 ? Math.sin(s.t * 70) * 2 * l.wear : 0, x = x0 + shakeX;
+        if (l.h > LEDGE_H) drawPlinth(ctx, l);
         ctx.fillStyle = l.crumble ? '#4d4038' : '#3b3547';
         ctx.fillRect(x, l.y, l.w, LEDGE_H);
         ctx.fillStyle = l.crumble ? '#a8946f' : '#8d849c';
@@ -692,6 +776,12 @@
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(x, l.y + LEDGE_H - 3, l.w, 3);
         for (var j = 22; j < l.w; j += l.crumble ? 17 : 30) ctx.fillRect(x + j, l.y + 3, l.crumble ? 2 : 1, LEDGE_H - 6);
+    }
+
+    // A ledge that reaches across the seam shows on both sides of the nave.
+    function drawLedge(s, ctx, l) {
+        drawLedgeAt(s, ctx, l, l.x);
+        if (l.x + l.w > G.W) drawLedgeAt(s, ctx, l, l.x - G.W);
     }
 
     function drawFire(s, ctx) {
@@ -870,8 +960,11 @@
     // the screen is split at the point opposite the gargoyle and each side is
     // lit from whichever image of it (x or x ± W) is nearer.
     function drawDarkness(s, ctx) {
-        var p = s.p, left = p.x < G.W / 2, seam = wrapX(p.x + G.W / 2);
-        var parts = [[0, seam, left ? p.x : p.x - G.W], [seam, G.W, left ? p.x + G.W : p.x]];
+        // The halves overlap by a pixel: where they only met, a canvas scaled by
+        // a fractional factor showed a faint bright line down the nave. The
+        // overlap lies in the darkest part, where it cannot be seen.
+        var p = s.p, left = p.x < G.W / 2, seam = Math.round(wrapX(p.x + G.W / 2));
+        var parts = [[0, seam + 1, left ? p.x : p.x - G.W], [seam, G.W, left ? p.x + G.W : p.x]];
         parts.forEach(function (part) {
             var g = ctx.createRadialGradient(part[2], p.y, 50, part[2], p.y, 230);
             g.addColorStop(0, 'rgba(6,5,10,0)'); g.addColorStop(1, 'rgba(6,5,10,0.95)');
@@ -916,9 +1009,10 @@
         title: 'GARGOYLE',
         blurb: 'Dive on the demons from above, then catch their souls before they hatch again.',
         controls: [
-            'SPACE or ↑: flap (tap fast to climb, hold to hover)',
+            'SPACE / FLAP (or ↑): tap fast to climb, hold to hover',
             '← →: steer — the nave wraps around at the walls',
-            'In a collision the higher one wins. Holy fire, censers and geysers kill.'
+            'In a collision the higher one wins — demons fit under the vault, you do not',
+            'Holy fire, censers and geysers kill'
         ],
         levelNames: ['Matins', 'Lauds', 'The Belfry', 'Crumbling Triforium', 'The Censer', 'Wraith Choir', 'Holy Fire', 'Twin Thuribles', 'Tenebrae', 'Archdemon'],
         colors: { bg: '#110f16', fg: COL.chalk, accent: COL.gold, dim: '#8d849c' },
@@ -936,6 +1030,9 @@
             drums: { k: 'x.......x.......', h: '....x.......x...' },
             leadWave: 'square', bassWave: 'triangle', arpWave: 'triangle', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // Flapping is the A button; ↑ flaps too on a keyboard, but on the pad a
+        // two-button steering bar and one big FLAP button are easier to hit.
+        touch: { a: 'FLAP', hide: ['up', 'down', 'b'] }
     });
 })();
