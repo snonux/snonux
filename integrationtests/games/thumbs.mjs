@@ -15,6 +15,9 @@ const LEVEL = 3, THUMB_W = 320, THUMB_H = 180;
 // Ticks to play before the picture is taken; a game the bot loses that
 // quickly is retried with the next, shorter run.
 const RUNS = [300, 150, 60, 10];
+// Games whose picture after the first run is not a good one (neon: the bot
+// has just crashed and a banner covers the arena) get their own length.
+const OWN_RUNS = { neon: [130] };
 
 // Wraps SnoGame.register so update() can be frozen once the scene is right,
 // and makes Math.random repeatable.
@@ -44,7 +47,7 @@ async function shoot(page, base, theme) {
     await page.eval(`SnoGame.launch('${theme}')`);
     await page.waitFor(`SnoGame.debug.state() && SnoGame.debug.state().registered`, 'register');
     let steps = 0, screen = '';
-    for (steps of RUNS) {
+    for (steps of OWN_RUNS[theme] || RUNS) {
         screen = await play(page, steps);
         if (screen === 'play') break;
     }

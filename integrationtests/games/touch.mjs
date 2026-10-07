@@ -90,7 +90,18 @@ async function launchByTap(page, base, theme) {
     const title = await page.eval(`SnoGame.titles[${JSON.stringify(theme)}]`);
     const btn = '#splash-overlay .splash-game-btn';
     await page.waitFor(`(document.querySelector('${btn}')||{textContent:''}).textContent.indexOf(${JSON.stringify(title)})>=0`, 'splash "Play" button for this theme');
-    const r = await page.eval(`(function(){var e=document.querySelector('${btn}');e.scrollIntoView({block:'center'});var b=e.getBoundingClientRect();return {x:b.left,y:b.top,w:b.width,h:b.height};})()`);
+    const measure = () => page.eval(`(function(){var e=document.querySelector('${btn}');e.scrollIntoView({block:'center'});var b=e.getBoundingClientRect();return {x:b.left,y:b.top,w:b.width,h:b.height};})()`);
+    // The button can still move after the theme switch: when the theme's
+    // font arrives the row of splash buttons may wrap differently. Tap only
+    // once it has stayed put.
+    let r = await measure();
+    for (let i = 0; i < 20; i++) {
+        await sleep(100);
+        const again = await measure();
+        const still = again.x === r.x && again.y === r.y && again.w === r.w;
+        r = again;
+        if (still) break;
+    }
     await page.tap(centre(r).x, centre(r).y);
     await page.waitFor(`SnoGame.active && ${STATE} && ${STATE}.screen==='title'`, 'title screen after tapping the splash button');
     check((await page.eval(STATE)).theme === theme, `tap launched the wrong game`);

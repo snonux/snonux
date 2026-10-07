@@ -100,7 +100,8 @@ music, progress saved in a cookie. Start it from the **Play** button on the
 splash screen, the button in the header, the `game` button in the fx row, or
 with the `a` key; `Esc` quits. **All games**, next to the splash and header
 buttons, opens a menu with a picture and a short description of every theme's
-game, so any of them can be played from any theme. On a phone the game goes fullscreen with an
+game, so any of them can be played from any theme (on a narrow phone the
+button is on the splash only). On a phone the game goes fullscreen with an
 on-screen pad beside (or below) the playfield, and `✕` quits.
 
 The shared engine is `internal/generator/templates/shared/games.js`; each

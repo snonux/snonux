@@ -2262,7 +2262,11 @@
                 if (nextPageURL) { playNavSound(); if (window.snonuxPageEffect) window.snonuxPageEffect(); window.location.href = nextPageURL; }
                 else { bounceEffect('right'); }
                 e.preventDefault(); break;
-            case 'Enter': openPostAt(currentIndex, true); e.preventDefault(); break;
+            case 'Enter':
+                // On a focused game button Enter presses that button, as
+                // Space does; everywhere else it opens the selected post.
+                if (e.target.closest && e.target.closest('.sno-game-launch, .sno-arcade-open')) break;
+                openPostAt(currentIndex, true); e.preventDefault(); break;
             case 'w': {
                 toggleWildMode();
                 e.preventDefault(); break;

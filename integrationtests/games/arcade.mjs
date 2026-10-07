@@ -61,6 +61,36 @@ async function checkKeys(page) {
     check(await page.eval(SPLASH_UP), 'a key pressed in the menu dismissed the splash');
     check(!(await page.eval('SnoGame.active')), 'a key pressed in the menu started a game');
     check(await page.eval('SnoArcade.isOpen()'), 'a letter key closed the menu');
+    // Tab goes round the menu (25 cards and the close button) and never out
+    // to the page behind, where Enter would press a splash button.
+    for (let i = 0; i < 30; i++) {
+        await page.press('Tab');
+        check(await page.eval(`!!document.activeElement.closest('#sno-arcade')`), `Tab left the menu after ${i + 1} presses`);
+    }
+}
+
+// The "All games" buttons: one each beside the splash and header launch
+// buttons, however often shared.js asks for them (it does after every theme
+// switch).
+async function checkButtonsOnce(page) {
+    await page.eval('snonuxGameDecorate(); snonuxGameDecorate()');
+    for (const cls of ['.splash-arcade-btn', '.header-arcade-btn', '.splash-game-btn', '.header-game-btn']) {
+        const n = await page.eval(`document.querySelectorAll('${cls}').length`);
+        check(n === 1, `${n} ${cls} buttons on the page, want 1`);
+    }
+}
+
+// From the header, by keyboard: Enter on the focused button opens the menu
+// (not the selected post), and after a game and Esc focus is back on it.
+async function checkHeaderByKeyboard(page) {
+    await page.eval(`document.querySelector('.header-arcade-btn').focus()`);
+    await page.press('Enter');
+    await page.waitFor('SnoArcade.isOpen()', 'the menu to open with Enter on the header button');
+    await checkPlayAndReturn(page, false);
+    await page.press('Escape');
+    await page.waitFor('!SnoArcade.isOpen()', 'the menu to close');
+    check(await page.eval(`document.activeElement.classList.contains('header-arcade-btn')`), 'focus did not return to the button that opened the menu');
+    check(!(await page.eval(`!!document.querySelector('[data-sno-arcade-inert]')`)), 'the page stayed inert after the menu closed');
 }
 
 // A card starts its game; quitting the game leads back to the menu, on the
@@ -83,6 +113,7 @@ export async function testArcadeMenu(page, base, shots, touch) {
     await activate(page, '.splash-arcade-btn', touch);
     await page.waitFor('SnoArcade.isOpen()', 'the menu to open');
     check(await page.eval(SPLASH_UP), 'opening the menu dismissed the splash');
+    check(await page.eval(`document.getElementById('splash-overlay').inert`), 'the page behind the open menu can still be operated');
     await checkCards(page, base);
     check(await page.eval(`(function(){var r=document.getElementById('sno-arcade');return r.scrollWidth<=r.clientWidth;})()`), 'the menu is wider than the screen');
     if (shots) await page.screenshot(join(shots, `arcade-menu${touch ? '-touch' : ''}.jpg`));
@@ -100,11 +131,14 @@ export async function testArcadeMenu(page, base, shots, touch) {
     await sleep(150);
     check(!(await page.eval('SnoArcade.isOpen()')), 'the menu opened after a game that was not started from it');
 
-    // The header has the button too, once the splash is gone.
+    await checkButtonsOnce(page);
+
+    // The header has the button too, once the splash is gone, except on a
+    // phone held upright, where the header has no room for it.
     await page.eval('window._snonuxDismissSplash && window._snonuxDismissSplash()');
     await page.waitFor(`!${SPLASH_UP}`, 'the splash to go');
     await sleep(touch ? 900 : 300);
-    await activate(page, '.header-arcade-btn', touch);
-    await page.waitFor('SnoArcade.isOpen()', 'the menu to open from the header');
-    await page.eval('SnoArcade.close()');
+    const shown = await page.eval(`getComputedStyle(document.querySelector('.header-arcade-btn')).display!=='none'`);
+    check(shown === !touch, touch ? 'the header shows a second game button on a narrow phone' : 'the header has no "All games" button');
+    if (!touch) await checkHeaderByKeyboard(page);
 }

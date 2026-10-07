@@ -115,19 +115,34 @@
     }
 
     function onMenuClick(e) {
-        // Nothing in here may reach the splash's click-to-dismiss handler.
+        // The menu handles its own clicks; the page's document-level click
+        // listeners must not act on them as well.
         e.stopPropagation();
         var c = e.target.closest('.sno-arcade-card');
         if (c) { play(c.getAttribute('data-theme')); return; }
         if (e.target.closest('.sno-arcade-close') || !e.target.closest('.sno-arcade-panel')) closeMenu();
     }
 
+    // The rest of the page is made inert while the menu is up: Tab stays
+    // inside the menu, and nothing behind it (the splash buttons, the theme
+    // picker, the fx row) can be operated under it.
+    function setPageInert(on) {
+        Array.prototype.forEach.call(document.body.children, function (n) {
+            if (n === root) return;
+            if (on && !n.inert) { n.inert = true; n.setAttribute('data-sno-arcade-inert', ''); }
+            else if (!on && n.hasAttribute('data-sno-arcade-inert')) { n.inert = false; n.removeAttribute('data-sno-arcade-inert'); }
+        });
+    }
+
+    // `focusTheme` is given when the menu comes back after a game; the
+    // element to hand focus to on closing is then still the original one.
     function openMenu(focusTheme) {
         if (root || G.active) return false;
-        opener = document.activeElement;
+        if (!focusTheme || !opener) opener = document.activeElement;
         root = build();
         document.body.appendChild(root);
         document.body.classList.add('sno-arcade-on');
+        setPageInert(true);
         var first = (focusTheme && root.querySelector('[data-theme="' + focusTheme + '"]')) || root.querySelector('.sno-arcade-card');
         (first || root).focus();
         return true;
@@ -135,6 +150,7 @@
 
     function removeMenu() {
         if (!root) return;
+        setPageInert(false);
         root.remove();
         root = null;
         document.body.classList.remove('sno-arcade-on');
@@ -182,12 +198,25 @@
         if (next) { next.focus(); next.scrollIntoView({ block: 'nearest' }); }
     }
 
+    // Tab past the last control (or Shift+Tab before the first) would leave
+    // the page for the browser's own toolbar; it goes round instead.
+    function wrapTab(e) {
+        var stops = root.querySelectorAll('button');
+        var first = stops[0], last = stops[stops.length - 1];
+        var edge = e.shiftKey ? first : last;
+        if (document.activeElement !== edge && root.contains(document.activeElement)) return;
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+    }
+
     // While the menu is open no key may reach the blog's shortcuts or the
-    // splash. Tab, Enter and Space keep their normal meaning on the cards.
+    // splash. Tab, Enter and Space keep their normal meaning on the cards;
+    // the page behind is inert, so Tab finds nothing to stop at out there.
     function onKeyDown(e) {
         if (!root) return;
         e.stopImmediatePropagation();
         if (e.code === 'Escape') { e.preventDefault(); closeMenu(); return; }
+        if (e.code === 'Tab') { wrapTab(e); return; }
         if (/^Arrow/.test(e.code)) { e.preventDefault(); moveFocus(e.code); }
     }
 

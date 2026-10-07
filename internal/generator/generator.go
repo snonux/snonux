@@ -275,8 +275,8 @@ func jsonStringOrNull(s string) template.JS {
 }
 
 // writeSharedAssets dumps shared.css, shared.js, games.js (the arcade engine)
-// and arcade.js (the menu of all games) to the output dir. They are linked from every page and cached by
-// browsers across navigations.
+// and arcade.js (the menu of all games) to the output dir. They are linked
+// from every page and cached by browsers across navigations.
 func writeSharedAssets(outputDir string) error {
 	assets := []struct {
 		name string

@@ -17,8 +17,8 @@ const gameThumbName = "game-thumb.jpg"
 // game.js declares for itself.
 var (
 	blurbsBlock = regexp.MustCompile(`(?s)var BLURBS = \{(.*?)\};`)
-	blurbEntry  = regexp.MustCompile(`([a-z0-9]+): '([^']*)'`)
-	gameBlurb   = regexp.MustCompile(`blurb: '([^']*)'`)
+	blurbEntry  = regexp.MustCompile(`([a-z0-9]+): '((?:[^'\\]|\\.)*)'`)
+	gameBlurb   = regexp.MustCompile(`blurb: '((?:[^'\\]|\\.)*)'`)
 )
 
 // menuBlurbs returns theme → blurb as listed in arcade.js; nil when the
@@ -38,8 +38,9 @@ func menuBlurbs(arcade string) map[string]string {
 func TestMenuBlurbs_parsesBlurbsBlock(t *testing.T) {
 	t.Parallel()
 
-	got := menuBlurbs("var BLURBS = {\n  neon: 'Box them in.',\n  dos: 'Dig.'\n};")
-	if len(got) != 2 || got["neon"] != "Box them in." || got["dos"] != "Dig." {
+	// An escaped apostrophe does not end a blurb.
+	got := menuBlurbs("var BLURBS = {\n  neon: 'Box them in.',\n  dos: 'Don\\'t dig.'\n};")
+	if len(got) != 2 || got["neon"] != "Box them in." || got["dos"] != `Don\'t dig.` {
 		t.Errorf("menuBlurbs = %v", got)
 	}
 	if menuBlurbs("var OTHER = {};") != nil {

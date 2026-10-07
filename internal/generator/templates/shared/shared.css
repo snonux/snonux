@@ -1082,21 +1082,28 @@ body[data-sno-theme="dos"] .post-text img { animation:sno-matrix-decode 0.8s eas
 /* A phone held upright has no room for the game's name in the header (it
    pushed the feed link off screen or sat on the site title): icon only. */
 @media (max-width: 600px) {
-  .header-game-btn, .header-arcade-btn { min-width:44px; padding:0.5rem; flex:0 0 auto; }
+  .header-game-btn { min-width:44px; padding:0.5rem; flex:0 0 auto; }
   .header-game-btn .sno-game-launch-text { display:none; }
 }
-/* The "All games" button beside it gives up its words much earlier: the
-   header has to hold two buttons now. */
+/* The "All games" button beside it gives up its words much earlier, since
+   the header has to hold two buttons now, and on a phone held upright it
+   goes altogether: several themes have no room for a second button there
+   (it sat on the site title or fell off the screen). The splash keeps its
+   own "All games" button at every size. */
 @media (max-width: 1100px) {
   .header-arcade-btn .sno-game-launch-text { display:none; }
+}
+@media (max-width: 600px) {
+  .header-arcade-btn { display:none; }
 }
 .sno-touch .header-game-btn, .sno-touch .header-arcade-btn { min-height:44px; padding:0.5rem 0.8rem; font-size:0.9rem; }
 .sno-touch .splash-game-btn, .sno-touch .splash-arcade-btn { min-height:48px; padding:0.7rem 1.2rem; font-size:1rem; }
 body.sno-game-on, body.sno-arcade-on { overflow:hidden; }
 /* === Game overview menu (arcade.js) ===
    One card per game. It brings its own dark panel and a plain system font
-   instead of the theme's, so the text reads the same on every theme. Below
-   the game overlay in source order, so a game started from it covers it. */
+   instead of the theme's, so the text reads the same on every theme. It
+   shares the game overlay's layer; the two are never up together (the menu
+   is taken down before a game starts and put back when it ends). */
 #sno-arcade {
   position:fixed; inset:0; z-index:10000; overflow-y:auto; overscroll-behavior:contain;
   background:rgba(4,5,10,0.9); color:#f2f3f7; padding:1rem;

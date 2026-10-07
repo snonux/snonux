@@ -288,6 +288,29 @@ async function testBackdropHeld(page, base) {
     check(await page.eval('new Promise(function(ok){requestAnimationFrame(function(){ok(true);});})'), 'animation frames must work again after the game');
 }
 
+// The checks that do not belong to one game: the engine, the overview menu
+// and, in touch mode, the pad layouts.
+async function testEngine(page, base, opts) {
+    await testSaveParsing(page, base);
+    console.log('ok   save parsing and unknown-theme guard');
+    await testStepMemory(page, base);
+    console.log('ok   debug.step keeps held buttons across calls');
+    await testBackdropHeld(page, base);
+    console.log('ok   page animation frames are parked while a game is open');
+    await testArcadeMenu(page, base, opts.shots, opts.touch);
+    console.log('ok   game overview menu: every game listed, play one and come back');
+    if (opts.touch) {
+        await testFinePointerPhone(page, base, opts.shots);
+        console.log('ok   a tap launch on a phone that reports a fine pointer still gets the pad');
+        await testPadConfigs(page, base, opts.shots);
+        console.log('ok   def.touch variants (twin, 4-way, hidden buttons, labels) in both orientations');
+        await testNoFullscreen(page, base, opts.shots);
+        console.log('ok   launch without fullscreen on a page wider than the phone (terminal, 360x800 and 800x360)');
+        await testRotation(page, base, opts.shots);
+        console.log('ok   turning the phone in game');
+    }
+}
+
 async function main() {
     const opts = parseArgs(process.argv.slice(2));
     const themes = opts.themes.length ? opts.themes : themesWithGames();
@@ -295,24 +318,7 @@ async function main() {
     const { page, base, close } = await startSession();
     let failed = 0;
     try {
-        await testSaveParsing(page, base);
-        console.log('ok   save parsing and unknown-theme guard');
-        await testStepMemory(page, base);
-        console.log('ok   debug.step keeps held buttons across calls');
-        await testBackdropHeld(page, base);
-        console.log('ok   page animation frames are parked while a game is open');
-        await testArcadeMenu(page, base, opts.shots, opts.touch);
-        console.log('ok   game overview menu: every game listed, play one and come back');
-        if (opts.touch) {
-            await testFinePointerPhone(page, base, opts.shots);
-            console.log('ok   a tap launch on a phone that reports a fine pointer still gets the pad');
-            await testPadConfigs(page, base, opts.shots);
-            console.log('ok   def.touch variants (twin, 4-way, hidden buttons, labels) in both orientations');
-            await testNoFullscreen(page, base, opts.shots);
-            console.log('ok   launch without fullscreen on a page wider than the phone (terminal, 360x800 and 800x360)');
-            await testRotation(page, base, opts.shots);
-            console.log('ok   turning the phone in game');
-        }
+        await testEngine(page, base, opts);
         const run = opts.touch ? testThemeTouch : testTheme;
         for (const theme of themes) {
             const t0 = Date.now();

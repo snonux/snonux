@@ -199,8 +199,21 @@ func TestRun_writesGameAssets(t *testing.T) {
 		"themes/breakout/game-thumb.jpg": {"JFIF"},
 		"themes/breakout/theme.css":      {""},
 	}
+	checkOutputContains(t, out, wantIn)
+
+	// The engine is a shared asset: it must not be duplicated into themes.
+	if _, err := os.Stat(filepath.Join(out, "themes", "neon", "games.js")); !os.IsNotExist(err) {
+		t.Errorf("themes/neon/games.js should not exist (err=%v)", err)
+	}
+}
+
+// checkOutputContains reads each named file below dir and requires its
+// needles to appear in it, in the order given.
+func checkOutputContains(t *testing.T, dir string, wantIn map[string][]string) {
+	t.Helper()
+
 	for name, needles := range wantIn {
-		data, err := os.ReadFile(filepath.Join(out, filepath.FromSlash(name)))
+		data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
 		if err != nil {
 			t.Errorf("%s: %v", name, err)
 			continue
@@ -215,10 +228,5 @@ func TestRun_writesGameAssets(t *testing.T) {
 			}
 			rest = rest[at+len(needle):]
 		}
-	}
-
-	// The engine is a shared asset: it must not be duplicated into themes.
-	if _, err := os.Stat(filepath.Join(out, "themes", "neon", "games.js")); !os.IsNotExist(err) {
-		t.Errorf("themes/neon/games.js should not exist (err=%v)", err)
 	}
 }

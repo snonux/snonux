@@ -279,7 +279,9 @@ a copy of another game's.
 game's `blurb`. A card starts that game on whatever theme is active, and
 quitting it returns to the menu (the engine fires a `sno-game-quit` event on
 `document` when a game closes). `Esc`, the close button or a click beside the
-panel closes it; the arrow keys walk the cards.
+panel closes it; the arrow keys walk the cards. While it is open the page
+behind is `inert`. On a screen narrower than 600px only the splash has the
+**All games** button: several themes' headers have no room for a second one.
 
 A new or changed game needs two things for it:
 

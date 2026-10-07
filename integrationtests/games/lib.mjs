@@ -21,6 +21,7 @@ export const KEYS = {
     ArrowDown: { key: 'ArrowDown', vk: 40 }, KeyA: { key: 'a', vk: 65, text: 'a' },
     KeyW: { key: 'w', vk: 87, text: 'w' },
     KeyP: { key: 'p', vk: 80, text: 'p' },
+    Tab: { key: 'Tab', vk: 9 },
 };
 
 // Builds the site with one post so index.html exists.
