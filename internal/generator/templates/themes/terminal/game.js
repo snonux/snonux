@@ -17,7 +17,7 @@
     // The arena: below the HUD, above the one-line shell prompt at the bottom.
     var L = 10, R = G.W - 10, T = G.HUD + 8, B = G.H - 24;
     var P_SPEED = 235, P_R = 7, FIRE_GAP = 0.13, SHOT_SPEED = 640, BOMB_R = 300, MAX_BOMBS = 3;
-    var FORK_PERIOD = 7, MAX_ENEMIES = 80, MAX_EBUL = 140;
+    var FORK_PERIOD = 8, MAX_ENEMIES = 80, MAX_EBUL = 140;   // FORK_PERIOD: seconds a fork-bomb fork takes to grow or copy
     var DASH = 0.85;                                        // seconds a pipe's full dash lasts
 
     // mass scales knockback and decides what a bomb kills outright (< 5).
@@ -28,7 +28,7 @@
         '>': { hp: 2, r: 10, speed: 540, mass: 1.5, score: 30, drop: 0.14, name: 'pipe' },
         '#': { hp: 12, r: 16, speed: 40, mass: 5, score: 80, drop: 0.4, name: 'rootsh' },
         'S': { hp: 28, r: 26, speed: 0, mass: 1e6, score: 150, drop: 1, name: 'spawner' },
-        'I': { hp: 500, r: 38, speed: 40, mass: 40, score: 2000, drop: 0, name: 'init' }
+        'I': { hp: 420, r: 38, speed: 40, mass: 40, score: 2000, drop: 0, name: 'init' }
     };
     var DROPS = ['$', '$', '$', '$', '!', '!', '!', '*', '*', '+'];
 
@@ -61,9 +61,9 @@
         {
             waves: [{ Z: 8, d: 3, '>': 3 }, { '#': 2, '&': 3, d: 3 }, { Z: 10, '>': 4, '#': 2, d: 4 }], gen: 2,
             blocks: [block(440, 140, 80, 40, '/proc'), block(440, 370, 80, 40, '/sys'), block(250, 235, 40, 80, '/dev'), block(670, 235, 40, 80, '/run')],
-            spawners: [nest(120, 110, '&', 5, 10), nest(840, 110, '&', 5, 10), nest(480, 470, 'Z', 4, 10)]
+            spawners: [nest(120, 110, '&', 6, 10), nest(840, 110, '&', 6, 10), nest(480, 470, 'Z', 5, 10)]
         },
-        { waves: [{ I: 1 }], gen: 1, supply: 16 }
+        { waves: [{ I: 1 }], gen: 1, supply: 13 }
     ];
 
     // ---------------------------------------------------------------- setup
@@ -85,8 +85,10 @@
 
     function init(level) {
         var cfg = LEVELS[level - 1];
+        // speed: every process is 2% faster per level (18% on level ten); the
+        // levels differ mainly in what comes at the player, not in how fast.
         var s = {
-            level: level, cfg: cfg, rnd: G.rng(level * 7919), time: 0, speed: 1 + (level - 1) * 0.025,
+            level: level, cfg: cfg, rnd: G.rng(level * 7919), time: 0, speed: 1 + (level - 1) * 0.02,
             p: { x: G.W / 2, y: (T + B) / 2, vx: 0, vy: 0, inv: 1.5, cool: 0, spread: 0, bombs: 1, ax: 1, ay: 0 },
             enemies: [], shots: [], ebul: [], picks: [], queue: [], blocks: cfg.blocks || [],
             wave: 0, waveT: 0, pid: 1000 + level * 311, blast: null, banner: 0, bellT: 0,
@@ -586,8 +588,8 @@
     // ----------------------------------------------------------------- boss
 
     function bossRing(s, e, v, rage) {
-        var n = rage ? 22 : 16;
-        for (var i = 0; i < n; i++) enemyShot(s, e.x, e.y, e.t + i * Math.PI * 2 / n, 165);
+        var n = rage ? 18 : 14;
+        for (var i = 0; i < n; i++) enemyShot(s, e.x, e.y, e.t + i * Math.PI * 2 / n, 150);
         G.tone(140, 0.25, { type: 'square', vol: 0.16, slide: 70 });
     }
 
@@ -601,7 +603,7 @@
 
     function bossFan(s, e, v, rage) {
         var n = rage ? 3 : 2, base = Math.atan2(v.y, v.x);
-        for (var i = -n; i <= n; i++) enemyShot(s, e.x, e.y, base + i * 0.2, 195);
+        for (var i = -n; i <= n; i++) enemyShot(s, e.x, e.y, base + i * 0.2, 180);
         G.tone(260, 0.18, { type: 'sawtooth', vol: 0.14, slide: 130 });
     }
 
@@ -615,6 +617,9 @@
     }
 
     // The enraged half of the fight adds the last two attacks to the cycle.
+    // Its bullets are slow enough (150-180 px/s against the player's 235)
+    // to be walked out of by someone who notices them a third of a second
+    // late; the danger is in their number, not their speed.
     var BOSS_ATTACKS = [bossRing, bossAdopt, bossFan, bossSpiral, bossPipes];
 
     // init lumbers after the player and cycles through its attacks; below
@@ -624,11 +629,11 @@
         steer(e, v.x, v.y, rage ? 62 : 40, dt);
         if (e.spiral > 0) {
             e.spiral -= dt; e.spin += dt * 2.6; e.gap -= dt;
-            if (e.gap <= 0) { e.gap = 0.1; enemyShot(s, e.x, e.y, e.spin, 175); enemyShot(s, e.x, e.y, e.spin + Math.PI, 175); }
+            if (e.gap <= 0) { e.gap = 0.1; enemyShot(s, e.x, e.y, e.spin, 160); enemyShot(s, e.x, e.y, e.spin + Math.PI, 160); }
         }
         e.cool -= dt;
         if (e.cool > 0) return;
-        e.cool = rage ? 1.8 : 2.5;
+        e.cool = rage ? 2.1 : 2.8;
         e.atk = (e.atk + 1) % (rage ? 5 : 3);
         BOSS_ATTACKS[e.atk](s, e, v, rage);
     }
@@ -867,7 +872,7 @@
         ],
         levelNames: ['/bin/sh', 'fork()', 'daemons', '| pipes', '[fork] nests', 'su root', ':(){ :|:& };:', 'pipeline', 'kernel panic', 'init (pid 1)'],
         colors: { bg: BG, fg: GREEN, accent: WHITE, dim: DIM },
-        lives: 3,
+        lives: 4,
         music: {
             bpm: 158, root: 45, scale: 'minor', prog: [0, 0, 3, 4, 0, 0, 5, 4],
             bass: 'x.x.o.x.x.x.o.5.',
