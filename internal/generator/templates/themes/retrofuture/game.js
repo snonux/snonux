@@ -49,7 +49,7 @@
         { n: [10, 12, 13, 14], speed: 66, gap: 1.4, mirv: 0.2, smart: 0.12, heavy: 0.18, saucers: [1, 1, 1, 2] },
         { n: [11, 12, 13, 15], speed: 70, gap: 1.3, mirv: 0.22, smart: 0.15, heavy: 0.1, saucers: [1, 1, 1, 1], night: true },
         { n: [11, 13, 14, 16], speed: 74, gap: 1.3, mirv: 0.18, smart: 0.12, heavy: 0.1, cruise: 0.22, saucers: [1, 1, 2, 2] },
-        { n: [12, 14, 15, 8], speed: 78, gap: 1.25, mirv: 0.2, smart: 0.14, heavy: 0.1, cruise: 0.14, saucers: [1, 1, 2, 0], night: true, boss: true }
+        { n: [12, 14, 15, 8], speed: 76, gap: 1.25, mirv: 0.2, smart: 0.14, heavy: 0.1, cruise: 0.14, saucers: [1, 1, 2, 0], night: true, boss: true }
     ];
 
     // ------------------------------------------------------------------
@@ -477,13 +477,15 @@
         G.popup(down.x, GROUND - 40, 'BATTERY REBUILT', ORANGE);
     }
 
-    // Volleys come faster and faster, so the fight cannot be dragged out, and
-    // after FREE_VOLLEYS of them the warheads stop scoring: with resupplied
+    // Volleys come faster and faster, so the fight cannot be dragged out, but
+    // never closer than 1.8s: each brings two warheads, and a casual player
+    // gets off about two shots a second and must spend some on the hull.
+    // After FREE_VOLLEYS of them the warheads stop scoring: with resupplied
     // magazines the mothership would otherwise be an endless source of points
     // and bonus cities.
     function bossVolley(s, m) {
         m.volley++;
-        m.fire = Math.max(1.3, 2.8 - m.volley * 0.1);
+        m.fire = Math.max(1.8, 2.8 - m.volley * 0.1);
         var pair = [makeFoe(s, 'icbm', m.x - 30, m.y + 16), makeFoe(s, m.volley % 3 ? 'icbm' : 'smart', m.x + 30, m.y + 16)];
         pair.forEach(function (f) { f.free = m.volley > FREE_VOLLEYS; s.foes.push(f); });
         SND.drop();
@@ -539,7 +541,7 @@
         s.wave++; s.waveT = 0; s.phase = 'wave'; s.tally = null; s.sirened = false;
         s.sites.forEach(function (b) { if (b.base) { b.alive = true; b.ammo = AMMO; } });
         s.queue = buildWave(s);
-        if (s.cfg.boss && isLastWave(s)) s.boss = { x: G.W / 2, y: 96, hp: 18, max: 18, t: 0, fire: 3, hurt: 0, ping: 0, volley: 0, rebuild: 8 };
+        if (s.cfg.boss && isLastWave(s)) s.boss = { x: G.W / 2, y: 96, hp: 15, max: 15, t: 0, fire: 3, hurt: 0, ping: 0, volley: 0, rebuild: 8 };
     }
 
     // Counts the unused missiles and the surviving cities one by one, then
