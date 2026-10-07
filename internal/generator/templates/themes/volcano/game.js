@@ -18,8 +18,14 @@
     var WL = 180, WR = 780, SHAFT = WR - WL;                 // inner faces of the shaft walls
     var PW = 20, PH = 30, LEDGE_H = 14;
     var GRAV = 1800, RUN = 280, JUMP = 700, KICK = 640, KICK_VX = 340, SLIDE = 110, MAX_FALL = 900;
-    var LEASH = 330;            // the lava never trails the highest ledge reached by more than this
+    // The lava never trails the highest ledge reached by more than this:
+    // five or six ledges, so a missed jump that ends on a ledge further down
+    // can still be climbed out of.
+    var LEASH = 440;
     var STEAM_H = 300, STEAM_LIFT = 620, REFORM = 2.2;
+    // Seconds a crumbling ledge holds once stood on: long enough to land,
+    // look for the next ledge and still jump.
+    var CRUMBLE = 1.2;
     // The lava starts this far under the shaft floor: about ten seconds on
     // level 1 for a newcomer to find the keys before it comes through.
     var LAVA_START = 340, CAM_FLOOR = -480;
@@ -28,7 +34,7 @@
     var CAM_LEAD = 320, CAM_NEAR = 250, LAVA_VIEW = G.H - 24;
     // A lava-fall is 24 px wide and the climber overhangs a ledge by up to
     // 16 px, so a ledge this far from a column's middle is safe to stand on.
-    var FALL_CLEAR = 34, SURGE = 80;
+    var FALL_CLEAR = 34, SURGE = 70;
     var C = {
         bg: '#0d0802', rock: '#1d1008', rockLit: '#3a2010', ledge: '#4a2c18', crumble: '#74502f',
         slab: '#2c2a33', lava: '#ff4400', ember: '#ff8c00', hot: '#ffcc00', cream: '#ffe8cc', dim: '#a8744a'
@@ -39,17 +45,21 @@
     // lava-falls, seconds between bombs, quakes and lava surges (0 = none).
     // Every geyser, wall-kick gap and lava-fall listed is really built: the
     // upper shafts are crowded and end up to 10% higher than `h` for it.
+    // The lava stops getting faster at level 6: from there on the climb gets
+    // longer and busier instead, and a climber who hesitates on every other
+    // ledge and misjudges landings still gets up level 10 in about two
+    // tries of three with the four lives.
     var LEVELS = [
         { h: 2800, lava: 32, cr: 0, mv: 0, gey: 0, wall: 0, bomb: 0, bats: 0, quake: 0, falls: 0, surge: 0 },
         { h: 3000, lava: 35, cr: 0.28, mv: 0, gey: 0, wall: 2, bomb: 0, bats: 0, quake: 0, falls: 0, surge: 0 },
         { h: 3200, lava: 38, cr: 0.25, mv: 0.22, gey: 0, wall: 2, bomb: 0, bats: 0, quake: 0, falls: 0, surge: 0 },
         { h: 3400, lava: 41, cr: 0.3, mv: 0.2, gey: 3, wall: 2, bomb: 0, bats: 0, quake: 0, falls: 0, surge: 0 },
         { h: 3600, lava: 41, cr: 0.3, mv: 0.2, gey: 3, wall: 3, bomb: 2.4, bats: 0, quake: 0, falls: 0, surge: 0 },
-        { h: 3800, lava: 42, cr: 0.35, mv: 0.22, gey: 3, wall: 3, bomb: 2.2, bats: 5, quake: 0, falls: 0, surge: 0 },
-        { h: 4000, lava: 43, cr: 0.4, mv: 0.22, gey: 4, wall: 3, bomb: 2.0, bats: 5, quake: 9, falls: 0, surge: 0 },
-        { h: 4300, lava: 44, cr: 0.4, mv: 0.25, gey: 3, wall: 3, bomb: 1.9, bats: 6, quake: 9, falls: 5, surge: 0 },
-        { h: 4600, lava: 45, cr: 0.45, mv: 0.25, gey: 4, wall: 3, bomb: 1.7, bats: 7, quake: 8, falls: 5, surge: 9 },
-        { h: 5200, lava: 44, cr: 0.45, mv: 0.25, gey: 4, wall: 3, bomb: 1.3, bats: 8, quake: 8, falls: 6, surge: 11 }
+        { h: 3800, lava: 42, cr: 0.3, mv: 0.22, gey: 3, wall: 3, bomb: 2.4, bats: 5, quake: 0, falls: 0, surge: 0 },
+        { h: 4000, lava: 42, cr: 0.32, mv: 0.22, gey: 4, wall: 3, bomb: 2.3, bats: 5, quake: 10, falls: 0, surge: 0 },
+        { h: 4300, lava: 42, cr: 0.34, mv: 0.25, gey: 3, wall: 3, bomb: 2.2, bats: 6, quake: 10, falls: 5, surge: 0 },
+        { h: 4600, lava: 42, cr: 0.34, mv: 0.25, gey: 4, wall: 3, bomb: 2.2, bats: 7, quake: 10, falls: 5, surge: 12 },
+        { h: 5200, lava: 42, cr: 0.36, mv: 0.25, gey: 4, wall: 3, bomb: 2.0, bats: 8, quake: 9, falls: 6, surge: 13 }
     ];
 
     // Cheap repeatable noise for decoration that needs no stored state.
@@ -191,7 +201,7 @@
     // ledge.
     function stepFall(b, prev) {
         if (prev.kind === 'move' || prev.vent || prev.floor) return false;
-        var rnd = b.rnd, f = { wa: ledgeWidth(b), wb: ledgeWidth(b), gap: 84 + rnd() * 10, y: prev.y - 62 - rnd() * 34 };
+        var rnd = b.rnd, f = { wa: ledgeWidth(b), wb: ledgeWidth(b), gap: 76 + rnd() * 10, y: prev.y - 62 - rnd() * 34 };
         var site = fallSite(b, prev, b.dir, f) || fallSite(b, prev, -b.dir, f);
         if (!site) return false;
         push(b, makeLedge(site.ax, f.y, f.wa, 'solid'));
@@ -200,7 +210,7 @@
         // keeps the next two ledges there.
         b.guard = {
             x: site.fx, w: 24, side: site.dir,
-            y0: next.y - 110, y1: f.y + 30, period: 3.4, on: 1.6, ph: rnd() * 3.4, was: false
+            y0: next.y - 110, y1: f.y + 30, period: 3.4, on: 1.4, ph: rnd() * 3.4, was: false
         };
         b.falls.push(b.guard);
         b.guardN = 2;
@@ -425,7 +435,7 @@
     // still counts (coyote time), which makes edge jumps feel fair. Each
     // wall grants one kick until the climber touches a ledge again.
     function tryJump(p) {
-        if (G.hit.a) p.buf = 0.12;
+        if (G.hit.a) p.buf = 0.15;
         if (p.buf <= 0 || p.stun > 0) return;
         if (p.coy > 0) {
             p.vy = -JUMP; p.coy = 0; p.buf = 0; p.cut = true;
@@ -448,13 +458,13 @@
     }
 
     function landOn(s, p, l, wasGround, impact) {
-        p.y = l.y - PH; p.vy = 0; p.coy = 0.09; p.wallUsed = 0;
+        p.y = l.y - PH; p.vy = 0; p.coy = 0.12; p.wallUsed = 0;
         if (!wasGround && impact > 350) {
             sndLand();
             G.burst(p.x + PW / 2, l.y, { n: 5, color: C.dim, speed: 70, angle: -Math.PI / 2, spread: 2.4, life: 0.3 });
         }
         if (l.i > s.top) { G.addScore((l.i - s.top) * 10 * G.level); s.top = l.i; s.bestY = l.y; }
-        if (l.kind === 'crumble' && l.state === 'idle') { startCrumble(l, 0.6); sndCrack(); }
+        if (l.kind === 'crumble' && l.state === 'idle') { startCrumble(l, CRUMBLE); sndCrack(); }
     }
 
     // Ledges are one-way: the climber passes up through them and lands only
@@ -532,9 +542,9 @@
     }
 
     // A bomb first shows as a blinking marker at the top of the view for
-    // 0.7 s, then drops.
+    // 0.9 s, then drops.
     function spawnBomb(s, x) {
-        s.bombs.push({ x: G.clamp(x, WL + 14, WR - 14), y: s.camY + 12, vy: 110, warn: 0.7, r: 9 });
+        s.bombs.push({ x: G.clamp(x, WL + 14, WR - 14), y: s.camY + 12, vy: 110, warn: 0.9, r: 9 });
     }
 
     // A bomb bursts on the first ledge it meets (or in the lava). It does not
@@ -591,7 +601,8 @@
     }
 
     // A quake rumbles for 1.2 s as a warning, then shakes every crumbling
-    // ledge in view loose and brings three rocks down.
+    // ledge in view loose (each holds for another second or so: time to
+    // jump off one) and brings three rocks down.
     function updateQuake(s, dt) {
         if (!s.cfg.quake) return;
         s.quakeT -= dt;
@@ -600,7 +611,7 @@
         s.quakeT = s.cfg.quake; s.quakeWarn = false;
         G.shake(10, 0.6);
         G.sfx('bigboom');
-        s.ledges.forEach(function (l) { if (onScreen(s, l.y)) startCrumble(l, G.rnd(0.7, 1.2)); });
+        s.ledges.forEach(function (l) { if (onScreen(s, l.y)) startCrumble(l, G.rnd(1.0, 1.5)); });
         for (var k = 0; k < 3; k++) spawnBomb(s, WL + G.rnd(30, SHAFT - 30));
     }
 
@@ -952,7 +963,7 @@
         ],
         levelNames: ['First Ascent', 'Brittle Rock', 'Drifting Slabs', 'Steam Vents', 'Lava Bombs', 'Fire Bats', 'Tremors', 'Lava Falls', 'Surge', 'Eruption'],
         colors: { bg: C.bg, fg: C.cream, accent: C.ember, dim: C.dim },
-        lives: 3,
+        lives: 4,
         music: {
             bpm: 152, root: 40, scale: 'phrygian', prog: [0, 0, 1, 0, 0, 5, 1, 0],
             bass: 'x.xx.xx.x.xxo.x.',
