@@ -14,7 +14,7 @@
     var C = { bg: '#030706', mint: '#9fffd8', white: '#edfff8', dim: '#78988b', line: '#24473b', alert: '#ffcc70', deep: '#3b6e5c', soft: '#62c9a4' };
     var PX = 3, CW = 46, RH = 36, HALF_W = 16, HALF_H = 12;      // sprite pixel, slot spacing, invader half size
     var PY = 496, LAND_Y = 470, GROUND_Y = 516, MARGIN = 26, DROP = 24;
-    var SHOT_V = 720, CHARGE = 1.0, BEAM = 0.4, FADE = 0.4;
+    var SHOT_V = 720, CHARGE = 1.2, BEAM = 0.4, FADE = 0.4;       // CHARGE: seconds of warning line before a beam fires
     var RELOAD = 0.4, RELOAD_RAPID = 0.18;                       // seconds between volleys
     var CAMP_R = 40, CAMP_T = 3;                                 // a cannon that stays within CAMP_R px for CAMP_T s is parked
     var BUNK = { cols: 14, rows: 7, cell: 6, y: 408 };
@@ -84,12 +84,12 @@
         { map: ['ccc.....ccc', 'bbbbb.bbbbb', 'bbbbbbbbbbb', 'aaaabbbaaaa', '.aaaaaaaaa.', '...aaaaa...'], lo: 38, hi: 130, bomb: 1.3, bombV: 175, maxBombs: 3, bunkers: 4, caps: true },
         { map: ['cccc...cccc', 'bbbbb.bbbbb', 'bbbbb.bbbbb', 'aaaaa.aaaaa', 'aaaaa.aaaaa', 'aaa.....aaa'], lo: 38, hi: 135, bomb: 1.25, bombV: 180, maxBombs: 3, bunkers: 4, caps: true, dive: 4.5, divers: 1 },
         { map: ['...ccccc...', '.bbbbbbbbb.', 'bbbbbbbbbbb', 'aaaaaaaaaaa', '.asasasasa.', '...sssss...'], lo: 40, hi: 140, bomb: 1.3, bombV: 190, maxBombs: 3, bunkers: 4, caps: true, dive: 4.2, divers: 1, zig: 0.25 },
-        { map: ['sbbbbbbbs', 'bbbbbbbbb', 'aaaaaaaaa', 'a.a.a.a.a'], top: 144, lo: 36, hi: 120, bomb: 1.4, bombV: 190, maxBombs: 3, bunkers: 3, caps: true, dive: 5, divers: 1, zig: 0.2, boss: { hp: 60, fan: 2.6, n: 3 } },
-        { map: ['..c.c.c.c..', '.xbbbxbbbx.', 'bbbbbbbbbbb', 'aaaaaaaaaaa', 'aaaaaaaaaaa', '.xaaaxaaax.'], lo: 40, hi: 145, bomb: 1.3, bombV: 195, maxBombs: 4, bunkers: 4, caps: true, dive: 4, divers: 1, zig: 0.25 },
+        { map: ['sbbbbbbbs', 'bbbbbbbbb', 'aaaaaaaaa', 'a.a.a.a.a'], top: 144, lo: 36, hi: 120, bomb: 1.4, bombV: 190, maxBombs: 3, bunkers: 3, caps: true, dive: 5, divers: 1, zig: 0.2, boss: { hp: 60, fan: 3, n: 3 } },
+        { map: ['..c.c.c.c..', '.xbbbxbbbx.', 'bbbbbbbbbbb', 'aaaaaaaaaaa', 'aaaaaaaaaaa', '.xaaaaaaax.'], lo: 40, hi: 145, bomb: 1.45, bombV: 195, maxBombs: 4, bunkers: 4, caps: true, dive: 4.6, divers: 1, zig: 0.25 },
         { map: ['ccccccccccc', 'bsbsbsbsbsb', 'bbbbbbbbbbb', 'aaxaaxaaxaa', 'aaaaaaaaaaa', 'a.a.a.a.a.a'], split: 3, lo: 36, hi: 140, bomb: 1.05, bombV: 200, maxBombs: 4, bunkers: 4, caps: true, dive: 3.6, divers: 2, zig: 0.3 },
-        { map: ['ccccccccccc', 'bbbbbbbbbbb', '.sbsbsbsbs.', 'aaaaaaaaaaa', 'aaaaaaaaaaa', 'x.a.x.a.x.a'], cloak: true, lo: 40, hi: 150, bomb: 1.25, bombV: 205, maxBombs: 4, bunkers: 2, caps: true, dive: 3.4, divers: 2, zig: 0.3 },
-        { map: ['l.c.l.l.c.l', 'bbsbbbbbsbb', 'bbbbbbbbbbb', 'aaaaaaaaaaa', '.xaasasaax.', '.aa.a.a.aa.'], lo: 42, hi: 155, bomb: 1.15, bombV: 210, maxBombs: 4, bunkers: 3, caps: true, dive: 3.2, divers: 2, zig: 0.35, lance: 4.5 },
-        { map: ['l.s.l.s.l', 'bxbbbbbxb', 'aaaaaaaaa', '.a.a.a.a.'], top: 144, lo: 38, hi: 140, bomb: 1.4, bombV: 210, maxBombs: 3, bunkers: 2, caps: true, dive: 3.4, divers: 2, zig: 0.3, lance: 6, boss: { hp: 80, fan: 2.6, n: 5, minis: 9, lance: 5 } }
+        { map: ['ccccccccccc', 'bbbbbbbbbbb', '.sbsbsbsbs.', 'aaaaaaaaaaa', 'aaaaaaaaaaa', 'x.a.x.a.x.a'], cloak: true, lo: 40, hi: 150, bomb: 1.35, bombV: 205, maxBombs: 4, bunkers: 2, caps: true, dive: 3.8, divers: 2, zig: 0.3 },
+        { map: ['l.c.l.l.c.l', 'bbsbbbbbsbb', 'bbbbbbbbbbb', 'aaaaaaaaaaa', '.xaasasaax.', '.aa.a.a.aa.'], lo: 42, hi: 155, bomb: 1.15, bombV: 210, maxBombs: 4, bunkers: 3, caps: true, dive: 3.5, divers: 2, zig: 0.35, lance: 5.5 },
+        { map: ['l.s.l.s.l', 'bxbbbbbxb', 'aaaaaaaaa', '.a.a.a.a.'], top: 144, lo: 38, hi: 140, bomb: 1.4, bombV: 200, maxBombs: 3, bunkers: 2, caps: true, dive: 4.5, divers: 2, zig: 0.3, lance: 9, boss: { hp: 70, fan: 3.2, n: 5, minis: 14, lance: 8 } }
     ];
 
     // ------------------------------------------------------------------
@@ -616,7 +616,7 @@
         if (b.moveT <= 0) { b.moveT = 2 + s.rnd() * 1.5; b.tx = 110 + s.rnd() * (G.W - 220); }
         // While its own beam is charging or firing it brakes to a halt, so
         // the warning line marks where the beam will really be.
-        if (s.beams.some(function (bm) { return bm.src === b; })) b.vx -= b.vx * Math.min(1, 6 * dt);
+        if (s.beams.some(function (bm) { return bm.src === b; })) b.vx -= b.vx * Math.min(1, 12 * dt);
         else b.vx += ((b.tx - b.x) * 1.6 - b.vx * 1.8) * dt;
         b.x += b.vx * dt;
         b.fanT -= dt;
