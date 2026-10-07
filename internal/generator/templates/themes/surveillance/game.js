@@ -848,7 +848,7 @@
 
     // Walls are dark slabs; only the edges that face a floor tile are lit,
     // which reads as a blueprint on a monitor.
-    function drawWalls(s, ctx) {
+    function paintWalls(s, ctx) {
         ctx.fillStyle = BG;
         ctx.fillRect(0, 0, G.W, G.H);
         ctx.strokeStyle = 'rgba(99,243,168,0.55)';
@@ -867,6 +867,26 @@
             }
         }
         ctx.stroke();
+    }
+
+    // A map never changes while its level is played, and painting its 544
+    // tiles anew every frame kept the browser's rasteriser busier than the
+    // rest of the game together. So the floor plan is painted once, into a
+    // picture as large as the game canvas, and copied from there. It is
+    // painted again when another level's map is shown or when the canvas
+    // changes size (a resized window, a turned phone).
+    var plan = { map: null, w: 0, h: 0, pic: null };
+
+    function drawWalls(s, ctx) {
+        var w = ctx.canvas.width, h = ctx.canvas.height, g;
+        if (plan.map !== s.map || plan.w !== w || plan.h !== h) {
+            plan = { map: s.map, w: w, h: h, pic: plan.pic || document.createElement('canvas') };
+            plan.pic.width = w; plan.pic.height = h;    // also wipes the old picture
+            g = plan.pic.getContext('2d');
+            g.setTransform(w / G.W, 0, 0, h / G.H, 0, 0);
+            paintWalls(s, g);
+        }
+        ctx.drawImage(plan.pic, 0, 0, G.W, G.H);
     }
 
     // Traces the outline of what can be seen from o between two angles: a
