@@ -39,6 +39,27 @@ func checkGameScript(theme string, script []byte, engine string) error {
 	return nil
 }
 
+// titlesBlock captures the body of the TITLES object literal in games.js, and
+// titleKey each `name: '` entry inside it.
+var (
+	titlesBlock = regexp.MustCompile(`(?s)var TITLES = \{(.*?)\};`)
+	titleKey    = regexp.MustCompile(`([a-z0-9]+): '`)
+)
+
+// manifestThemes returns the theme names listed in the engine's TITLES
+// manifest, in file order; nil when the block is missing.
+func manifestThemes(engine string) []string {
+	block := titlesBlock.FindStringSubmatch(engine)
+	if block == nil {
+		return nil
+	}
+	var names []string
+	for _, m := range titleKey.FindAllStringSubmatch(block[1], -1) {
+		names = append(names, m[1])
+	}
+	return names
+}
+
 // themeGameScript returns the theme's game.js, or nil when it has none.
 func themeGameScript(t *testing.T, theme string) []byte {
 	t.Helper()
@@ -63,19 +84,63 @@ func TestThemeGames_registerUnderOwnName(t *testing.T) {
 		t.Fatalf("read games.js: %v", err)
 	}
 
-	found := 0
-	for _, theme := range ListThemes() {
+	themes := ListThemes()
+	if len(themes) == 0 {
+		t.Fatal("no themes found")
+	}
+	for _, theme := range themes {
 		script := themeGameScript(t, theme)
 		if script == nil {
+			// Every theme must come with its own game: the launch buttons
+			// are shown for every theme listed in the engine manifest.
+			t.Errorf("theme %q ships no %s", theme, gameScriptName)
 			continue
 		}
-		found++
 		if err := checkGameScript(theme, script, string(engine)); err != nil {
 			t.Error(err)
 		}
 	}
-	if found == 0 {
-		t.Fatal("no theme ships a game.js")
+}
+
+// TestGamesManifest_listsOnlyRealThemes guards the other direction: a title in
+// the engine manifest for a theme that does not exist would never be shown,
+// and usually means a theme was renamed without its game.
+func TestGamesManifest_listsOnlyRealThemes(t *testing.T) {
+	t.Parallel()
+
+	engine, err := templates.SharedGamesJS()
+	if err != nil {
+		t.Fatalf("read games.js: %v", err)
+	}
+	listed := manifestThemes(string(engine))
+	if len(listed) == 0 {
+		t.Fatal("no themes found in the TITLES manifest")
+	}
+
+	known := make(map[string]bool)
+	for _, theme := range ListThemes() {
+		known[theme] = true
+	}
+	for _, theme := range listed {
+		if !known[theme] {
+			t.Errorf("TITLES manifest lists %q, which is not a theme", theme)
+		}
+	}
+	if len(listed) != len(known) {
+		t.Errorf("TITLES manifest lists %d themes, want %d", len(listed), len(known))
+	}
+}
+
+func TestManifestThemes_parsesTitlesBlock(t *testing.T) {
+	t.Parallel()
+
+	engine := "var TITLES = {\n  neon: 'Light Cycles', dos: 'DIGGER.EXE',\n  ocean: 'Deep Channel'\n};\nvar other = { nope: 'x' };"
+	got := strings.Join(manifestThemes(engine), ",")
+	if got != "neon,dos,ocean" {
+		t.Errorf("manifestThemes = %q, want neon,dos,ocean", got)
+	}
+	if n := len(manifestThemes("var nothing = 1;")); n != 0 {
+		t.Errorf("manifestThemes without a TITLES block returned %d names, want 0", n)
 	}
 }
 
