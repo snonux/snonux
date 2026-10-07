@@ -5,7 +5,10 @@
  * everything: the ship, the rocks and every shot. Bullets curve, rocks
  * slingshot, and a ship or shot that touches a well's core is gone. Rocks are
  * too tough for that: they ricochet off a core in a flare, so gravity never
- * does the player's job. Destroy every rock to clear the level.
+ * does the player's job. Destroy every rock of every wave to clear the level.
+ *
+ * On a phone the left thumb turns and thrusts on the stick (its lower half
+ * turns without thrusting) while the right thumb holds FIRE and taps HYPER.
  */
 (function () {
     'use strict';
@@ -18,45 +21,61 @@
     // well above that: a cap that clips close passes bleeds orbital energy and
     // slowly sinks every rock onto a core. It is only a safety net.
     var ROCK_MAX = 620, REST_SPEED = 40, SAUCER_BOUNTIES = 5;
+    // Moving wells bat and slingshot rocks, which would heat them up without
+    // limit. A rock may keep at most FAR_SPEED once it has climbed FAR away
+    // from the wells around it; the excess energy is bled off at COOL per second.
+    var FAR = 260, FAR_SPEED = 125, COOL = 2;
+    // Spawn shields (seconds): a level opens with a long one so a newcomer can
+    // read the screen, cut down to SHIELD_GO by the first button pressed; a
+    // hyperspace jump gets a blink of one and lands where the next JUMP_CLEAR
+    // seconds look safe. WARP is how long a rock of a later wave takes to
+    // materialise.
+    var SHIELD_START = 8, SHIELD_GO = 2, SHIELD = 2.5, SHIELD_JUMP = 0.6, JUMP_CLEAR = 1.2, WARP = 1.6;
+    // Saucers hold their fire this close to the ship: a shot from nearer
+    // could not be dodged.
+    var FOE_HOLD = 150, FOE_TELL = 0.45;
     var ROCK_R = [0, 12, 22, 38], ROCK_PTS = [0, 100, 50, 20];
     var CORE_R = { star: 20, hole: 18, pulsar: 15, giant: 46 };
     var C = { bg: '#020214', gold: '#ffd166', purple: '#9b5de5', blue: '#4cc9f0', fg: '#d4e8ff', red: '#ff5d73', dim: '#6f7fa8' };
     var WELL_COLOR = { star: C.gold, hole: C.purple, pulsar: C.blue, giant: C.purple };
 
-    // One entry per level. A well may orbit (cx, cy) at radius `or` with
-    // angular speed `ow`, drift (dvx, dvy) or sweep a beam of length `beam`
-    // at `bw` rad/s. `saucer` is the seconds between saucer visits; `swirl` puts every
-    // rock on a circular orbit around the first well. Spawn
+    // One entry per level. `rocks` lists the big rocks of each wave (the next
+    // wave warps in when the last rock of the current one is gone) and `iron`
+    // how many of each wave are iron. A well may orbit (cx, cy) at radius
+    // `or` with angular speed `ow`, drift (dvx, dvy) or sweep a beam of length
+    // `beam` at `bw` rad/s. `saucer` is the seconds between saucer visits and
+    // `sniper` the share of them that are small sharpshooters; `swirl` puts
+    // every rock on a circular orbit around the first well. Spawn
     // points are deliberately off every axis of symmetry, so a ship left
-    // alone always falls into something.
+    // alone always falls into something, and out of reach of every beam.
     var LEVELS = [
-        { rocks: 5, spawns: [[150, 430], [810, 120]], hint: 'Stars pull on everything: thrust to stay out, and watch your shots bend',
+        { rocks: [4, 3], spawns: [[150, 430], [810, 120]], hint: 'Stars pull on everything, even your shots. Thrust to stay out',
             wells: [{ kind: 'star', cx: 480, cy: 285, gm: 0.5e6 }] },
-        { rocks: 5, spawns: [[130, 440], [830, 110]], hint: 'Two suns: rocks slingshot from one to the other',
+        { rocks: [4, 4], spawns: [[130, 440], [830, 110]], hint: 'Two suns: rocks slingshot from one to the other',
             wells: [{ kind: 'star', cx: 270, cy: 190, gm: 0.8e6 }, { kind: 'star', cx: 690, cy: 380, gm: 0.8e6 }] },
-        { rocks: 5, spawns: [[120, 440], [840, 100]], hint: 'A binary pair of black holes waltzes around the centre',
+        { rocks: [5, 4], spawns: [[120, 440], [840, 100]], hint: 'A binary pair of black holes waltzes around the centre',
             wells: [{ kind: 'hole', cx: 480, cy: 285, gm: 0.75e6, or: 105, ow: 0.5 },
                 { kind: 'hole', cx: 480, cy: 285, gm: 0.75e6, or: 105, ow: 0.5, ph: Math.PI }] },
-        { rocks: 6, saucer: 13, spawns: [[140, 440], [820, 110]], hint: 'Saucers ignore gravity. Their shots do not',
+        { rocks: [5, 4], saucer: 13, spawns: [[140, 440], [820, 110]], hint: 'Saucers ignore gravity. Their shots do not',
             wells: [{ kind: 'hole', cx: 480, cy: 285, gm: 1.3e6 }] },
-        { rocks: 6, saucer: 12, spawns: [[100, 120], [860, 150]], hint: 'Three bodies, no stable orbit anywhere',
+        { rocks: [5, 4], saucer: 12, spawns: [[100, 120], [860, 150]], hint: 'Three bodies, no stable orbit anywhere',
             wells: [{ kind: 'hole', cx: 480, cy: 160, gm: 1.0e6 }, { kind: 'star', cx: 250, cy: 400, gm: 0.7e6 },
                 { kind: 'star', cx: 710, cy: 400, gm: 0.7e6 }] },
-        { rocks: 6, iron: 2, saucer: 12, spawns: [[560, 90], [540, 480]], hint: 'Iron rocks (purple) take two hits each',
-            wells: [{ kind: 'hole', cx: 300, cy: 285, gm: 0.6e6, or: 75, ow: 0.7 },
-                { kind: 'hole', cx: 300, cy: 285, gm: 0.6e6, or: 75, ow: 0.7, ph: Math.PI },
+        { rocks: [4, 4], iron: 1, saucer: 12, spawns: [[560, 90], [540, 480]], hint: 'Iron rocks (purple) take two hits each',
+            wells: [{ kind: 'hole', cx: 300, cy: 285, gm: 0.6e6, or: 75, ow: 0.4 },
+                { kind: 'hole', cx: 300, cy: 285, gm: 0.6e6, or: 75, ow: 0.4, ph: Math.PI },
                 { kind: 'star', cx: 760, cy: 285, gm: 0.8e6 }] },
-        { rocks: 6, iron: 1, saucer: 12, spawns: [[90, 440], [870, 110]], hint: 'The pulsar beam is deadly: stay out of its reach or slip in behind it',
+        { rocks: [5, 5], iron: 1, saucer: 13, spawns: [[90, 440], [870, 110]], hint: 'The pulsar beam kills: stay out of reach or slip in behind it',
             wells: [{ kind: 'pulsar', cx: 480, cy: 285, gm: 0.9e6, beam: 290, bw: 0.65 }] },
-        { rocks: 7, iron: 2, saucer: 11, sniper: true, spawns: [[490, 80], [510, 490]], hint: 'Small saucers are snipers',
-            wells: [{ kind: 'pulsar', cx: 250, cy: 285, gm: 0.8e6, beam: 250, bw: 0.7 },
-                { kind: 'hole', cx: 720, cy: 285, gm: 0.55e6, or: 70, ow: -0.6 },
-                { kind: 'hole', cx: 720, cy: 285, gm: 0.55e6, or: 70, ow: -0.6, ph: Math.PI }] },
-        { rocks: 7, iron: 3, saucer: 10, maxFoes: 2, spawns: [[100, 450], [860, 100], [470, 60]], hint: 'A rogue black hole is drifting through',
+        { rocks: [4, 4], iron: 1, saucer: 15, sniper: 0.4, spawns: [[490, 80], [510, 490]], hint: 'Small saucers are snipers',
+            wells: [{ kind: 'pulsar', cx: 250, cy: 285, gm: 0.8e6, beam: 200, bw: 0.7 },
+                { kind: 'hole', cx: 720, cy: 285, gm: 0.55e6, or: 70, ow: -0.5 },
+                { kind: 'hole', cx: 720, cy: 285, gm: 0.55e6, or: 70, ow: -0.5, ph: Math.PI }] },
+        { rocks: [4, 4, 3], iron: 1, saucer: 11, maxFoes: 2, spawns: [[100, 450], [860, 100], [300, 50]], hint: 'A rogue black hole is drifting through',
             wells: [{ kind: 'pulsar', cx: 480, cy: 285, gm: 0.8e6, beam: 230, bw: -0.8 },
-                { kind: 'hole', cx: 150, cy: 150, gm: 0.8e6, dvx: 34, dvy: 21 },
+                { kind: 'hole', cx: 150, cy: 150, gm: 0.6e6, dvx: 26, dvy: 16 },
                 { kind: 'star', cx: 800, cy: 440, gm: 0.6e6 }] },
-        { rocks: 8, iron: 3, saucer: 12, sniper: true, maxFoes: 2, swirl: true,
+        { rocks: [4, 4, 4], iron: 1, saucer: 9, sniper: 0.6, maxFoes: 2, swirl: true,
             spawns: [[70, 80], [890, 80], [70, 490], [890, 490]], hint: 'Everything circles the giant. So should you',
             wells: [{ kind: 'giant', cx: 480, cy: 285, gm: 4.5e6 },
                 { kind: 'pulsar', cx: 480, cy: 285, gm: 0.12e6, or: 250, ow: 0.2, beam: 160, bw: 1.0 }] }
@@ -133,9 +152,14 @@
         return w;
     }
 
+    // Saucers fly in from beyond one edge and out past the other without
+    // wrapping, so they are measured in plain screen distance: on the torus a
+    // saucer still off-screen would touch a ship at the opposite edge.
+    function foeNear(f, o, r) { return G.dist(f.x, f.y, o.x, o.y) < r; }
+
     function crowded(s, spot) {
         return s.rocks.some(function (k) { return near(spot, k, k.r + 120); }) ||
-            s.foes.some(function (f) { return near(spot, f, 150); });
+            s.foes.some(function (f) { return foeNear(f, spot, 150); });
     }
 
     // The spawn point that is currently furthest from every well and beam;
@@ -153,17 +177,25 @@
         return best;
     }
 
-    // `late` counts how long a destroyed ship has waited for a clear spawn.
-    function newShip(spot) {
-        return { x: spot.x, y: spot.y, vx: 0, vy: 0, a: -Math.PI / 2, inv: 2.5, dead: false, wait: 0, late: 0, flame: false };
+    // `inv` is the shield in seconds; `late` counts how long a destroyed ship
+    // has waited for a clear spawn; `fresh` marks the level's first ship
+    // until the player touches a control.
+    function newShip(spot, shield) {
+        return {
+            x: spot.x, y: spot.y, vx: 0, vy: 0, a: -Math.PI / 2, inv: shield, fresh: shield === SHIELD_START,
+            dead: false, wait: 0, late: 0, flame: false
+        };
     }
 
+    // `warp` counts down while a rock of a later wave materialises: until it
+    // reaches zero the rock can neither hit nor be hit. `ping` rate-limits
+    // its bounce effects.
     function newRock(x, y, vx, vy, size, iron, rnd) {
         var shape = [];
         for (var i = 0; i < 10; i++) shape.push(0.74 + rnd() * 0.38);
         return {
             x: x, y: y, vx: vx, vy: vy, size: size, r: ROCK_R[size], iron: iron, hp: iron ? 2 : 1,
-            a: rnd() * TAU, spin: (rnd() - 0.5) * 2.4, shape: shape, ping: 0
+            a: rnd() * TAU, spin: (rnd() - 0.5) * 2.4, shape: shape, ping: 0, warp: 0
         };
     }
 
@@ -201,14 +233,19 @@
         return !s.wells.some(function (w) { return near(spot, w, w.r + 120); });
     }
 
-    function placeRocks(s, L, rnd) {
-        for (var i = 0; i < L.rocks; i++) {
-            var spot = rockCandidate(s, rnd, L.swirl);
-            // Bounded, but with this many tries every level finds a legal
-            // spot for every rock (the seeds are fixed, so this is checked).
-            for (var tries = 0; tries < 300 && !rockSpotOk(s, spot); tries++) spot = rockCandidate(s, rnd, L.swirl);
-            var v = orbitVelocity(s, spot, rnd, L.swirl);
-            s.rocks.push(newRock(spot.x, spot.y, v.vx, v.vy, 3, i < (L.iron || 0), rnd));
+    // Places the big rocks of wave s.wave. The first wave is laid out from
+    // the level's seed; later ones depend on where the ship is by then, so
+    // they take plain random numbers and warp in.
+    function placeRocks(s, rnd, warp) {
+        for (var i = 0; i < s.waves[s.wave]; i++) {
+            var spot = rockCandidate(s, rnd, s.swirl);
+            // Bounded: the first wave of every level finds a legal spot well
+            // within this many tries (fixed seeds, checked). A later wave on a
+            // crowded moment may give up, and its warp-in keeps that fair.
+            for (var tries = 0; tries < 300 && !rockSpotOk(s, spot); tries++) spot = rockCandidate(s, rnd, s.swirl);
+            var v = orbitVelocity(s, spot, rnd, s.swirl), k = newRock(spot.x, spot.y, v.vx, v.vy, 3, i < s.iron, rnd);
+            k.warp = warp;
+            s.rocks.push(k);
         }
     }
 
@@ -225,12 +262,13 @@
         var s = {
             time: 0, hint: L.hint, wells: L.wells.map(makeWell), spawns: L.spawns,
             rocks: [], shots: [], foes: [], foeShots: [], stars: makeStars(rnd),
-            saucerEvery: L.saucer || 0, saucerT: (L.saucer || 0) * 0.6, sniper: !!L.sniper, maxFoes: L.maxFoes || 1,
+            waves: L.rocks, wave: 0, iron: L.iron || 0, swirl: !!L.swirl, banner: 0,
+            saucerEvery: L.saucer || 0, saucerT: (L.saucer || 0) * 0.6, sniper: L.sniper || 0, maxFoes: L.maxFoes || 1,
             bounties: SAUCER_BOUNTIES,
             cool: 0, hyper: 0, tm: { thrust: 0, warn: 0, hum: 0, pulse: 0 }, ship: null
         };
-        s.ship = newShip(bestSpawn(s, false));
-        placeRocks(s, L, rnd);
+        s.ship = newShip(bestSpawn(s, false), SHIELD_START);
+        placeRocks(s, rnd, 0);
         return s;
     }
 
@@ -270,9 +308,10 @@
     }
 
     // The beam wraps like everything else, so it is one segment repeated in
-    // each neighbouring copy of the screen. fn gets both ends of each copy.
-    function eachBeam(w, fn) {
-        var ex = Math.cos(w.ba) * w.beam, ey = Math.sin(w.ba) * w.beam;
+    // each neighbouring copy of the screen. fn gets both ends of each copy,
+    // with the beam turned on by `lead` seconds.
+    function eachBeam(w, lead, fn) {
+        var a = w.ba + w.bw * lead, ex = Math.cos(a) * w.beam, ey = Math.sin(a) * w.beam;
         for (var ix = -1; ix <= 1; ix++) {
             for (var iy = -1; iy <= 1; iy++) {
                 var x = w.x + ix * PW, y = w.y + iy * PH;
@@ -281,13 +320,15 @@
         }
     }
 
-    function beamHits(s, p) {
+    // True when a ship at p is in a beam, or within pad of one, `lead`
+    // seconds from now.
+    function beamHits(s, p, pad, lead) {
         var hit = false;
         s.wells.forEach(function (w) {
             if (!w.beam) return;
-            eachBeam(w, function (ax, ay, bx, by) {
+            eachBeam(w, lead, function (ax, ay, bx, by) {
                 var q = G.closestOnSeg(p.x, p.y, ax, ay, bx, by);
-                if (G.dist(p.x, p.y, q.x, q.y) < SHIP_R) hit = true;
+                if (G.dist(p.x, p.y, q.x, q.y) < SHIP_R + pad) hit = true;
             });
         });
         return hit;
@@ -318,19 +359,49 @@
         G.tone(1040, 0.08, { slide: 320, vol: 0.09 });
     }
 
-    // A random jump that keeps the ship's momentum. It never lands inside or
-    // right beside a core (if no such spot turns up, the ship stays put), but
-    // it may well land in a strong pull, or in front of a rock.
+    // Where o will be in t seconds if nothing pulls on it.
+    function ahead(o, t) {
+        return { x: wrapX(o.x + o.vx * t), y: wrapY(o.y + (o.vy || 0) * t) };
+    }
+
+    // Whether a ship that jumps to `spot` with velocity (vx, vy) is, t
+    // seconds later, outside every danger ring and clear of rocks, saucers,
+    // their shots and the beams.
+    function jumpClearAt(s, spot, vx, vy, t) {
+        var q = ahead({ x: spot.x, y: spot.y, vx: vx, vy: vy }, t);
+        return !s.wells.some(function (w) { return near(q, w, w.r + dangerRadius(w)); }) &&
+            !s.rocks.some(function (k) { return near(q, ahead(k, t), k.r + 50); }) &&
+            !s.foes.some(function (f) { return foeNear({ x: f.x + f.vx * t, y: f.y }, q, 100); }) &&
+            !s.foeShots.some(function (b) { return near(q, ahead(b, t), 50); }) &&
+            !beamHits(s, q, 30, t);
+    }
+
+    // A spot for a jump that does not kill on arrival: clear right now and,
+    // going by everyone's present course, for the next JUMP_CLEAR seconds.
+    // When the screen is too busy for that it settles for clear right now;
+    // null when even that cannot be found.
+    function jumpSpot(s, p) {
+        var fallback = null;
+        for (var tries = 0; tries < 40; tries++) {
+            var spot = { x: G.rnd(20, PW - 20), y: G.rnd(TOP + 20, G.H - 20) }, t = 0;
+            if (!jumpClearAt(s, spot, p.vx, p.vy, 0)) continue;
+            fallback = fallback || spot;
+            for (t = 0.2; t <= JUMP_CLEAR && jumpClearAt(s, spot, p.vx, p.vy, t); t += 0.2) { /* scan the course */ }
+            if (t > JUMP_CLEAR) return spot;
+        }
+        return fallback;
+    }
+
+    // A random jump that keeps the ship's momentum. The risk is where that
+    // momentum and the wells carry the ship afterwards, not the arrival: the
+    // spot is clear and a blink of shield covers the landing. If no clear
+    // spot turns up the ship stays put.
     function hyperspace(s, p) {
         if (s.hyper > 0) return;
         s.hyper = 3;
         G.burst(p.x, p.y, { n: 16, color: C.purple, speed: 200, life: 0.4 });
-        for (var tries = 0; tries < 20; tries++) {
-            var spot = { x: G.rnd(20, PW - 20), y: G.rnd(TOP + 20, G.H - 20) };
-            if (coreAt(s, spot, 60)) continue;
-            p.x = spot.x; p.y = spot.y;
-            break;
-        }
+        var spot = jumpSpot(s, p);
+        if (spot) { p.x = spot.x; p.y = spot.y; p.inv = Math.max(p.inv, SHIELD_JUMP); }
         G.burst(p.x, p.y, { n: 16, color: C.blue, speed: 200, life: 0.4 });
         G.tone(200, 0.3, { type: 'sawtooth', slide: 2400, vol: 0.1 });
         G.noise(0.25, { filter: 'bandpass', freq: 400, slide: 3000, vol: 0.12 });
@@ -345,17 +416,24 @@
         if (p.wait > 0) return;
         p.late += dt;
         var spot = bestSpawn(s, p.late < 3);
-        if (spot) s.ship = newShip(spot);
+        if (spot) s.ship = newShip(spot, SHIELD);
     }
 
     function steerShip(s, dt) {
         var p = s.ship;
         if (p.dead) { respawn(s, p, dt); return; }
+        // The opening shield waits for the player, then gives a short head start.
+        if (p.fresh && (G.key.left || G.key.right || G.key.up || G.key.a || G.key.b)) {
+            p.fresh = false;
+            p.inv = Math.min(p.inv, SHIELD_GO);
+        }
         if (G.key.left) p.a -= TURN * dt;
         if (G.key.right) p.a += TURN * dt;
         p.flame = G.key.up;
         if (p.flame) thrust(s, p, dt);
-        pull(s, p, dt);
+        // The shield also holds the ship against gravity, so a fresh ship
+        // hangs where it spawned until the player has found the controls.
+        if (p.inv <= 0) pull(s, p, dt);
         // A trace of drag keeps the ship controllable and means a drifting
         // ship always spirals inward in the end.
         p.vx -= p.vx * DRAG * dt; p.vy -= p.vy * DRAG * dt;
@@ -393,9 +471,9 @@
         if (coreAt(s, p, SHIP_R * 0.5)) { killShip(s); return; }
         warnNearWell(s, p);
         if (p.inv > 0) return;
-        var rock = s.rocks.some(function (k) { return near(p, k, k.r * 0.85 + SHIP_R * 0.7); });
-        var foe = s.foes.some(function (f) { return near(p, f, f.r + SHIP_R * 0.7); });
-        if (rock || foe || beamHits(s, p)) killShip(s);
+        var rock = s.rocks.some(function (k) { return k.warp <= 0 && near(p, k, k.r * 0.85 + SHIP_R * 0.7); });
+        var foe = s.foes.some(function (f) { return foeNear(f, p, f.r + SHIP_R * 0.7); });
+        if (rock || foe || beamHits(s, p, 0, 0)) killShip(s);
     }
 
     // ------------------------------------------------------------------
@@ -431,15 +509,33 @@
         G.burst(shot.x, shot.y, { n: 6, color: C.gold, speed: 160, life: 0.3, size: 2 });
     }
 
+    // Bleeds off what a rock has above FAR_SPEED in far-field terms: its
+    // speed after climbing out to FAR from the wells it is close to. Judged
+    // that way a rock diving past a core is not slowed (which would sink it),
+    // while one that a moving well has batted too hard calms down again.
+    function coolRock(s, k, dt) {
+        var v2 = k.vx * k.vx + k.vy * k.vy, far2 = v2;
+        s.wells.forEach(function (w) {
+            var d = Math.max(gap(k, w), w.r);
+            if (d < FAR) far2 -= 2 * w.gm * (1 / d - 1 / FAR);
+        });
+        var excess = far2 - FAR_SPEED * FAR_SPEED;
+        if (excess <= 0) return;
+        var f = Math.sqrt(1 - Math.min(0.5, excess / v2 * COOL * dt));
+        k.vx *= f; k.vy *= f;
+    }
+
     function updateRocks(s, dt) {
         s.rocks.forEach(function (k) {
             if (k.ping > 0) k.ping -= dt;
+            if (k.warp > 0) k.warp -= dt;
             // Half the pull before the move and half after (leapfrog). The
             // plain pull-then-move step loses a little energy on every bounce
             // off a core, which over a minute sinks all rocks onto the cores.
             pull(s, k, dt / 2);
             move(k, dt);
             pull(s, k, dt / 2);
+            coolRock(s, k, dt);
             capSpeed(k, ROCK_MAX);
             k.a += k.spin * dt;
             var w = coreAt(s, k, k.r * 0.6);
@@ -451,10 +547,10 @@
     function shotHits(s, b) {
         var i;
         for (i = 0; i < s.rocks.length; i++) {
-            if (near(b, s.rocks[i], s.rocks[i].r + 2)) { hitRock(s, s.rocks[i], b); return true; }
+            if (s.rocks[i].warp <= 0 && near(b, s.rocks[i], s.rocks[i].r + 2)) { hitRock(s, s.rocks[i], b); return true; }
         }
         for (i = 0; i < s.foes.length; i++) {
-            if (near(b, s.foes[i], s.foes[i].r + 3)) { killFoe(s, s.foes[i]); return true; }
+            if (foeNear(s.foes[i], b, s.foes[i].r + 3)) { killFoe(s, s.foes[i]); return true; }
         }
         return false;
     }
@@ -478,7 +574,7 @@
     // ------------------------------------------------------------------
 
     function spawnFoe(s) {
-        var dir = Math.random() < 0.5 ? 1 : -1, small = s.sniper && Math.random() < 0.6;
+        var dir = Math.random() < 0.5 ? 1 : -1, small = Math.random() < s.sniper;
         s.foes.push({
             x: dir > 0 ? -20 : PW + 20, y: G.rnd(TOP + 70, G.H - 70), vx: dir * G.rnd(80, 120),
             ph: G.rnd(0, TAU), small: small, r: small ? 10 : 16, fireT: 1.3
@@ -487,10 +583,16 @@
     }
 
     function foeFire(s, f) {
-        var p = s.ship, err = f.small ? 0.14 : 0.32;
+        var p = s.ship, err = f.small ? 0.2 : 0.32;
         var a = Math.atan2(dY(p.y - f.y), dX(p.x - f.x)) + G.rnd(-err, err);
         s.foeShots.push({ x: f.x, y: f.y, vx: Math.cos(a) * 230, vy: Math.sin(a) * 230, life: 2.4 });
         G.tone(520, 0.14, { type: 'sawtooth', slide: 140, vol: 0.1 });
+    }
+
+    // A saucer shoots only from on the screen (its shot would otherwise wrap
+    // to the far edge) and only at a ship far enough away to dodge.
+    function canFire(s, f) {
+        return !s.ship.dead && f.x > 0 && f.x < PW && !foeNear(f, s.ship, FOE_HOLD);
     }
 
     // Saucers fly on anti-gravity: they cross the screen once, bobbing, and
@@ -504,7 +606,10 @@
         f.x += f.vx * dt;
         f.y = G.clamp(f.y + vy * dt, TOP + 20, G.H - 20);
         f.fireT -= dt;
-        if (f.fireT <= 0 && !s.ship.dead) { foeFire(s, f); f.fireT = f.small ? 1.5 : 2.1; }
+        if (f.fireT <= 0) {
+            if (canFire(s, f)) foeFire(s, f);
+            f.fireT = f.small ? 1.7 : 2.1;
+        }
         return f.x > -30 && f.x < PW + 30;
     }
 
@@ -513,7 +618,7 @@
     function killFoe(s, f) {
         s.foes.splice(s.foes.indexOf(f), 1);
         var pts = s.bounties > 0 ? (f.small ? 600 : 300) : 0;
-        s.bounties--;
+        if (s.bounties > 0) s.bounties--;
         G.addScore(pts);
         G.popup(f.x, f.y, pts || 'NO BOUNTY', C.red);
         G.burst(f.x, f.y, { n: 26, color: C.red, speed: 220, life: 0.7 });
@@ -553,12 +658,23 @@
         for (var k in s.tm) if (s.tm[k] > 0) s.tm[k] -= dt;
         if (s.cool > 0) s.cool -= dt;
         if (s.hyper > 0) s.hyper -= dt;
+        if (s.banner > 0) s.banner -= dt;
         // The pulsar ticks like a lighthouse so its beam can be heard coming.
         var pulsar = s.wells.some(function (w) { return w.beam > 0; });
         if (pulsar && s.tm.pulse <= 0) {
             s.tm.pulse = 0.9;
             G.tone(1760, 0.03, { type: 'sine', vol: 0.05 });
         }
+    }
+
+    // The next wave warps in at once, well away from the ship; the banner
+    // and the rising chord announce it.
+    function nextWave(s) {
+        s.wave++;
+        s.banner = 2.2;
+        placeRocks(s, Math.random, WARP);
+        G.tone(220, 0.5, { type: 'triangle', slide: 660, vol: 0.12 });
+        G.tone(330, 0.5, { type: 'sine', slide: 990, vol: 0.08, delay: 0.08 });
     }
 
     function update(s, dt) {
@@ -571,7 +687,9 @@
         updateFoes(s, dt);
         updateFoeShots(s, dt);
         checkShip(s);
-        if (!s.rocks.length) G.win(500 + G.lives * 250);
+        if (s.rocks.length) return;
+        if (s.wave + 1 < s.waves.length) nextWave(s);
+        else G.win(500 + G.lives * 250);
     }
 
     // ------------------------------------------------------------------
@@ -694,17 +812,20 @@
             ctx.lineWidth = layer[0];
             ctx.beginPath();
             // Every wrapped copy; the ones off-screen are clipped away.
-            eachBeam(w, function (ax, ay, bx, by) { ctx.moveTo(ax, ay); ctx.lineTo(bx, by); });
+            eachBeam(w, 0, function (ax, ay, bx, by) { ctx.moveTo(ax, ay); ctx.lineTo(bx, by); });
             ctx.stroke();
         });
         ctx.globalAlpha = 1;
     }
 
     function drawRock(ctx, k) {
+        var ghost = k.warp > 0;
         ctx.fillStyle = k.iron ? '#2a1746' : '#141a3c';
         // A cracked iron rock turns gold: one more hit breaks it.
         ctx.strokeStyle = k.iron ? (k.hp > 1 ? C.purple : C.gold) : C.fg;
         ctx.lineWidth = k.iron ? 3 : 2;
+        // A rock still warping in is a dashed outline that grows solid.
+        if (ghost) { ctx.globalAlpha = 0.9 - 0.6 * k.warp / WARP; ctx.setLineDash([5, 6]); }
         eachImage(k.x, k.y, k.r * 1.2, function (x, y) {
             ctx.beginPath();
             for (var i = 0; i < k.shape.length; i++) {
@@ -712,13 +833,16 @@
                 ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
             }
             ctx.closePath();
-            ctx.fill();
+            if (!ghost) ctx.fill();
             ctx.stroke();
         });
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
     }
 
     function drawShots(s, ctx) {
-        [[s.shots, C.gold, 2.6], [s.foeShots, C.red, 3.4]].forEach(function (kind) {
+        // Big enough to stay visible when a phone draws the canvas at 40%.
+        [[s.shots, C.gold, 3.2], [s.foeShots, C.red, 4.5]].forEach(function (kind) {
             ctx.fillStyle = kind[1];
             kind[0].forEach(function (b) {
                 eachImage(b.x, b.y, kind[2], function (x, y) { circle(ctx, x, y, kind[2]); ctx.fill(); });
@@ -741,8 +865,13 @@
         // Running lights chase along the rim.
         for (var i = -1; i <= 1; i++) {
             ctx.fillStyle = Math.floor(s.time * 6 + i + 3) % 3 === 0 ? C.gold : C.red;
-            ctx.fillRect(f.x + i * r * 0.8 - 1.5, f.y - 1.5, 3, 3);
+            ctx.fillRect(f.x + i * r * 0.8 - 2, f.y - 2, 4, 4);
         }
+        if (f.fireT > FOE_TELL || !canFire(s, f)) return;
+        // The tell: a ring closes on the saucer just before it shoots.
+        ctx.strokeStyle = C.gold;
+        circle(ctx, f.x, f.y, r * 1.5 + f.fireT / FOE_TELL * 22);
+        ctx.stroke();
     }
 
     // Dots along the path a shot fired right now would take: the only way to
@@ -757,7 +886,7 @@
             if (coreAt(s, o, 0)) break;
             if (i % 4) continue;
             ctx.globalAlpha = 0.85 * (1 - i / 52);
-            ctx.fillRect(o.x - 1.5, o.y - 1.5, 3, 3);
+            ctx.fillRect(o.x - 2, o.y - 2, 4, 4);
         }
         ctx.globalAlpha = 1;
     }
@@ -818,23 +947,32 @@
         ctx.restore();
         // s.time is 0 until the level is actually played, which keeps the hint
         // off the title screen where it would sit on top of the menu text.
-        if (s.time > 0 && s.time < 6) {
-            ctx.globalAlpha = Math.min(1, 6 - s.time);
-            G.text(s.hint, G.W / 2, G.H - 16, { size: 15, color: C.dim, align: 'center', max: G.W - 40 });
+        if (s.time > 0 && s.time < 7) {
+            ctx.globalAlpha = Math.min(1, 7 - s.time);
+            G.text(s.hint, G.W / 2, G.H - 16, { size: 20, color: C.fg, align: 'center', max: G.W - 40 });
             ctx.globalAlpha = 1;
         }
+        if (s.banner > 0) drawBanner(s, ctx);
+    }
+
+    function drawBanner(s, ctx) {
+        ctx.globalAlpha = Math.min(1, s.banner);
+        G.text('WAVE ' + (s.wave + 1) + ' OF ' + s.waves.length, G.W / 2, TOP + 44,
+            { size: 28, bold: true, color: C.gold, align: 'center', glow: C.gold });
+        ctx.globalAlpha = 1;
     }
 
     function hud(s) {
-        return 'ROCKS ' + s.rocks.length + '  JUMP ' + (s.hyper > 0 ? Math.ceil(s.hyper) + 's' : 'OK');
+        var wave = s.waves.length > 1 ? 'WAVE ' + (s.wave + 1) + '/' + s.waves.length + '  ' : '';
+        return wave + 'ROCKS ' + s.rocks.length + '  HYPER ' + (s.hyper > 0 ? Math.ceil(s.hyper) + 's' : 'OK');
     }
 
     G.register('cosmos', {
         title: 'GRAVITY WELL',
         blurb: 'Destroy every rock. Everything falls, including your shots.',
         controls: [
-            '← → rotate · ↑ thrust · SPACE fire',
-            'X hyperspace: a random jump that keeps your momentum',
+            '← → rotate · ↑ thrust · SPACE / FIRE shoot (hold)',
+            'X / HYPER hyperspace: a random jump that keeps your momentum',
             'Never touch a core: it swallows ships and shots, but rocks bounce off',
             'The dotted arc shows where your next shot will curve'
         ],
@@ -853,6 +991,10 @@
             drums: { k: 'x.........x.....', s: '........x.......', h: '..x...x...x...x.' },
             leadWave: 'triangle', bassWave: 'sine', arpWave: 'sine', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // The stick keeps ↑ so one thumb can turn and thrust together on its
+        // upper corners, leaving the other thumb on FIRE; with ↓ unused, the
+        // lower half of the stick turns without thrusting.
+        touch: { a: 'FIRE', b: 'HYPER', hide: ['down'] }
     });
 })();
