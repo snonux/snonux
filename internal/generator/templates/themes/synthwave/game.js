@@ -717,35 +717,19 @@
         seg.sw2 = seg.sc2 * ROAD * W / 2;
     }
 
-    function quad(ctx, x1, y1, w1, x2, y2, w2, color) {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(x1 - w1, y1); ctx.lineTo(x1 + w1, y1); ctx.lineTo(x2 + w2, y2); ctx.lineTo(x2 - w2, y2);
-        ctx.fill();
-    }
+    // The road is drawn in batches, not segment by segment: a frame shows
+    // up to DRAW segments, and five to eight canvas calls for each of them
+    // cost a whole CPU core in the browser's rasteriser. `seen` holds this
+    // frame's visible segments, near to far; `thick` those of them whose
+    // road surface is still there once the next segment's ground is on top.
+    var seen = [], thick = [];
 
-    function drawSegment(s, ctx, seg, y1) {
-        var pal = s.pal, band = Math.floor(seg.i / 3) % 2, x1 = seg.sx, x2 = seg.sx2, w1 = seg.sw, w2 = seg.sw2, y2 = seg.sy2, k;
-        ctx.fillStyle = pal.ground[band];
-        ctx.fillRect(0, y2, W, y1 - y2 + 1);
-        quad(ctx, x1, y1, w1 * 1.12, x2, y2, w2 * 1.12, pal.rumble[band]);
-        quad(ctx, x1, y1, w1, x2, y2, w2, seg.gate ? (seg.gate === 'finish' ? '#ffffff' : pal.grid) : pal.road[band]);
-        if (s.L.oncoming) {
-            // A solid double line: the left half belongs to oncoming traffic.
-            quad(ctx, x1 - w1 * 0.02, y1, w1 * 0.008, x2 - w2 * 0.02, y2, w2 * 0.008, '#ff6b2b');
-            quad(ctx, x1 + w1 * 0.02, y1, w1 * 0.008, x2 + w2 * 0.02, y2, w2 * 0.008, '#ff6b2b');
-        }
-        if (band) return;
-        for (k = -1; k <= 1; k++) {
-            if (k === 0 && s.L.oncoming) continue;
-            quad(ctx, x1 + w1 * k * 0.5, y1, w1 * 0.012, x2 + w2 * k * 0.5, y2, w2 * 0.012, '#ffd9f0');
-        }
-    }
-
-    // Draws the road front to back. A segment is skipped when a nearer hill
-    // already covers it; seg.clip remembers that height for the objects pass.
-    function drawRoad(s, ctx, cam) {
+    // Projects the road front to back. A segment is skipped when a nearer
+    // hill already covers it; seg.clip remembers that height for the objects
+    // pass, seg.yb is the bottom edge it is drawn from.
+    function projectRoad(s, cam) {
         var base = Math.floor(cam.z / SEG), x = 0, dx = -s.segs[base].curve * ((cam.z % SEG) / SEG), maxy = H, n, seg;
+        seen.length = 0;
         for (n = 0; n < DRAW; n++) {
             seg = s.segs[base + n];
             if (!seg) break;
@@ -754,27 +738,143 @@
             seg.clip = maxy;
             seg.vis = seg.sc > 0 && seg.sy2 < seg.sy && seg.sy2 < maxy;
             if (!seg.vis) continue;
-            drawSegment(s, ctx, seg, Math.min(seg.sy, maxy));
+            seg.yb = Math.min(seg.sy, maxy);
+            seg.band = Math.floor(seg.i / 3) % 2;
+            seen.push(seg);
             maxy = seg.sy2;
         }
     }
 
-    function gridLine(ctx, seg, k) {
-        var x1 = seg.sx + k * seg.sw, x2 = seg.sx2 + k * seg.sw2;
-        if ((x1 < 0 && x2 < 0) || (x1 > W && x2 > W)) return;
-        ctx.moveTo(x1, Math.min(seg.sy, seg.clip)); ctx.lineTo(x2, seg.sy2);
+    // The ground strip of a segment reaches one pixel below the segment, over
+    // the far edge of the road in front of it: that is the thin dark line
+    // across the tarmac at every segment, and what swallows the road in the
+    // distance, where a segment is under a pixel tall. So a segment's road
+    // surface only needs drawing from one pixel below its far edge (ty, with
+    // centre tx and half-width tw there), and not at all when that leaves
+    // nothing — which is four segments in five on a flat road.
+    function trimSurfaces() {
+        var i, seg, top, p;
+        thick.length = 0;
+        for (i = 0; i < seen.length; i++) {
+            seg = seen[i];
+            top = i + 1 < seen.length ? seg.sy2 + 1 : seg.sy2;
+            if (top >= seg.yb) continue;
+            p = (top - seg.sy2) / (seg.yb - seg.sy2);
+            seg.ty = top; seg.tx = G.lerp(seg.sx2, seg.sx, p); seg.tw = G.lerp(seg.sw2, seg.sw, p);
+            thick.push(seg);
+        }
+    }
+
+    // Visible segments stack without gaps, so each run of one ground colour
+    // (three segments) is a single rectangle. Near to far, as the one-pixel
+    // overlap described above needs.
+    function drawGround(s, ctx) {
+        var i = 0, j, band;
+        while (i < seen.length) {
+            band = seen[i].band;
+            for (j = i; j + 1 < seen.length && seen[j + 1].band === band; j++);
+            ctx.fillStyle = s.pal.ground[band];
+            ctx.fillRect(0, seen[j].sy2, W, seen[i].yb - seen[j].sy2 + 1);
+            i = j + 1;
+        }
+    }
+
+    // Adds a strip of one segment's surface to the path: `half` road widths
+    // to either side of a line `off` road widths from the middle.
+    function strip(ctx, seg, off, half) {
+        ctx.moveTo(seg.sx + seg.sw * (off - half), seg.yb); ctx.lineTo(seg.sx + seg.sw * (off + half), seg.yb);
+        ctx.lineTo(seg.tx + seg.tw * (off + half), seg.ty); ctx.lineTo(seg.tx + seg.tw * (off - half), seg.ty);
+    }
+
+    // The rumble strip lies under the road, and where an edge of the two
+    // coincides the anti-aliased rumble colour shines through. At the near
+    // edge that is the bright line across the road at every segment; at the
+    // far edge the ground of the next segment used to hide it. So the rumble
+    // strip gets a notch (a quad wound the other way) under the road's far
+    // edge, which keeps that edge clean now that no ground is drawn over it.
+    function rumbleStrip(ctx, seg) {
+        var d = Math.min(1, (seg.yb - seg.ty) / 2), p = d / (seg.yb - seg.ty);
+        var nx = G.lerp(seg.tx, seg.sx, p), nw = G.lerp(seg.tw, seg.sw, p);
+        strip(ctx, seg, 0, 1.12);
+        ctx.moveTo(seg.tx - seg.tw, seg.ty); ctx.lineTo(seg.tx + seg.tw, seg.ty);
+        ctx.lineTo(nx + nw, seg.ty + d); ctx.lineTo(nx - nw, seg.ty + d);
+    }
+
+    // One fill for the same strip of every segment that passes `want`. The
+    // trimmed surfaces of different segments never overlap, so the order of
+    // these fills only matters within a segment. Half-width 0 asks for the
+    // rumble strip.
+    function fillStrips(ctx, want, color, off, half) {
+        var i;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        for (i = 0; i < thick.length; i++) {
+            if (!want(thick[i])) continue;
+            if (half) strip(ctx, thick[i], off, half); else rumbleStrip(ctx, thick[i]);
+        }
+        ctx.fill();
+    }
+
+    function isBand0(seg) { return seg.band === 0; }
+    function isBand1(seg) { return seg.band === 1; }
+    function plain0(seg) { return seg.band === 0 && !seg.gate; }
+    function plain1(seg) { return seg.band === 1 && !seg.gate; }
+    function isCheckpoint(seg) { return seg.gate && seg.gate !== 'finish'; }
+    function isFinish(seg) { return seg.gate === 'finish'; }
+    function any() { return true; }
+
+    function drawMarkings(s, ctx) {
+        if (s.L.oncoming) {
+            // A solid double line: the left half belongs to oncoming traffic.
+            fillStrips(ctx, any, '#ff6b2b', -0.02, 0.008);
+            fillStrips(ctx, any, '#ff6b2b', 0.02, 0.008);
+        } else {
+            fillStrips(ctx, isBand0, '#ffd9f0', 0, 0.012);
+        }
+        fillStrips(ctx, isBand0, '#ffd9f0', -0.5, 0.012);
+        fillStrips(ctx, isBand0, '#ffd9f0', 0.5, 0.012);
+    }
+
+    function drawRoad(s, ctx, cam) {
+        var pal = s.pal;
+        projectRoad(s, cam);
+        trimSurfaces();
+        drawGround(s, ctx);
+        fillStrips(ctx, isBand0, pal.rumble[0], 0, 0);
+        fillStrips(ctx, isBand1, pal.rumble[1], 0, 0);
+        fillStrips(ctx, plain0, pal.road[0], 0, 1);
+        fillStrips(ctx, plain1, pal.road[1], 0, 1);
+        fillStrips(ctx, isCheckpoint, pal.grid, 0, 1);
+        fillStrips(ctx, isFinish, '#ffffff', 0, 1);
+        drawMarkings(s, ctx);
+    }
+
+    // One line of the grid running into the distance, `k` road widths from
+    // the middle of the road. Consecutive segments share their end points, so
+    // the line is one polyline for as long as it stays on screen and no hill
+    // hides a piece of it: a tenth of the sub-paths the stroke would have
+    // with a separate line per segment.
+    function gridRail(ctx, k) {
+        var i, seg, x1, x2, last = -2;
+        for (i = 0; i < seen.length; i++) {
+            seg = seen[i];
+            x1 = seg.sx + k * seg.sw; x2 = seg.sx2 + k * seg.sw2;
+            if ((x1 < 0 && x2 < 0) || (x1 > W && x2 > W)) continue;
+            if (seg.i !== last + 1) ctx.moveTo(x1, seg.yb);
+            ctx.lineTo(x2, seg.sy2);
+            last = seg.i;
+        }
     }
 
     // The neon grid on the plain beside the road, stroked as one path.
     function drawGrid(s, ctx, base) {
-        var n, seg, k, y;
+        var i, seg, k, y;
         ctx.strokeStyle = s.pal.grid; ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
         ctx.beginPath();
-        for (n = 1; n < DRAW; n++) {
-            seg = s.segs[base + n];
-            if (!seg || !seg.vis) continue;
-            for (k = 0; k < GRID_X.length; k++) { gridLine(ctx, seg, GRID_X[k]); gridLine(ctx, seg, -GRID_X[k]); }
-            if (seg.i % 4 || n > 110) continue;
+        for (k = 0; k < GRID_X.length; k++) { gridRail(ctx, GRID_X[k]); gridRail(ctx, -GRID_X[k]); }
+        for (i = 0; i < seen.length; i++) {
+            seg = seen[i];
+            if (seg.i % 4 || seg.i - base > 110) continue;
             y = seg.sy2;
             ctx.moveTo(0, y); ctx.lineTo(seg.sx2 - seg.sw2 * 1.15, y);
             ctx.moveTo(seg.sx2 + seg.sw2 * 1.15, y); ctx.lineTo(W, y);
@@ -798,11 +898,11 @@
         return 2;
     }
 
-    function drawPalm(ctx, x, y, u, spr, s) {
-        var lean = spr.dir * 160 * u, tx = x + lean, ty = y - 1950 * u, i, a;
+    function strokePalm(ctx, x, y, u, dir, leaf) {
+        var lean = dir * 160 * u, tx = x + lean, ty = y - 1950 * u, i, a;
         ctx.strokeStyle = '#2a0f4a'; ctx.lineWidth = Math.max(1, 110 * u);
         ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x - lean * 0.6, y - 900 * u, tx, ty); ctx.stroke();
-        ctx.strokeStyle = s.pal.leaf; ctx.lineWidth = Math.max(1, 60 * u);
+        ctx.strokeStyle = leaf; ctx.lineWidth = Math.max(1, 60 * u);
         ctx.beginPath();
         // Seven fronds fanned over the crown, each drooping at its tip.
         for (i = 0; i < 7; i++) {
@@ -811,6 +911,44 @@
             ctx.quadraticCurveTo(tx + Math.cos(a) * 520 * u, ty + Math.sin(a) * 520 * u - 200 * u, tx + Math.cos(a) * 900 * u, ty + Math.sin(a) * 450 * u + 260 * u);
         }
         ctx.stroke();
+    }
+
+    // Palms are drawn from pictures. Stroking the curves of the thirty palms
+    // of a tropical level anew every frame, each at its own size, cost the
+    // browser a third of a CPU core. A palm is painted once per size class
+    // instead ("tier": tier 0 is PALM_TOP device pixels per world unit, each
+    // further tier half of that) and scaled down by at most a half, which
+    // keeps the thin fronds intact. Only a palm nearer than tier 0 is still
+    // stroked. PALM_BOX is the space a palm takes around its foot, in world
+    // units. The pictures belong to one leaf colour and one canvas
+    // resolution (`px`, device pixels per logical pixel): a new level or a
+    // resized window starts the collection afresh.
+    var PALM_TOP = 0.25, PALM_BOX = { half: 1150, up: 2750, down: 60 };
+    var palms = { key: '', pics: {} };
+
+    function palmPicture(leaf, dir, tier, px) {
+        var key = leaf + '@' + px, id = dir + '/' + tier, u = PALM_TOP / px / Math.pow(2, tier), pic, g;
+        if (palms.key !== key) palms = { key: key, pics: {} };
+        pic = palms.pics[id];
+        if (pic) return pic;
+        pic = document.createElement('canvas');
+        pic.width = Math.ceil(2 * PALM_BOX.half * u * px);
+        pic.height = Math.ceil((PALM_BOX.up + PALM_BOX.down) * u * px);
+        g = pic.getContext('2d');
+        g.scale(px, px);
+        strokePalm(g, PALM_BOX.half * u, PALM_BOX.up * u, u, dir, leaf);
+        palms.pics[id] = pic;
+        return pic;
+    }
+
+    function drawPalm(ctx, x, y, u, spr, s) {
+        var px = ctx.canvas.width / W, du = u * px, tier, pic, k;
+        if (du > PALM_TOP) { strokePalm(ctx, x, y, u, spr.dir, s.pal.leaf); return; }
+        tier = Math.floor(Math.log(PALM_TOP / du) / Math.LN2);
+        pic = palmPicture(s.pal.leaf, spr.dir, tier, px);
+        // k: this palm's size as a share of the picture's, between 0.5 and 1.
+        k = du * Math.pow(2, tier) / PALM_TOP / px;
+        ctx.drawImage(pic, x - PALM_BOX.half * u, y - PALM_BOX.up * u, pic.width * k, pic.height * k);
     }
 
     function drawPylon(ctx, x, y, u, spr, s) {
