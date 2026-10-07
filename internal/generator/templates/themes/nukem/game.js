@@ -101,13 +101,16 @@
     var KINDS = {
         grunt: { w: 20, h: 26, hp: 2, score: 100 }, trooper: { w: 20, h: 26, hp: 3, score: 200 },
         hopper: { w: 22, h: 18, hp: 2, score: 150 }, turret: { w: 24, h: 20, hp: 4, score: 250 },
-        drone: { w: 28, h: 16, hp: 2, score: 200 }, boss: { w: 64, h: 72, hp: 180, score: 5000 }
+        drone: { w: 28, h: 16, hp: 2, score: 200 }, boss: { w: 64, h: 72, hp: 150, score: 5000 }
     };
 
     // x is the horizontal centre, feet the bottom edge. `seed` (0..1) spreads
-    // out timers so a row of enemies does not act in lockstep.
+    // out timers so a row of enemies does not act in lockstep. Enemies gain
+    // one hit point at level 5 and another at level 10: more than that and a
+    // casual player is still shooting when the next one arrives. The
+    // Overlord's 150 are a good half minute of steady fire.
     function makeEnemy(kind, x, feet, level, seed) {
-        var k = KINDS[kind], hp = k.hp + (kind === 'boss' ? 0 : Math.floor(level / 4));
+        var k = KINDS[kind], hp = k.hp + (kind === 'boss' ? 0 : Math.floor(level / 5));
         return {
             kind: kind, x: x - k.w / 2, y: feet - k.h, w: k.w, h: k.h, vx: 0, vy: 0, hp: hp, max: hp,
             dir: -1, t: seed, cool: 0.8 + seed, flash: 0, ph: seed * 6, n: 0, burst: 0, bt: 0, air: false
@@ -612,6 +615,8 @@
         G.tone(700, 0.12, { type: 'sawtooth', slide: 200, vol: 0.12 });
     }
 
+    // Hops at the player with a pause of 0.8-1.5 s on the ground in between:
+    // long enough to shoot it or step aside before the next hop.
     function aiHopper(s, e, dt) {
         var dx = s.p.x - e.x;
         e.vy = Math.min(900, e.vy + GRAV * dt);
@@ -620,7 +625,7 @@
         e.vx = 0; e.t -= dt;
         if (e.t > 0 || Math.abs(dx) > 420) return;
         e.dir = dx < 0 ? -1 : 1;
-        e.vx = e.dir * 170; e.vy = -440; e.t = 0.6 + Math.random() * 0.6;
+        e.vx = e.dir * 170; e.vy = -440; e.t = 0.8 + Math.random() * 0.7;
         G.tone(200, 0.12, { type: 'triangle', slide: 420, vol: 0.1 });
     }
 
@@ -766,7 +771,9 @@
             if (e.dead || (Math.abs(e.x - p.x) > 660 && !e.awake)) return;
             AI[e.kind](s, e, dt);
             if (e.y > G.H + 60) e.dead = true;
-            else if (G.aabb(hurtBox(p), e)) hurt(s, e.kind === 'boss' ? 25 : 18, p.x + p.w / 2 < e.x + e.w / 2 ? -1 : 1);
+            // Bumping into an enemy is the most common hit by far, so it
+            // costs less than a laser (22); seven of them still end a life.
+            else if (G.aabb(hurtBox(p), e)) hurt(s, e.kind === 'boss' ? 25 : 15, p.x + p.w / 2 < e.x + e.w / 2 ? -1 : 1);
         });
         s.enemies = s.enemies.filter(function (e) { return !e.dead; });
     }
@@ -1387,7 +1394,7 @@
         ],
         levelNames: ['Rooftops', 'Loading Dock', 'Sky Patrol', 'Acid Sewers', 'Factory Floor', 'Lift Shaft', 'Mutant Lab', 'Laser Grid', 'Blackout', 'The Overlord'],
         colors: { bg: '#0a0a0a', fg: '#e0e0e0', accent: '#ffd700', dim: '#8a8a8a' },
-        lives: 3,
+        lives: 4,
         // A loud E-minor pentatonic rock riff: square lead, driving
         // eighth-note bass, kick and snare on a straight backbeat.
         music: {
