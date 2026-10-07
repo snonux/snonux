@@ -22,9 +22,18 @@
     // The gargoyle's ceiling is this much lower than the demons': the vault
     // tracery (see drawVault) stops stone, not spirits.
     var PLAYER_ROOF = 24;
+    // The joust is lopsided in the gargoyle's favour: it wins when it is
+    // STRIKE_EDGE px higher, a demon only when it is LOSE_EDGE px higher, and
+    // everything in between is a harmless clash, so a near miss costs
+    // nothing. The archdemon is twice the size and needs a cleaner dive (see
+    // joust), but has to be well above the gargoyle (BOSS_LOSE_EDGE) to win:
+    // brushing its flank on the way up is a clash, not a death.
+    var STRIKE_EDGE = 5, LOSE_EDGE = 13, BOSS_LOSE_EDGE = 20;
+    // Lives at the start, and the most a cleared wave blesses back up to.
+    var LIVES = 4;
     var BUMP = 170;                             // the gargoyle's rebound off the underside of a ledge
     var HOLD_FLAP = 0.51, COMBO_T = 4, COMBO_MAX = 5, PORTAL_GRACE = 0.5;
-    var CRUMBLE_T = 0.9, REGROW_T = 6;
+    var CRUMBLE_T = 1.2, REGROW_T = 6;
     var GEYSER_WARN = 1.2, GEYSER_BURN = 0.9, GEYSER_H = 300;
     var SPAWNS = [150, 810, 370, 590], SPAWN_Y = 60;
     var COL = { gold: '#e0c47f', violet: '#6f4fae', ruby: '#8e2f49', glass: '#7bc2ff', chalk: '#f0e8d9', bright: '#fff3c8' };
@@ -39,18 +48,20 @@
     // ones only get there less often.
     // `lag` is the longest a demon takes to change its mind: the Fallen are
     // relentless but slow to re-aim, which is the opening to climb past them.
+    // Even the Fallen fly well below the gargoyle's top speed (MAX_VX) and
+    // drift off now and then, so a casual player can always break away.
     var TIERS = [
         { name: 'IMP', body: '#c0506c', wing: '#7a2f45', eye: COL.bright, horn: '#3a1622', speed: 85, flap: 0.34, lift: 200, hunt: 0.3, top: 62, lag: 1.5, score: 100 },
-        { name: 'FIEND', body: '#9a78e0', wing: '#5a3f9a', eye: COL.bright, horn: '#2a1c4a', speed: 125, flap: 0.28, lift: 215, hunt: 0.55, top: 60, lag: 1.5, score: 200 },
-        { name: 'WRAITH', body: '#7bc2ff', wing: '#3f6f9e', eye: '#ffffff', horn: '#1c3550', speed: 165, flap: 0.23, lift: 230, hunt: 0.8, top: 57, lag: 1.3, score: 300 },
-        { name: 'FALLEN', body: '#f0e8d9', wing: '#a89f8c', eye: '#ff5a6e', horn: COL.ruby, speed: 195, flap: 0.2, lift: 240, hunt: 1, top: 54, lag: 1.7, score: 500 }
+        { name: 'FIEND', body: '#9a78e0', wing: '#5a3f9a', eye: COL.bright, horn: '#2a1c4a', speed: 115, flap: 0.3, lift: 215, hunt: 0.5, top: 60, lag: 1.5, score: 200 },
+        { name: 'WRAITH', body: '#7bc2ff', wing: '#3f6f9e', eye: '#ffffff', horn: '#1c3550', speed: 145, flap: 0.26, lift: 230, hunt: 0.65, top: 57, lag: 1.3, score: 300 },
+        { name: 'FALLEN', body: '#f0e8d9', wing: '#a89f8c', eye: '#ff5a6e', horn: COL.ruby, speed: 170, flap: 0.23, lift: 240, hunt: 0.85, top: 54, lag: 1.7, score: 500 }
     ];
     // The archdemon gets faster and flies higher with every strike it takes
     // (index = strikes).
     var BOSS = [
-        { speed: 105, flap: 0.3, lift: 215, hunt: 1, top: 76, lag: 1.6 },
-        { speed: 140, flap: 0.26, lift: 225, hunt: 1, top: 70, lag: 1.4 },
-        { speed: 175, flap: 0.22, lift: 235, hunt: 1, top: 58, lag: 1.2 }
+        { speed: 100, flap: 0.3, lift: 215, hunt: 1, top: 76, lag: 1.6 },
+        { speed: 130, flap: 0.26, lift: 225, hunt: 1, top: 70, lag: 1.4 },
+        { speed: 160, flap: 0.23, lift: 235, hunt: 1, top: 58, lag: 1.3 }
     ];
     var BOSS_LOOK = { body: '#a8324f', wing: '#5c1a2c', eye: COL.bright, horn: COL.gold, k: 2.1, tail: true };
 
@@ -80,13 +91,13 @@
         { layout: 'nave', waves: [[0, 0, 0], [0, 0, 0, 0]], hatch: 9, hint: 'STRIKE FROM ABOVE' },
         { layout: 'nave', waves: [[0, 0, 1], [0, 1, 1], [0, 0, 1, 1]], hatch: 8.5, hint: 'FIENDS HUNT YOU' },
         { layout: 'aisles', waves: [[0, 0, 1], [0, 1, 1, 1], [1, 1, 1, 0]], bats: 9, hatch: 8, hint: 'BATS IN THE BELFRY' },
-        { layout: 'stairs', waves: [[0, 0, 1], [0, 1, 1], [1, 1, 0], [1, 1, 2]], crumble: [1, 2, 3, 4, 5, 6, 7], hatch: 8, hint: 'THE STONE CRUMBLES' },
+        { layout: 'stairs', waves: [[0, 0, 1], [0, 1, 1], [1, 1, 0], [0, 1, 2]], crumble: [1, 2, 3, 4, 5, 6, 7], hatch: 8, hint: 'THE STONE CRUMBLES' },
         { layout: 'hall', waves: [[0, 1, 1], [1, 1, 2], [1, 2, 0], [1, 2, 2, 1]], censers: [[480, 230, 0.9]], hatch: 7.5, hint: 'BEWARE THE CENSER' },
-        { layout: 'choir', waves: [[1, 1, 2], [1, 1, 2], [2, 1, 1], [2, 2, 1]], bats: 11, hatch: 7, hint: 'WRAITHS RISE HIGH' },
-        { layout: 'nave', waves: [[1, 2, 2], [1, 1, 2], [2, 2, 1], [2, 2, 1]], geysers: 4.5, hatch: 7, hint: 'HOLY FIRE ERUPTS' },
-        { layout: 'twin', waves: [[1, 2, 2], [2, 2, 3], [2, 3, 1, 1], [2, 2, 3, 3], [3, 3, 2, 2, 1]], censers: [[240, 200, 0.75], [720, 200, -0.75]], crumble: [1, 2], bats: 10, hatch: 6.5, hint: 'TWIN THURIBLES' },
-        { layout: 'stairs', waves: [[2, 2, 1], [2, 3, 1], [3, 2, 2], [2, 3, 3, 1]], crumble: [2, 5, 7], geysers: 7, dark: true, hatch: 6.5, hint: 'THE CANDLES GO OUT' },
-        { layout: 'sanctum', waves: [[1, 2, 2], [2, 2, 3], [2, 3, 3, 1], ['B', 2, 2]], censers: [[480, 170, 0.8]], bats: 12, geysers: 8, hatch: 6.5, hint: 'THE LAST VIGIL' }
+        { layout: 'choir', waves: [[1, 1, 2], [0, 1, 2], [2, 1, 1], [2, 2, 1]], bats: 13, hatch: 8, hint: 'WRAITHS RISE HIGH' },
+        { layout: 'nave', waves: [[1, 2, 2], [1, 1, 2], [2, 2, 1], [2, 2, 1]], geysers: 6, hatch: 8, hint: 'HOLY FIRE ERUPTS' },
+        { layout: 'twin', waves: [[1, 1, 2], [1, 2, 2], [2, 2, 1, 1], [2, 2, 3, 1], [3, 2, 2, 1]], censers: [[240, 200, 0.75], [720, 200, -0.75]], crumble: [1, 2], bats: 10, hatch: 7.5, hint: 'TWIN THURIBLES' },
+        { layout: 'stairs', waves: [[1, 2, 1], [2, 2, 1], [3, 2, 1], [2, 3, 1, 1]], crumble: [2, 5, 7], geysers: 8, dark: true, hatch: 7.5, hint: 'THE CANDLES GO OUT' },
+        { layout: 'sanctum', waves: [[1, 2, 2], [2, 2, 3], [2, 3, 2, 1], ['B', 1, 1]], censers: [[480, 170, 0.8]], bats: 12, geysers: 9, hatch: 7.5, hint: 'THE LAST VIGIL' }
     ];
 
     // ------------------------------------------------------------------
@@ -445,7 +456,8 @@
     }
 
     // The archdemon shrugs off a hit while it is still reeling, so three
-    // separate dives are needed; each one calls reinforcements.
+    // separate dives are needed; each one calls reinforcements, and the
+    // three seconds it reels are the time to deal with them.
     function strikeBoss(s, d) {
         if (d.stun > 0) return;
         d.hp--;
@@ -455,9 +467,10 @@
         if (d.hp <= 0) { slayBoss(s, d); return; }
         G.addScore(1000);
         G.popup(d.x, d.y - 40, d.hp + ' MORE', COL.gold);
-        d.stun = 2.4; d.vy = 140; d.think = 0;
+        d.stun = 3; d.vy = 140; d.think = 0;
         growl(90);
-        summon(s, 3 - d.hp);
+        // Imps after the first strike, fiends after the second.
+        summon(s, 2 - d.hp);
     }
 
     function strike(s, d) {
@@ -491,16 +504,16 @@
     }
 
     // The joust rule: whoever is clearly higher at the moment of contact
-    // wins. The archdemon is bigger, so the dive has to be cleaner. A demon
+    // wins, with the margins set by STRIKE_EDGE / LOSE_EDGE. The archdemon
+    // is bigger, so the dive has to be cleaner (12 px). A demon
     // fresh out of its portal cannot be touched yet, which rules out waiting
     // above a portal for a free strike.
     function joust(s, d) {
         var p = s.p;
         if (d.spawn > 0 || d.grace > 0 || d.dead) return;
         if (Math.abs(wrapDx(p.x, d.x)) > p.hw + d.hw || Math.abs(p.y - d.y) > p.hh + d.hh) return;
-        var edge = d.boss ? 12 : 7;
-        if (p.y < d.y - edge) strike(s, d);
-        else if (d.y < p.y - edge && d.stun <= 0 && p.inv <= 0) killPlayer(s);
+        if (p.y < d.y - (d.boss ? 12 : STRIKE_EDGE)) strike(s, d);
+        else if (d.y < p.y - (d.boss ? BOSS_LOSE_EDGE : LOSE_EDGE) && d.stun <= 0 && p.inv <= 0) killPlayer(s);
         else clash(s, d);
     }
 
@@ -634,7 +647,7 @@
         if (s.waveDelay > 0) return;
         // A cleared wave is blessed with a life back, so the long late
         // levels stay fair without making the first wave any easier.
-        if (s.wave >= 0 && G.lives < 3) { G.addLife(3); G.popup(s.p.x, s.p.y - 30, 'BLESSED +1', COL.bright); G.sfx('power'); }
+        if (s.wave >= 0 && G.lives < LIVES) { G.addLife(LIVES); G.popup(s.p.x, s.p.y - 30, 'BLESSED +1', COL.bright); G.sfx('power'); }
         s.wave++;
         s.waveDelay = 1.6;
         spawnWave(s);
@@ -1016,7 +1029,7 @@
         ],
         levelNames: ['Matins', 'Lauds', 'The Belfry', 'Crumbling Triforium', 'The Censer', 'Wraith Choir', 'Holy Fire', 'Twin Thuribles', 'Tenebrae', 'Archdemon'],
         colors: { bg: '#110f16', fg: COL.chalk, accent: COL.gold, dim: '#8d849c' },
-        lives: 3,
+        lives: LIVES,
         // An organ processional in D harmonic minor: long pedal bass, slow
         // chord shimmer and almost no drums.
         music: {
