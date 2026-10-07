@@ -30,11 +30,12 @@
     var RUN_SPEED = 4.8, DIG_SPEED = 3.4, SHOT_SPEED = 13;      // cells per second
     var BAG_G = 34, BAG_VMAX = 12;                              // cells per second (squared)
     var REFILL_AGE = 8, LOST_AGE = 3, FAR = 999;
-    // Monster speed and laser recharge stop growing here: beyond it a nobbin
-    // outran a digging digger for longer than the laser took to come back,
-    // and levels 9 and 10 are hard enough by what they add (ghost, two
-    // nests, silting tunnels).
-    var PEAK_LEVEL = 8;
+    // Monster speed in cells per second: it climbs a little on every level
+    // and stops at DIG_SPEED, so even on level 10 a digger that is cutting
+    // fresh tunnel is never run down from behind by a nobbin.
+    var MONSTER_SPEED = 2.3, MONSTER_STEP = 0.12;
+    // Laser recharge in seconds, again growing by a small step per level.
+    var RECHARGE = 3, RECHARGE_STEP = 0.2;
     var GEM_NOTES = [523, 587, 659, 698, 784, 880, 988, 1047];  // a rising scale for emerald streaks
 
     function abs(v) { return Math.abs(v); }
@@ -59,9 +60,9 @@
             gems: function (c, r) { return (c + r * 2) % 8 < 3 && r >= 2; } },
         { tunnels: [[19, 0, 19, 3], [19, 3, 13, 3], [13, 3, 13, 6], [13, 6, 7, 6], [7, 6, 7, 9], [7, 9, 10, 9]], bags: 7, rocks: 0, max: 4, spawn: 4, kinds: 'nnh', nests: 1, cherry: true, refill: true,
             gems: function (c, r) { return ((r === 1 || r === 8) && c >= 2 && c <= 17) || ((c === 2 || c === 17) && r >= 2 && r <= 7) || ((r === 4 || r === 5) && c >= 5 && c <= 11); } },
-        { tunnels: [[19, 0, 10, 0], [10, 0, 10, 9], [2, 5, 17, 5]], bags: 8, rocks: 8, max: 4, spawn: 4.5, kinds: 'nhng', nests: 1, cherry: true,
+        { tunnels: [[19, 0, 10, 0], [10, 0, 10, 9], [2, 5, 17, 5]], bags: 8, rocks: 8, max: 4, spawn: 4, kinds: 'nhng', nests: 1, cherry: true,
             gems: function (c, r, rnd) { return rnd() < 0.27; } },
-        { tunnels: [[0, 0, 0, 4], [19, 0, 19, 4], [0, 4, 19, 4], [10, 4, 10, 9], [5, 4, 5, 8], [14, 4, 14, 8]], bags: 10, rocks: 12, max: 5, spawn: 4, kinds: 'nhnhg', nests: 2, cherry: true, refill: true,
+        { tunnels: [[0, 0, 0, 4], [19, 0, 19, 4], [0, 4, 19, 4], [10, 4, 10, 9], [5, 4, 5, 8], [14, 4, 14, 8]], bags: 10, rocks: 12, max: 5, spawn: 4.5, kinds: 'nhnhg', nests: 2, cherry: true, refill: true,
             gems: function (c, r) { return c % 3 !== 1 && r % 2 === 1; } }
     ];
 
@@ -155,7 +156,7 @@
         var s = {
             cfg: cfg, level: level, time: 0, left: 0, dirt: [], rock: [], gem: [], dug: [], dist: [],
             bags: [], golds: [], enemies: [], shot: null, cherry: null, pl: newPlayer(), want: null, dir: null,
-            charge: 1, recharge: 3 + Math.min(level, PEAK_LEVEL) * 0.3, power: 0, combo: 0, dead: 0, inv: 0,
+            charge: 1, recharge: RECHARGE + level * RECHARGE_STEP, power: 0, combo: 0, dead: 0, inv: 0,
             spawnT: 2.2, spawned: 0, cherryT: 14, pathT: 0, refillT: 0, digT: 0, tickT: 0,
             streak: 0, lastGem: -9, msg: 'DIGGER.EXE /LEVEL:' + level, msgAt: 0
         };
@@ -523,7 +524,7 @@
         var cfg = s.cfg, nest = NESTS[s.spawned % cfg.nests], kind = cfg.kinds.charAt(s.spawned % cfg.kinds.length);
         // One ghost at a time is plenty: nothing on the map slows it down.
         if (kind === 'g' && s.enemies.some(function (e) { return e.kind === 'g'; })) kind = 'n';
-        var base = kind === 'g' ? 1.4 + s.level * 0.06 : (2.2 + Math.min(s.level, PEAK_LEVEL) * 0.17) * (kind === 'h' ? 0.9 : 1);
+        var base = kind === 'g' ? 1.4 + s.level * 0.06 : Math.min(DIG_SPEED, MONSTER_SPEED + s.level * MONSTER_STEP) * (kind === 'h' ? 0.9 : 1);
         s.spawned++;
         s.enemies.push({ kind: kind, c: nest.c, r: nest.r, dc: 0, dr: 0, ldc: 0, ldr: 0, p: 0, base: base, speed: base, born: 0.8, lost: 0, mutant: false, gone: false });
         beep(220, 0.1, 440, 0, 0.08); beep(330, 0.1, 660, 0.1, 0.08);
@@ -959,7 +960,7 @@
         ],
         levelNames: ['AUTOEXEC.BAT', 'CONFIG.SYS', 'CHERRY.COM', 'BAD SECTORS', 'HOBBIN.COM', 'GOLDRUSH.ZIP', 'DUAL BOOT', 'DEFRAG', 'GHOST.TSR', 'FORMAT C:'],
         colors: { bg: BLACK, fg: WHITE, accent: CYAN, dim: MAGENTA },
-        lives: 3,
+        lives: 4,
         // PC-speaker flavour: nothing but square waves, and only a tick of
         // percussion under a bouncing arpeggio tune.
         music: {
