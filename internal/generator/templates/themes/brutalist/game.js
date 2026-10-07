@@ -23,7 +23,7 @@
     // its landing spot. Random debris keeps CLEAR (three such reaches) away
     // from the cab, which leaves a cab-wide gap beside a piece that lands on
     // the cab itself.
-    var CLEAR = 3 * (MARK / 2 + CAB_HALF + 16), OVERTIME = 15;
+    var CLEAR = 3 * (MARK / 2 + CAB_HALF + 16), OVERTIME = 20;
     var CONC = 0, REBAR = 1, GLASS = 2, CHARGE = 3;
     var RED = '#ff2200';
 
@@ -32,23 +32,33 @@
     // fall hurts (fall) and the score.
     var KINDS = [
         { hp: 1, minV: 80, base: 0, fall: 1, score: 10 },
-        { hp: 1, minV: 300, base: 0.5, fall: 0, score: 40 },
+        { hp: 1, minV: 280, base: 0.5, fall: 0, score: 40 },
         { hp: 0.2, minV: 20, base: 1, fall: 10, score: 60 },
         { hp: 1, minV: 60, base: 0, fall: 1, score: 25 }
     ];
     // Ball damage is (impact speed - minV) / HIT_SCALE + base; a landing does
     // (landing speed / FALL_SCALE) * fall.
     var HIT_SCALE = 200, FALL_SCALE = 600;
-    // Timers are roughly twice what a practised player needs, so they bind
-    // for a newcomer. Running out costs a life and buys OVERTIME seconds, so
-    // a slow first attempt is not thrown away at once, and doing nothing
-    // still loses: the last life goes two overtimes after the deadline.
+    // Timers are roughly twice what a practised player needs on the early
+    // levels and more generous from level 4 on, where rebar and fuses make a
+    // sloppy swing cost real time: they should bind for a newcomer, not
+    // for someone who needs three tries at a rebar stub. Running out costs
+    // a life and buys OVERTIME seconds, so a slow first attempt is not
+    // thrown away at once, and doing nothing still loses: the last life
+    // goes two overtimes after the deadline.
+    // tremor is the pause between two tremors in seconds, [min, max]: the
+    // megastructure shakes more often than the level that introduces them.
     var LEVELS = [
         { time: 100, target: 0.6 }, { time: 100, target: 0.7 }, { time: 110, target: 0.7 },
-        { time: 130, target: 0.6 }, { time: 130, target: 0.7 }, { time: 130, target: 0.7 },
-        { time: 150, target: 0.6 }, { time: 160, target: 0.65, wind: true },
-        { time: 160, target: 0.65, tremor: true }, { time: 170, target: 0.7, wind: true, tremor: true }
+        { time: 150, target: 0.6 }, { time: 150, target: 0.65 }, { time: 170, target: 0.65 },
+        { time: 155, target: 0.6 }, { time: 160, target: 0.65, wind: true },
+        { time: 170, target: 0.65, tremor: [10, 13] }, { time: 180, target: 0.7, wind: true, tremor: [8, 11] }
     ];
+    // A tremor announces itself TREMOR_WARN seconds ahead; the piece it
+    // aims at the cab is lobbed higher (AIMED_VY) than the stray ones
+    // (STRAY_VY), so there is well over a second to drive off its
+    // mark even for a cab that was standing still.
+    var TREMOR_WARN = 1.6, AIMED_VY = -380, STRAY_VY = -300;
 
     // ------------------------------------------------------------------
     // Structures: each builder writes block kinds into a ROWS x COLS grid
@@ -187,7 +197,7 @@
             time: cfg.time, done: 0, dirty: false, combo: 0, comboT: 0,
             cab: { x: 70, vx: 0, inv: 0 }, L: 300, Ldot: 0, ball: { x: 70, y: PIVOT_Y + 300, vx: 0, vy: 0 },
             falling: [], loose: [], lit: [], chunks: [],
-            wind: { f: 0, t: 0, next: 4 }, tremor: { next: 8, warn: false },
+            wind: { f: 0, t: 0, next: 4 }, tremor: { next: 10, warn: false },
             cool: { tink: 0, thud: 0, engine: 0, reel: 0 },
             sky: buildSky(rnd), motes: buildMotes(rnd)
         };
@@ -707,21 +717,21 @@
             var x = blockX(b), y = b.y + CH / 2;
             var tx = i === 0 ? s.cab.x : awayFromCab(s, G.rnd(60, G.W - 60));
             discard(s, b);
-            addChunk(s, x, y, tx, -300);
+            addChunk(s, x, y, tx, i === 0 ? AIMED_VY : STRAY_VY);
         }
     }
 
     function updateTremor(s, dt) {
         var t = s.tremor;
         t.next -= dt;
-        if (t.next < 1.4 && !t.warn) {
+        if (t.next < TREMOR_WARN && !t.warn) {
             t.warn = true;
-            G.noise(1.4, { freq: 90, slide: 240, vol: 0.3, attack: 0.5 });
+            G.noise(TREMOR_WARN, { freq: 90, slide: 240, vol: 0.3, attack: 0.5 });
         }
         if (t.warn) G.shake(2.5, 0.1);
         if (t.next > 0) return;
         quake(s);
-        t.next = G.rnd(8, 11); t.warn = false;
+        t.next = G.rnd(s.cfg.tremor[0], s.cfg.tremor[1]); t.warn = false;
     }
 
     function updateMotes(s, dt) {
