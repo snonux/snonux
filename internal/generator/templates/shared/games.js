@@ -1750,7 +1750,9 @@
         }
         btn.className = cls + ' sno-game-launch' + (wrapCls ? ' splash-music-btn' : '');
         btn.setAttribute('aria-label', 'Play the game: ' + title);
-        btn.innerHTML = ICON + (wrapCls ? 'Play ' : '') + escapeHTML(title);
+        // The label is a span of its own: a narrow phone header has room
+        // for the icon only (see shared.css).
+        btn.innerHTML = ICON + '<span class="sno-game-launch-text">' + (wrapCls ? 'Play ' : '') + escapeHTML(title) + '</span>';
     }
 
     // snonuxGameDecorate() is idempotent. shared.js calls it again whenever a

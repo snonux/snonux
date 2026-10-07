@@ -1079,6 +1079,12 @@ body[data-sno-theme="dos"] .post-text img { animation:sno-matrix-decode 0.8s eas
   .header-game-btn { min-height:44px; padding:0.5rem 0.8rem; font-size:0.9rem; }
   .splash-game-btn { min-height:48px; padding:0.7rem 1.2rem; font-size:1rem; }
 }
+/* A phone held upright has no room for the game's name in the header (it
+   pushed the feed link off screen or sat on the site title): icon only. */
+@media (max-width: 600px) {
+  .header-game-btn { min-width:44px; padding:0.5rem; flex:0 0 auto; }
+  .header-game-btn .sno-game-launch-text { display:none; }
+}
 .sno-touch .header-game-btn { min-height:44px; padding:0.5rem 0.8rem; font-size:0.9rem; }
 .sno-touch .splash-game-btn { min-height:48px; padding:0.7rem 1.2rem; font-size:1rem; }
 body.sno-game-on { overflow:hidden; }
