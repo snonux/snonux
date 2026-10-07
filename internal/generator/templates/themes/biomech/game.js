@@ -15,7 +15,13 @@
  * A turret that sits still is hunted down: unhurt worms speed up and finally
  * dive, a worm on the turret's own row chews through the bone in its way, and
  * while a worm is loose in the turret's zone lone heads keep coming in from
- * the side walls.
+ * the side walls (a claw at the wall shows where, a moment before).
+ *
+ * Touch: the pad's stick moves the turret in eight directions and A (FIRE) is
+ * held for rapid fire; B is unused and hidden. There is no auto-fire on a
+ * phone: holding A with the right thumb while the left one steers costs
+ * nothing, and the game would have to ask the browser what kind of pointer
+ * it has, which a game may not do. So phone and desktop play the same game.
  */
 (function () {
     'use strict';
@@ -28,7 +34,8 @@
     var PARA_LEAD = 60;                                 // px beyond the wall where a parasite starts
     var DIVE_AGE = 15, DIVE_STEP = 2;                   // seconds unhurt before a worm dives on level 1; added per level
     var REINFORCE = 4, REINFORCE_STEP = 0.5;            // seconds between lone heads on level 1; added per level
-    var QUEEN_BROOD_CAP = 12;                           // the Queen holds her brood back above this many
+    var LONE_WARN = 0.7;                                // seconds a lone head is announced at the wall before it enters
+    var QUEEN_BROOD_CAP = 14;                           // the Queen holds her brood back above this many
     var MAX_LIVE = 30;                                  // no lone heads while this many segments are alive
     var BOLD_RATE = 0.08, BOLD_CAP = 12;                // unhurt worms speed up by 8 % a second
     var BONE = '#d0c7bb', FLESH = '#803f5d', VEIN = '#f55b7d', ACID = '#93ffd8', STEEL = '#2d3642', BG = '#09070d';
@@ -88,10 +95,11 @@
         { speed: 8.5, layout: scatter(0.09), regen: 2.5, spore: 10, para: 8, eye: 12,
             waves: [wave(10, -1, 0, 0), wave(10, 1, 0, 0), wave(13, -1, 0, 22), wave(10, 1, 0, 40)] },
         { speed: 10.5, layout: scatter(0.05), top: 3, spore: 8, para: 6, eye: 14, waves: swarm() },
-        { speed: 10, layout: ribs, spore: 7, para: 6, eye: 9, waves: [wave(18, -1, 0, 0), wave(14, 1, 0, 22), wave(12, -1, 0, 42)] },
+        { speed: 10, layout: ribs, spore: 7, para: 6, eye: 9, waves: [wave(18, -1, 0, 0), wave(14, 1, 0, 14), wave(12, -1, 0, 28), wave(10, 1, 0, 42)] },
         { speed: 10.5, layout: bands, regen: 2.5, spore: 8, para: 7, eye: 7,
-            waves: [wave(12, -1, 0, 0), wave(12, 1, 0, 0), wave(12, -1, 0, 24), wave(8, 1, 0, 30)] },
-        { speed: 10, layout: scatter(0.05), top: QROW + 1, queen: 24, regen: 4, spore: 8, para: 8, eye: 11,
+            waves: [wave(12, -1, 0, 0), wave(12, 1, 0, 0), wave(12, -1, 0, 16), wave(12, 1, 0, 16),
+                wave(10, -1, 0, 32), wave(10, 1, 0, 32)] },
+        { speed: 10, layout: scatter(0.05), top: QROW + 1, queen: 70, regen: 4, spore: 8, para: 8, eye: 11,
             waves: [wave(8, -1, QROW + 1, 0)] }
     ];
 
@@ -233,7 +241,7 @@
         s.regen -= dt;
         if (s.regen > 0) return;
         s.regen = s.cfg.regen;
-        // Only bone above the turret's zone heals; nubs down there stay brittle.
+        // Only bone above the turret's zone heals.
         for (var i = 0; i < ZONE * COLS; i++) if (s.hp[i] > 0 && s.hp[i] < NODE_HP) s.hp[i]++;
         if (countNodes(s) < MAX_NODES) sprout(s);
     }
@@ -329,8 +337,8 @@
 
     // A worm nobody is hurting grows bold and speeds up; every hit on it
     // resets that, so only neglected worms get out of hand. The ceiling is
-    // half again the level's pace, but never beyond BOLD_CAP: the late levels
-    // are already fast enough that their worms do not speed up at all.
+    // half again the level's pace, but never beyond BOLD_CAP cells a second:
+    // the late levels are already so fast that their worms gain only a little.
     function wormSpeed(w) {
         var ceiling = Math.min(w.speed * 1.5, Math.max(BOLD_CAP, w.speed));
         return Math.min(w.speed * (1 + BOLD_RATE * w.age), ceiling);
@@ -357,12 +365,13 @@
     // away if the node lies ahead on its row, and crawls over it if the shot
     // segment had just dropped a row (a turning worm never looks below).
     // In the Queen's airspace nothing calcifies, or every kill up there would
-    // add to a bone shield under her head; in the turret's zone only a brittle
-    // one-hit nub forms, so a fight down there does not wall the turret in.
+    // add to a bone shield under her head. Nor in the turret's zone: bone
+    // there would wall the turret in, and it would turn the rest of the worm
+    // down onto a turret firing from the row below before it could react.
     function killSegment(s, w, k) {
         var g = w.segs[k], x = segX(w, g), y = segY(w, g);
         var rear = w.segs.splice(k).slice(1);
-        if (!s.cfg.queen || g.cy >= s.cfg.top) calcify(s, g.cx, g.cy, g.cy >= ZONE ? 1 : NODE_HP);
+        if (g.cy < ZONE && (!s.cfg.queen || g.cy >= s.cfg.top)) calcify(s, g.cx, g.cy, NODE_HP);
         w.age = 0;
         if (rear.length) s.worms.push({ segs: rear, t: w.t, speed: w.speed, gate: w.gate, age: 0 });
         var points = (k === 0 ? 100 : 10) * G.level;
@@ -391,14 +400,18 @@
     // Centipede's rule: while a worm from above is loose in the turret's zone, lone heads
     // keep crawling in from the side walls, so letting one through is never
     // a stable situation. They come fastest on the early levels, which have
-    // nothing else to punish a turret that sits still.
+    // nothing else to punish a turret that sits still. A head starts far
+    // enough beyond the wall to be announced for LONE_WARN seconds (see
+    // drawLoneWarnings), because it comes in on a row the turret may be on.
     function reinforce(s, dt, loose) {
         var every = reinforceEvery(G.level);
         if (!loose) { s.reinforce = every; return; }
         s.reinforce -= dt;
         if (s.reinforce > 0 || liveSegments(s) >= MAX_LIVE) return;
         s.reinforce = every;
-        var head = sideWorm(1, G.pick([-1, 1]), ZONE, s.cfg.speed);
+        var head = sideWorm(1, G.pick([-1, 1]), ZONE, s.cfg.speed), g = head.segs[0];
+        var lead = Math.ceil(s.cfg.speed * LONE_WARN);
+        g.cx -= g.dir * lead; g.px -= g.dir * lead;
         head.lone = true;
         s.worms.push(head);
         SND.hiss();
@@ -517,18 +530,21 @@
 
     function headY(q) { return q.y + 46; }
 
-    // She sweeps the whole width so her head cannot be camped under, breeds
-    // faster once wounded, and never lets the field stay empty for long.
+    // She sweeps the whole width, breeds faster once wounded, and never lets
+    // the field stay empty for long. Two sweeps of unrelated periods are added
+    // up so that she never lingers over one column: a single sine would rest at
+    // both ends of its swing, and a turret parked there could kill her
+    // without ever following her.
     function updateQueen(s, dt) {
         var q = s.queen;
         if (!q) return;
-        q.x = G.W / 2 + Math.sin(s.time * 0.4) * 330;
+        q.x = G.W / 2 + Math.sin(s.time * 0.4) * 250 + Math.sin(s.time * 0.93 + 1) * 110;
         if (q.hurt > 0) q.hurt -= dt;
         q.brood -= dt;
         if (!s.worms.length) q.brood = Math.min(q.brood, 1.2);
         if (q.brood > 0 || liveSegments(s) >= QUEEN_BROOD_CAP) return;
         var angry = q.hp < q.max / 2;
-        q.brood = angry ? 7.5 : 10;
+        q.brood = angry ? 6.5 : 9;
         var col = G.clamp(Math.floor(q.x / CELL), 1, COLS - 2);
         s.worms.push(queenWorm(col, angry ? 6 : 5, s.cfg.speed));
         SND.roar();
@@ -817,6 +833,22 @@
         }
     }
 
+    // A lone head still beyond the wall shows as a snapping claw where it
+    // will come in, so a turret on that row can step aside in time.
+    function drawLoneWarnings(s, ctx) {
+        var y = cellY(ZONE), jaw = 5 + 4 * Math.abs(Math.sin(s.time * 14));
+        ctx.fillStyle = VEIN; ctx.strokeStyle = BONE; ctx.lineWidth = 2;
+        s.worms.forEach(function (w) {
+            var g = w.segs[0];
+            if (!w.lone || (g.cx >= 0 && g.cx < COLS)) return;
+            var x = g.cx < 0 ? 0 : G.W, d = g.dir;
+            ctx.beginPath();
+            ctx.moveTo(x, y - 14); ctx.lineTo(x + d * 20, y - jaw); ctx.lineTo(x + d * 8, y);
+            ctx.lineTo(x + d * 20, y + jaw); ctx.lineTo(x, y + 14);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+        });
+    }
+
     function drawSpore(s, ctx, b) {
         ctx.strokeStyle = VEIN; ctx.lineWidth = 2;
         ctx.beginPath();
@@ -890,9 +922,9 @@
         ctx.stroke();
         drawQueenHead(s, ctx, q);
         ctx.fillStyle = 'rgba(208,199,187,0.25)';
-        ctx.fillRect(q.x - 60, OY, 120, 4);
+        ctx.fillRect(q.x - 60, OY, 120, 6);
         ctx.fillStyle = VEIN;
-        ctx.fillRect(q.x - 60, OY, 120 * q.hp / q.max, 4);
+        ctx.fillRect(q.x - 60, OY, 120 * q.hp / q.max, 6);
     }
 
     // Blinks while untouchable; the barrel kicks back on every shot.
@@ -910,17 +942,19 @@
         circle(ctx, p.x, p.y + 3, glow); ctx.fill();
     }
 
+    // Wide enough to stay visible on a phone, where the canvas is drawn at 40 %.
     function drawShots(s, ctx) {
         ctx.fillStyle = 'rgba(147,255,216,0.35)';
-        s.shots.forEach(function (sh) { ctx.fillRect(sh.x - 3, sh.y - 2, 6, 18); });
+        s.shots.forEach(function (sh) { ctx.fillRect(sh.x - 5, sh.y - 2, 10, 20); });
         ctx.fillStyle = ACID;
-        s.shots.forEach(function (sh) { ctx.fillRect(sh.x - 1.5, sh.y - 4, 3, 14); });
+        s.shots.forEach(function (sh) { ctx.fillRect(sh.x - 2.5, sh.y - 4, 5, 16); });
     }
 
     function draw(s, ctx) {
         drawBackdrop(s, ctx);
         drawNodes(s, ctx);
         s.worms.forEach(function (w) { drawWorm(s, ctx, w); });
+        drawLoneWarnings(s, ctx);
         drawQueen(s, ctx);
         drawBugs(s, ctx);
         drawShots(s, ctx);
@@ -935,8 +969,8 @@
         title: 'SPINE CRAWLER',
         blurb: 'Shoot every segment of the worm before it reaches you.',
         controls: [
-            '← → ↑ ↓ move the turret in the bottom zone',
-            'SPACE (hold): rapid fire',
+            '← → ↑ ↓ / pad: move the turret in the bottom zone',
+            'SPACE / FIRE (hold): rapid fire',
             'A shot segment turns to bone and splits the worm · green nodes make it dive',
             'Level 10: the Queen only bleeds from her head'
         ],
@@ -953,6 +987,8 @@
             drums: { k: 'x..x..x.x..x..x.', s: '....x.......x..x', h: '..x...x...x...x.' },
             leadWave: 'sawtooth', bassWave: 'sawtooth', arpWave: 'triangle', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // The stick steers in eight directions and A is held to fire; B does nothing here.
+        touch: { a: 'FIRE', hide: ['b'] }
     });
 })();
