@@ -28,7 +28,8 @@
                      background:linear-gradient(90deg,var(--cyan),var(--magenta));
                      -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
         .logo-title h1 { font-size:1.5rem; font-weight:700; color:#e8e0ff; }
-        .logo-title .subtitle { font-size:0.75rem; color:rgba(232,224,255,0.5); margin-top:2px; }
+        /* 0.62 alpha: 0.5 measured 4.4:1 on the header. */
+        .logo-title .subtitle { font-size:0.75rem; color:rgba(232,224,255,0.62); margin-top:2px; }
         .logo-title .subtitle a { color:var(--cyan); text-decoration:none; }
         .logo-title .subtitle a:hover { text-shadow:0 0 8px var(--cyan); }
         .transmit-btn { border:1px solid var(--magenta); color:var(--magenta); padding:9px 20px;
@@ -37,7 +38,9 @@
         a.header-feed-link { color:var(--cyan); }
         a.header-feed-link:hover { color:var(--magenta); }
         .nav-hints { background:rgba(5,0,8,0.65); border-bottom:1px solid rgba(0,240,255,0.12);
-                     color:rgba(232,224,255,0.4); padding:5px 28px; display:flex; gap:18px;
+                     /* Legend text: 0.78 alpha keeps it muted but above 4.5:1 once the shared
+                     0.86 button opacity is applied (it was 0.4, about 2.6:1). */
+                     color:rgba(232,224,255,0.78); padding:5px 28px; display:flex; gap:18px;
                      font-size:0.68rem; flex-wrap:wrap; }
         .nav-hints kbd { background:rgba(0,240,255,0.1); border:1px solid rgba(0,240,255,0.3);
                          color:var(--cyan); border-radius:3px; padding:0 5px; margin:0 2px; }
@@ -50,7 +53,9 @@
         .page-nav-footer { flex-shrink:0; padding:8px 28px; display:flex; justify-content:center;
             background:rgba(5,0,8,0.8); backdrop-filter:blur(14px);
             border-top:1px solid rgba(0,240,255,0.2); }
-        .post { background:rgba(10,0,20,0.75); border:1px solid rgba(0,240,255,0.18); border-radius:10px;
+        /* 0.86 (was 0.75): the plasma blobs are bright and saturated and sit right
+           behind the thin body font. */
+        .post { background:rgba(10,0,20,0.86); border:1px solid rgba(0,240,255,0.18); border-radius:10px;
                 padding:20px; margin-bottom:14px; cursor:pointer;
                 transition:all 0.25s; backdrop-filter:blur(6px); }
         .post:hover { border-color:var(--cyan); box-shadow:0 0 20px rgba(0,240,255,0.2); transform:translateY(-2px); }

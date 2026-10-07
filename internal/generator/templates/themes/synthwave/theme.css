@@ -37,12 +37,14 @@
                         border-radius:4px; text-decoration:none; letter-spacing:1px;
                         font-size:0.88rem; transition:all 0.2s; }
         .transmit-btn:hover { background:var(--orange); color:var(--bg); }
-        a.header-feed-link { color:var(--pink); font-family:'Share Tech Mono',monospace; }
+        a.header-feed-link { color:#ff5c96; font-family:'Share Tech Mono',monospace; }
         .nav-hints { background:rgba(13,2,33,0.75); border-bottom:1px solid rgba(255,45,120,0.3);
-                     color:rgba(255,255,255,0.45); padding:5px 20px; display:flex; gap:18px;
+                     /* Legend text: 0.78 alpha keeps it muted but above 4.5:1 once the shared
+                     0.86 button opacity is applied (it was 0.45, about 3.5:1). */
+                     color:rgba(255,255,255,0.78); padding:5px 20px; display:flex; gap:18px;
                      font-size:0.68rem; font-family:'Share Tech Mono',monospace; flex-wrap:wrap; }
         .nav-hints kbd { background:rgba(255,45,120,0.15); border:1px solid rgba(255,45,120,0.4);
-                         color:var(--pink); border-radius:3px; padding:0 5px; margin:0 2px; font-size:0.7rem; }
+                         color:#ff7aa9; border-radius:3px; padding:0 5px; margin:0 2px; font-size:0.7rem; } /* lighter than --pink: 4:1 on the tinted key */
         .content { flex:1; overflow-y:auto; padding:22px 28px;
                    scrollbar-width:thin; scrollbar-color:var(--pink) var(--bg); }
         .page-nav { display:flex; justify-content:center; margin:14px 0; }
@@ -52,7 +54,8 @@
         .page-nav-footer { flex-shrink:0; padding:8px 28px; display:flex; justify-content:center;
             background:rgba(13,2,33,0.82); backdrop-filter:blur(10px);
             border-top:2px solid var(--pink); }
-        .post { background:rgba(20,5,50,0.85); border:1px solid var(--purple); border-radius:6px;
+        /* 0.92: at 0.85 the pink links measured just under 4.5:1 over the sun/grid backdrop. */
+        .post { background:rgba(20,5,50,0.92); border:1px solid var(--purple); border-radius:6px;
                 padding:22px; margin-bottom:18px; cursor:pointer; transition:all 0.25s; }
         .post:hover { border-color:var(--pink); box-shadow:0 0 22px rgba(255,45,120,0.35); transform:translateY(-3px); }
         .post-active { border-color:var(--orange) !important; background:rgba(30,8,60,0.96) !important;
@@ -60,7 +63,9 @@
         .post-header { display:flex; justify-content:space-between; margin-bottom:14px; }
         .post-time { color:var(--orange); font-family:'Share Tech Mono',monospace; font-size:0.85rem; }
         .post-text { line-height:1.6; font-size:0.95rem; font-family:'Share Tech Mono',monospace; }
-        .post-text a { color:var(--pink); text-decoration:none; }
+        /* Link and feed-link text use a lighter pink than --pink (#ff2d78 is about 5.5:1
+           on the panel, with no margin once a post or the feed link is dimmed). */
+        .post-text a { color:#ff5c96; text-decoration:none; }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
                       background:rgba(13,2,33,0.96); overflow-y:auto; padding:40px 20px; }

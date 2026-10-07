@@ -1,9 +1,13 @@
-/* Non-active posts are translucent so the WebGL background shows through.
-   The active/highlighted post snaps to full opacity for clear reading.
-   Hover on a non-active post partially reveals it before selection. */
+/* Non-active posts recede only slightly. They used to be faded to 0.55 so the
+   WebGL background showed through, but opacity fades the panel AND its text:
+   over a bright backdrop (the spaceage torus, the neon rings) the text of
+   every post except the selected one became hard or impossible to read, and
+   on a phone most of the visible text belongs to non-active posts. At 0.9 the
+   selected post still stands out (together with each theme's own
+   .post-active border/glow) while body text keeps WCAG AA contrast. */
 .post { position:relative; }
-.post:not(.post-active) { opacity: 0.55; transition: opacity 0.25s ease; }
-.post:not(.post-active):hover { opacity: 0.85; }
+.post:not(.post-active) { opacity: 0.9; transition: opacity 0.25s ease; }
+.post:not(.post-active):hover { opacity: 1; }
 .post.post-active { opacity: 1 !important; transition: opacity 0.15s ease; }
 /* Thumbnail sizing in list view; modal overrides to full width. */
 .post-image { max-height:220px; max-width:100%; object-fit:cover; cursor:pointer; }
@@ -790,10 +794,13 @@ body.sno-wild-active[data-sno-theme="paper"] .nav-hints,
 body.sno-wild-active[data-sno-theme="paper"] .post:not(.post-active),
 body.sno-wild-active[data-sno-theme="paper"] .page-nav-footer { animation:sno-wild-roll 0.9s linear infinite, sno-wild-text-burn 2.2s steps(1) infinite; }
 /* Host note under the site subtitle (all themes) */
-.logo-host { font-size:0.65rem; opacity:0.55; margin-top:4px; letter-spacing:0.3px; line-height:1.3; }
+/* 0.85, not lower: this is small text and several themes already give it a muted colour. */
+.logo-host { font-size:0.65rem; opacity:0.85; margin-top:4px; letter-spacing:0.3px; line-height:1.3; }
 /* Atom feed link in header (paired with transmit in .nav) */
 .nav { display:flex; align-items:center; gap:clamp(10px,2.2vw,20px); flex-wrap:wrap; justify-content:flex-end; }
-a.header-feed-link { font-size:0.8rem; text-decoration:none; opacity:0.82; letter-spacing:0.04em; white-space:nowrap; }
+/* Only lightly dimmed: on top of the themes' own muted link colours 0.82 pushed
+   several of them under 4.5:1. */
+a.header-feed-link { font-size:0.8rem; text-decoration:none; opacity:0.92; letter-spacing:0.04em; white-space:nowrap; }
 a.header-feed-link:hover { opacity:1; text-decoration:underline; }
 /* Header logo/title can reopen the splash overlay. */
 .logo-mark, .logo-title h1, #sn-logo { cursor:pointer; }
@@ -852,6 +859,12 @@ html.sno-splash-skip #splash-overlay { display:none !important; visibility:hidde
 .post-text p:first-child, #modal-content p:first-child { margin-top:0; }
 .post-text p:last-child, .post-text ul:last-child, .post-text ol:last-child,
 #modal-content p:last-child, #modal-content ul:last-child, #modal-content ol:last-child { margin-bottom:0; }
+/* Code blocks wrap instead of running out of the panel: a long line used to
+   be cut off at the edge of a phone screen. Wrapping rather than a horizontal
+   scrollbar, because a sideways swipe on a post already means page navigation.
+   Long bare URLs and inline code get the same treatment. */
+.post-text pre, #modal-content pre { white-space:pre-wrap; overflow-wrap:anywhere; max-width:100%; margin:0.65em 0; }
+.post-text, #modal-content { overflow-wrap:break-word; }
 /* === CRT / VHS filter toggle === */
 #sno-crt-overlay { position:fixed; inset:0; z-index:9990; pointer-events:none; opacity:0; transition:opacity 0.35s ease; }
 body.sno-crt-on #sno-crt-overlay { opacity:1; }
@@ -920,7 +933,9 @@ body.sno-season-autumn::after { content:''; position:fixed; inset:0; z-index:2; 
 .nav-hints { display:flex; flex-direction:column; gap:0; padding:0 !important; }
 .nav-hints-row { display:flex; align-items:center; flex-wrap:wrap; gap:clamp(10px, 2vw, 18px); padding:4px 24px; }
 .nav-hints-row + .nav-hints-row { border-top:1px solid rgba(128,128,128,0.12); }
-.nav-hints-label { font-size:0.58rem; text-transform:uppercase; letter-spacing:0.18em; opacity:0.45; min-width:2.2em; }
+/* The row labels (NAV / FX) are tiny, so they are only dimmed a little: at the
+   former 0.45 they fell below 2:1 contrast in most themes. */
+.nav-hints-label { font-size:0.58rem; text-transform:uppercase; letter-spacing:0.18em; opacity:0.9; min-width:2.2em; }
 .nav-fx-button {
   appearance:none;
   border:0;

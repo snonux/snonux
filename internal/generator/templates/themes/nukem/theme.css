@@ -28,7 +28,8 @@
                                 letter-spacing:1px; }
         .logo-title .subtitle a { color:var(--duke-gold); text-decoration:none; }
         .logo-title .subtitle a:hover { color:var(--duke-red); text-shadow:0 0 8px var(--duke-red); }
-        .logo-host { font-size:0.7rem; color:var(--duke-grey); }
+        /* Not --duke-grey: that is a border colour, 1.6:1 as text on the header. */
+        .logo-host { font-size:0.7rem; color:#a8a8a8; }
         .transmit-btn { border:2px solid var(--duke-red); color:var(--duke-gold); padding:8px 16px;
                         text-decoration:none; font-size:1rem; font-weight:bold; letter-spacing:2px;
                         text-transform:uppercase; transition:all 0.15s; }
@@ -51,7 +52,8 @@
                             box-shadow:0 0 12px var(--duke-red); }
         .page-nav-footer { flex-shrink:0; padding:6px 20px; display:flex; justify-content:center;
             background:rgba(10,10,10,0.9); border-top:3px solid var(--duke-red); }
-        .post { background:rgba(17,17,17,0.85); border:2px solid var(--duke-grey);
+        /* 0.93: the backdrop glows bright red behind the lower posts. */
+        .post { background:rgba(17,17,17,0.93); border:2px solid var(--duke-grey);
                 padding:16px 18px; margin-bottom:10px; cursor:pointer;
                 transition:all 0.15s; }
         .post:hover { border-color:var(--duke-red);
@@ -61,7 +63,8 @@
                        box-shadow:0 0 20px rgba(255,215,0,0.3),inset 3px 0 0 var(--duke-gold) !important; }
         .post-header { display:flex; justify-content:space-between; margin-bottom:10px; font-size:0.95rem; }
         .post-header strong { color:var(--duke-gold); }
-        .post-time { color:var(--duke-red); font-size:0.85rem; }
+        /* A lighter red than --duke-red: pure #f00 is about 3.7:1 on the panel. */
+        .post-time { color:#ff6257; font-size:0.85rem; }
         .post-text { line-height:1.55; font-size:1rem; }
         .post-text a { color:var(--duke-gold); text-decoration:underline; }
         .post-text a:hover { color:var(--duke-red); text-shadow:0 0 6px var(--duke-red); }

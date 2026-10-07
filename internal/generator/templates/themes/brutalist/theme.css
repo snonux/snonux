@@ -20,7 +20,8 @@
         .transmit-btn:hover { background:var(--red); color:#000; }
         a.header-feed-link { color:#aaa; font-family:'Courier New',monospace; font-size:0.78rem; }
         a.header-feed-link:hover { color:var(--red); }
-        .nav-hints { background:#111; border-bottom:2px solid #333; color:#888;
+        /* #b4b4b4, not #888: the legend is dimmed further by the shared button opacity. */
+        .nav-hints { background:#111; border-bottom:2px solid #333; color:#b4b4b4;
                      padding:5px 24px; display:flex; gap:18px; font-family:'Courier New',monospace;
                      font-size:0.7rem; flex-wrap:wrap; }
         .nav-hints kbd { background:#000; border:1px solid #555; color:#fff;
@@ -43,7 +44,9 @@
         .post-header { display:flex; justify-content:space-between; margin-bottom:12px; }
         .post-time { color:#aaa; font-family:'Courier New',monospace; font-size:0.82rem; }
         .post-text { font-family:'Arial',sans-serif; font-size:1rem; line-height:1.5; }
-        .post-text a { color:var(--red); text-decoration:underline; }
+        /* A lighter red than --red for link text: #ff2200 on black is about 5.6:1 and
+           falls under 4.5:1 in a non-selected (slightly faded) post. */
+        .post-text a { color:#ff5a3d; text-decoration:underline; }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;
                       background:rgba(0,0,0,0.98); overflow-y:auto; padding:40px 20px; }

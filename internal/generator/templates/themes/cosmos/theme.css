@@ -28,7 +28,8 @@
                      background:linear-gradient(90deg,var(--gold),var(--purple));
                      -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
         .logo-title h1 { font-size:1.5rem; font-weight:700; color:#d4e8ff; }
-        .logo-title .subtitle { font-size:0.75rem; color:rgba(212,232,255,0.5); margin-top:2px; }
+        /* 0.62 alpha: 0.5 measured 4.4:1 on the header. */
+        .logo-title .subtitle { font-size:0.75rem; color:rgba(212,232,255,0.62); margin-top:2px; }
         .logo-title .subtitle a { color:var(--gold); text-decoration:none; }
         .logo-title .subtitle a:hover { text-shadow:0 0 8px var(--gold); }
         .transmit-btn { border:1px solid var(--gold); color:var(--gold); padding:9px 20px;
@@ -37,7 +38,9 @@
         a.header-feed-link { color:var(--blue); }
         a.header-feed-link:hover { color:var(--gold); }
         .nav-hints { background:rgba(2,2,20,0.6); border-bottom:1px solid rgba(255,209,102,0.12);
-                     color:rgba(212,232,255,0.4); padding:5px 28px; display:flex; gap:18px;
+                     /* Legend text: 0.78 alpha keeps it muted but above 4.5:1 once the shared
+                     0.86 button opacity is applied (it was 0.4, about 2.6:1). */
+                     color:rgba(212,232,255,0.78); padding:5px 28px; display:flex; gap:18px;
                      font-size:0.68rem; flex-wrap:wrap; }
         .nav-hints kbd { background:rgba(255,209,102,0.1); border:1px solid rgba(255,209,102,0.3);
                          color:var(--gold); border-radius:3px; padding:0 5px; margin:0 2px; }

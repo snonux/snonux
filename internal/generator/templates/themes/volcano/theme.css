@@ -45,7 +45,9 @@
         a.header-feed-link { color:var(--ember); }
         a.header-feed-link:hover { color:var(--hot); text-shadow:0 0 8px var(--lava); }
         .nav-hints { background:rgba(13,8,2,0.7); border-bottom:1px solid rgba(255,68,0,0.15);
-                     color:rgba(255,232,204,0.4); padding:5px 28px; display:flex; gap:18px;
+                     /* Legend text: 0.78 alpha keeps it muted but above 4.5:1 once the shared
+                     0.86 button opacity is applied (it was 0.4, about 2.8:1). */
+                     color:rgba(255,232,204,0.78); padding:5px 28px; display:flex; gap:18px;
                      font-size:0.68rem; flex-wrap:wrap; }
         .nav-hints kbd { background:rgba(255,68,0,0.12); border:1px solid rgba(255,68,0,0.35);
                          color:var(--ember); border-radius:3px; padding:0 5px; margin:0 2px; }

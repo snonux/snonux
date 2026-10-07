@@ -35,7 +35,9 @@
         a.header-feed-link { color:var(--aqua); }
         a.header-feed-link:hover { color:var(--foam); }
         .nav-hints { background:rgba(3,4,94,0.65); border-bottom:1px solid rgba(0,180,216,0.18);
-                     color:rgba(202,240,248,0.45); padding:5px 28px; display:flex; gap:18px;
+                     /* Legend text: 0.78 alpha keeps it muted but above 4.5:1 once the shared
+                     0.86 button opacity is applied (it was 0.45, about 2.9:1). */
+                     color:rgba(202,240,248,0.82); padding:5px 28px; display:flex; gap:18px;
                      font-size:0.68rem; flex-wrap:wrap; }
         .nav-hints kbd { background:rgba(0,180,216,0.12); border:1px solid rgba(0,180,216,0.35);
                          color:var(--aqua); border-radius:3px; padding:0 5px; margin:0 2px; }
@@ -48,16 +50,22 @@
         .page-nav-footer { flex-shrink:0; padding:8px 28px; display:flex; justify-content:center;
             background:rgba(3,4,94,0.82); backdrop-filter:blur(12px);
             border-top:1px solid rgba(0,180,216,0.3); }
-        .post { background:rgba(3,4,94,0.55); border:1px solid rgba(0,180,216,0.22); border-radius:10px;
+        /* 0.72 (was 0.55): the bright bubbles and spires of the backdrop showed
+           through the text. The selected post is lighter in colour, so it is
+           darkened a little and made more opaque still (0.86) to keep the
+           date and link text above 4.5:1. */
+        .post { background:rgba(3,4,94,0.72); border:1px solid rgba(0,180,216,0.22); border-radius:10px;
                 padding:20px; margin-bottom:14px; cursor:pointer;
                 transition:all 0.25s; backdrop-filter:blur(6px); }
         .post:hover { border-color:var(--teal); box-shadow:0 4px 24px rgba(0,180,216,0.22); transform:translateY(-2px); }
-        .post-active { border-color:var(--aqua) !important; background:rgba(0,100,150,0.55) !important;
+        .post-active { border-color:var(--aqua) !important; background:rgba(0,74,120,0.86) !important;
                        box-shadow:0 0 22px rgba(72,202,228,0.35),inset 3px 0 0 var(--aqua) !important; }
         .post-header { display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.88rem; }
-        .post-time { color:var(--teal); font-family:monospace; font-size:0.8rem; }
+        /* Lighter than --teal/--aqua: the teal was 3.7:1 on the selected post's lighter panel. */
+        .post-time { color:#7dd8ee; font-family:monospace; font-size:0.8rem; }
         .post-text { line-height:1.65; font-size:0.95rem; }
-        .post-text a { color:var(--aqua); text-decoration:none; }
+        /* Lighter than --aqua so links keep a margin over 4.5:1 on both panel colours. */
+        .post-text a { color:#7dd8ee; text-decoration:none; }
         .post-text a:hover { text-shadow:0 0 8px var(--teal); }
         .post-audio { width:100%; margin-top:10px; }
         .post-modal { display:none; position:fixed; inset:0; z-index:100;

@@ -15,7 +15,10 @@
             font-style: normal;
             font-display: swap;
         }
-        :root { --teal:#00e8e8; --dim:#1a4455; --red:#ff3320; --silver:#c8d8e0; --bg:#030a0f; --bg2:#020608; }
+        /* --dim is a border/rule colour only: as text on --bg it is 1.9:1.
+           --dim-text is the same hue lifted to about 8:1 for muted text
+           (dates, subtitle, legend, feed link). */
+        :root { --teal:#00e8e8; --dim:#1a4455; --dim-text:#82b6c8; --red:#ff3320; --silver:#c8d8e0; --bg:#030a0f; --bg2:#020608; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Space Mono','Courier New',monospace; background:var(--bg); color:var(--silver);
                overflow:hidden; height:100vh; height:100dvh; }
@@ -33,7 +36,7 @@
                      letter-spacing:3px; font-weight:700; }
         .logo-title h1 { font-size:1.1rem; color:var(--teal); text-shadow:0 0 12px var(--teal);
                          letter-spacing:5px; font-weight:700; }
-        .logo-title .subtitle { font-size:0.68rem; color:var(--dim); margin-top:3px; letter-spacing:1px; }
+        .logo-title .subtitle { font-size:0.68rem; color:var(--dim-text); margin-top:3px; letter-spacing:1px; }
         .logo-title .subtitle a { color:var(--teal); text-decoration:none; opacity:0.8; }
         .logo-title .subtitle a:hover { opacity:1; text-shadow:0 0 6px var(--teal); }
         /* HAL eye: red dot beside the transmit button */
@@ -45,10 +48,10 @@
                                  font-size:0.65rem; animation:hal-blink 4s ease-in-out infinite; }
         @keyframes hal-blink { 0%,90%,100%{opacity:1} 95%{opacity:0.2} }
         .transmit-btn:hover { background:var(--teal); color:var(--bg); }
-        a.header-feed-link { color:var(--dim); font-size:0.78rem; letter-spacing:1px; }
+        a.header-feed-link { color:var(--dim-text); font-size:0.78rem; letter-spacing:1px; }
         a.header-feed-link:hover { color:var(--teal); }
         .nav-hints { background:rgba(2,6,8,0.82); border-bottom:1px solid var(--dim);
-                     color:var(--dim); padding:4px 24px; display:flex; gap:18px;
+                     color:var(--dim-text); padding:4px 24px; display:flex; gap:18px;
                      font-size:0.66rem; flex-wrap:wrap; letter-spacing:1px; }
         .nav-hints kbd { background:transparent; border:1px solid var(--dim); color:var(--teal);
                          padding:0 5px; font-size:0.66rem; margin:0 2px; }
@@ -60,14 +63,19 @@
         .page-nav a:hover { background:var(--teal); color:var(--bg); border-color:var(--teal); }
         .page-nav-footer { flex-shrink:0; padding:6px 24px; display:flex; justify-content:center;
             background:rgba(2,6,8,0.88); backdrop-filter:blur(8px); border-top:2px solid var(--teal); }
-        .post { background:rgba(3,10,15,0.82); border:1px solid var(--dim); padding:16px 18px;
+        /* 0.93: the bright wireframe torus drifts right behind the post list, so the
+           panel has to hide most of it for the text to stay readable. */
+        .post { background:rgba(3,10,15,0.93); border:1px solid var(--dim); padding:16px 18px;
                 margin-bottom:10px; cursor:pointer; transition:border-color 0.2s, box-shadow 0.2s; }
         .post:hover { border-color:var(--teal); box-shadow:0 0 12px rgba(0,232,232,0.18); }
         .post-active { border-color:var(--teal) !important;
-                       background:rgba(0,232,232,0.04) !important;
+                       /* The teal tint sits on a near-opaque base. On its own (4% alpha) it
+                          replaced the panel background, so the selected post was see-through
+                          and the torus ran straight through its text. */
+                       background:linear-gradient(rgba(0,232,232,0.05),rgba(0,232,232,0.05)),rgba(3,10,15,0.95) !important;
                        box-shadow:0 0 18px rgba(0,232,232,0.28),inset 3px 0 0 var(--teal) !important; }
         .post-header { display:flex; justify-content:space-between; margin-bottom:10px; font-size:0.82rem; }
-        .post-time { color:var(--dim); font-size:0.75rem; letter-spacing:1px; }
+        .post-time { color:var(--dim-text); font-size:0.75rem; letter-spacing:1px; }
         .post-text { line-height:1.65; font-size:0.9rem; color:var(--silver); }
         .post-text a { color:var(--teal); text-decoration:underline; }
         .post-image { max-width:100%; margin-top:10px; border:1px solid var(--dim);
@@ -79,7 +87,7 @@
         .modal-inner { max-width:740px; margin:0 auto; background:var(--bg);
                        border:1px solid var(--teal); padding:36px;
                        box-shadow:0 0 50px rgba(0,232,232,0.18); }
-        .modal-close { float:right; background:none; border:none; color:var(--dim);
+        .modal-close { float:right; background:none; border:none; color:var(--dim-text);
                        font-family:'Space Mono',monospace; font-size:0.85rem; cursor:pointer; letter-spacing:3px; }
         @media(max-width:640px) { .nav-hints{padding:6px 16px} .nav-hints .nav-hints-row{padding:6px 0;gap:8px} .nav-hints kbd{display:none} .nav-hints-label,.nav-hints-spacer{display:none} .nav-fx-button{padding:10px 0;min-height:44px;flex:1 1 auto;justify-content:center;gap:0.2rem} header{padding:10px 16px;} .content{padding:10px 16px;} .modal-inner{padding:20px 14px} .transmit-btn{padding-top:11px;padding-bottom:11px;min-height:44px} .modal-close{padding:10px 14px;min-width:44px;min-height:44px;text-align:center} }
         /* Splash screen: space age orbital */
@@ -94,4 +102,4 @@
         }
         @keyframes spaceagePulse { 0%,100%{text-shadow:0 0 20px var(--teal),0 0 40px rgba(0,232,232,0.4)} 50%{text-shadow:0 0 30px var(--teal),0 0 60px rgba(0,232,232,0.6)} }
         [data-sno-theme="spaceage"] .splash-tag { color:var(--silver); letter-spacing:2px; font-family:'Space Mono',monospace; font-size:0.78rem; }
-        [data-sno-theme="spaceage"] .splash-hint { color:var(--dim); letter-spacing:2px; font-family:'Space Mono',monospace; font-size:0.72rem; }
+        [data-sno-theme="spaceage"] .splash-hint { color:var(--dim-text); letter-spacing:2px; font-family:'Space Mono',monospace; font-size:0.72rem; }

@@ -35,7 +35,9 @@
         a.header-feed-link { color:var(--sand); }
         a.header-feed-link:hover { color:var(--cream); }
         .nav-hints { background:rgba(10,30,46,0.65); border-bottom:1px solid rgba(56,201,216,0.18);
-                     color:rgba(254,249,231,0.45); padding:5px 28px; display:flex; gap:18px;
+                     /* Legend text: 0.78 alpha keeps it muted but above 4.5:1 once the shared
+                     0.86 button opacity is applied (it was 0.45, about 3.5:1). */
+                     color:rgba(254,249,231,0.8); padding:5px 28px; display:flex; gap:18px;
                      font-size:0.68rem; flex-wrap:wrap; }
         .nav-hints kbd { background:rgba(56,201,216,0.12); border:1px solid rgba(56,201,216,0.35);
                          color:var(--sky); border-radius:3px; padding:0 5px; margin:0 2px; }
