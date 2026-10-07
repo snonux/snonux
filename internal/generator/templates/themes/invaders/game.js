@@ -15,6 +15,8 @@
     var PX = 3, CW = 46, RH = 36, HALF_W = 16, HALF_H = 12;      // sprite pixel, slot spacing, invader half size
     var PY = 496, LAND_Y = 470, GROUND_Y = 516, MARGIN = 26, DROP = 24;
     var SHOT_V = 720, CHARGE = 1.0, BEAM = 0.4, FADE = 0.4;
+    var RELOAD = 0.4, RELOAD_RAPID = 0.18;                       // seconds between volleys
+    var CAMP_R = 40, CAMP_T = 3;                                 // a cannon that stays within CAMP_R px for CAMP_T s is parked
     var BUNK = { cols: 14, rows: 7, cell: 6, y: 408 };
     var MARCH = [146.83, 130.81, 116.54, 110];                   // D C Bb A: the descending four-note march
     var CAPS = ['rapid', 'double', 'shield'];
@@ -78,16 +80,16 @@
     //            fan), minis (seconds between mini launches), lance (seconds
     //            between its own beams once below half hp)
     var LV = [
-        { map: ['cccccccc', 'bbbbbbbb', 'bbbbbbbb', 'aaaaaaaa', 'aaaaaaaa'], lo: 36, hi: 120, bomb: 1.5, bombV: 165, maxBombs: 2, bunkers: 4 },
-        { map: ['cc.......cc', 'bbbb...bbbb', 'abbbb.bbbba', '.aaabbbaaa.', '..aaaaaaa..', '....aaa....'], lo: 38, hi: 130, bomb: 1.3, bombV: 175, maxBombs: 3, bunkers: 4, caps: true },
-        { map: ['cccc...cccc', 'bbbbb.bbbbb', 'aaaaa.aaaaa', 'aaaaa.aaaaa', 'aaa.....aaa'], lo: 38, hi: 135, bomb: 1.25, bombV: 180, maxBombs: 3, bunkers: 4, caps: true, dive: 4.5, divers: 1 },
-        { map: ['...ccccc...', '.bbbbbbbbb.', 'aaaaaaaaaaa', '.asasasasa.', '...sssss...'], lo: 40, hi: 140, bomb: 1.15, bombV: 190, maxBombs: 3, bunkers: 4, caps: true, dive: 4.2, divers: 1, zig: 0.25 },
+        { map: ['cccccccccc', 'bbbbbbbbbb', 'bbbbbbbbbb', 'aaaaaaaaaa', 'aaaaaaaaaa'], lo: 36, hi: 120, bomb: 1.5, bombV: 165, maxBombs: 2, bunkers: 4 },
+        { map: ['ccc.....ccc', 'bbbbb.bbbbb', 'bbbbbbbbbbb', 'aaaabbbaaaa', '.aaaaaaaaa.', '...aaaaa...'], lo: 38, hi: 130, bomb: 1.3, bombV: 175, maxBombs: 3, bunkers: 4, caps: true },
+        { map: ['cccc...cccc', 'bbbbb.bbbbb', 'bbbbb.bbbbb', 'aaaaa.aaaaa', 'aaaaa.aaaaa', 'aaa.....aaa'], lo: 38, hi: 135, bomb: 1.25, bombV: 180, maxBombs: 3, bunkers: 4, caps: true, dive: 4.5, divers: 1 },
+        { map: ['...ccccc...', '.bbbbbbbbb.', 'bbbbbbbbbbb', 'aaaaaaaaaaa', '.asasasasa.', '...sssss...'], lo: 40, hi: 140, bomb: 1.3, bombV: 190, maxBombs: 3, bunkers: 4, caps: true, dive: 4.2, divers: 1, zig: 0.25 },
         { map: ['sbbbbbbbs', 'bbbbbbbbb', 'aaaaaaaaa', 'a.a.a.a.a'], top: 144, lo: 36, hi: 120, bomb: 1.4, bombV: 190, maxBombs: 3, bunkers: 3, caps: true, dive: 5, divers: 1, zig: 0.2, boss: { hp: 60, fan: 2.6, n: 3 } },
-        { map: ['..c.c.c.c..', '.xbxbxbxbx.', 'bbbbbbbbbbb', 'aaaaaaaaaaa', '.xaaxaxaax.'], lo: 40, hi: 145, bomb: 1.1, bombV: 195, maxBombs: 4, bunkers: 4, caps: true, dive: 4, divers: 2, zig: 0.25 },
-        { map: ['ccccccccc', 'bsbsbsbsb', 'bbbbbbbbb', 'axaaxaaxa', 'aaaaaaaaa', 'a.a.a.a.a'], split: 3, lo: 36, hi: 140, bomb: 1.0, bombV: 200, maxBombs: 4, bunkers: 4, caps: true, dive: 3.6, divers: 2, zig: 0.3 },
-        { map: ['ccccccccccc', 'bbbbbbbbbbb', '.sbsbsbsbs.', 'aaaaaaaaaaa', 'x.a.x.a.x.a'], cloak: true, lo: 40, hi: 150, bomb: 1.0, bombV: 205, maxBombs: 4, bunkers: 2, caps: true, dive: 3.4, divers: 2, zig: 0.3 },
-        { map: ['l.c.l.l.c.l', 'bbsbbbbbsbb', 'aaaaaaaaaaa', '.xaasasaax.', '.aa.a.a.aa.'], lo: 42, hi: 155, bomb: 0.95, bombV: 210, maxBombs: 4, bunkers: 3, caps: true, dive: 3.2, divers: 2, zig: 0.35, lance: 4.5 },
-        { map: ['l.s.l.s.l', 'bxbbbbbxb', 'aaaaaaaaa', '.a.a.a.a.'], top: 144, lo: 38, hi: 140, bomb: 1.1, bombV: 210, maxBombs: 4, bunkers: 2, caps: true, dive: 3.4, divers: 2, zig: 0.3, lance: 6, boss: { hp: 80, fan: 2.2, n: 5, minis: 7, lance: 5 } }
+        { map: ['..c.c.c.c..', '.xbbbxbbbx.', 'bbbbbbbbbbb', 'aaaaaaaaaaa', 'aaaaaaaaaaa', '.xaaaxaaax.'], lo: 40, hi: 145, bomb: 1.3, bombV: 195, maxBombs: 4, bunkers: 4, caps: true, dive: 4, divers: 1, zig: 0.25 },
+        { map: ['ccccccccccc', 'bsbsbsbsbsb', 'bbbbbbbbbbb', 'aaxaaxaaxaa', 'aaaaaaaaaaa', 'a.a.a.a.a.a'], split: 3, lo: 36, hi: 140, bomb: 1.05, bombV: 200, maxBombs: 4, bunkers: 4, caps: true, dive: 3.6, divers: 2, zig: 0.3 },
+        { map: ['ccccccccccc', 'bbbbbbbbbbb', '.sbsbsbsbs.', 'aaaaaaaaaaa', 'aaaaaaaaaaa', 'x.a.x.a.x.a'], cloak: true, lo: 40, hi: 150, bomb: 1.25, bombV: 205, maxBombs: 4, bunkers: 2, caps: true, dive: 3.4, divers: 2, zig: 0.3 },
+        { map: ['l.c.l.l.c.l', 'bbsbbbbbsbb', 'bbbbbbbbbbb', 'aaaaaaaaaaa', '.xaasasaax.', '.aa.a.a.aa.'], lo: 42, hi: 155, bomb: 1.15, bombV: 210, maxBombs: 4, bunkers: 3, caps: true, dive: 3.2, divers: 2, zig: 0.35, lance: 4.5 },
+        { map: ['l.s.l.s.l', 'bxbbbbbxb', 'aaaaaaaaa', '.a.a.a.a.'], top: 144, lo: 38, hi: 140, bomb: 1.4, bombV: 210, maxBombs: 3, bunkers: 2, caps: true, dive: 3.4, divers: 2, zig: 0.3, lance: 6, boss: { hp: 80, fan: 2.6, n: 5, minis: 9, lance: 5 } }
     ];
 
     // ------------------------------------------------------------------
@@ -149,7 +151,7 @@
             cfg: cfg, rnd: rnd, player: { x: G.W / 2, vx: 0 }, inv: [], groups: [], total: 0, drop: 0,
             shots: [], bombs: [], caps: [], beams: [], bunkers: buildBunkers(cfg.bunkers), stars: buildStars(rnd),
             boss: cfg.boss ? newBoss(cfg.boss) : null, saucer: null, saucerT: 9 + rnd() * 6, warble: 0,
-            power: { rapid: 0, double: 0 }, shield: false, invuln: 0, cooldown: 0, wipe: false,
+            power: { rapid: 0, double: 0 }, shield: false, invuln: 0, cooldown: 0, wipe: false, camp: { x: G.W / 2, t: 0 },
             beat: 0.4, note: 0, frame: 0, alarmT: 0, bombT: 2, diveT: cfg.dive || 0, lanceT: cfg.lance || 0
         };
         buildFormation(s);
@@ -218,13 +220,25 @@
         if (p.x < 24 || p.x > G.W - 24) { p.x = G.clamp(p.x, 24, G.W - 24); p.vx = 0; }
     }
 
+    // A cannon parked in one spot with the trigger held would let the whole
+    // formation walk through its line of fire while a bunker keeps the bombs
+    // off it. So the formation notices a sitting target (see scheduleBombs);
+    // moving more than CAMP_R away starts the count again.
+    function trackCamp(s, dt) {
+        var c = s.camp;
+        if (Math.abs(s.player.x - c.x) > CAMP_R) { c.x = s.player.x; c.t = 0; }
+        else c.t += dt;
+    }
+
+    function parked(s) { return s.camp.t > CAMP_T; }
+
     // Two volleys may be in the air at once (four with the rapid capsule);
     // the double capsule makes every volley a pair.
     function fire(s) {
         var twin = s.power.double > 0, rapid = s.power.rapid > 0;
         var limit = (rapid ? 4 : 2) * (twin ? 2 : 1), x = s.player.x;
         if (!G.key.a || s.cooldown > 0 || s.shots.length >= limit) return;
-        s.cooldown = rapid ? 0.13 : 0.3;
+        s.cooldown = rapid ? RELOAD_RAPID : RELOAD;
         if (twin) s.shots.push({ x: x - 11, y: PY - 14 }, { x: x + 11, y: PY - 14 });
         else s.shots.push({ x: x, y: PY - 16 });
         G.sfx('shoot');
@@ -233,6 +247,9 @@
     function hitPlayer(s) {
         var p = s.player;
         if (s.invuln > 0) return;
+        // A hit restarts the parked count, so a player who has frozen gets a
+        // moment to recover instead of a second aimed salvo at once.
+        s.camp.t = 0;
         if (s.shield) {
             s.shield = false; s.invuln = 1;
             G.burst(p.x, PY, { n: 16, color: C.alert, speed: 220, life: 0.4 });
@@ -307,9 +324,9 @@
     }
 
     function wrapFlier(s, e) {
-        // Re-enter just below the HUD strip, fading in, rather than flying
-        // down through the score line.
-        e.y = G.HUD + 12; e.vy = 60; e.bombed = false; e.crunch = false; e.fade = FADE;
+        // Re-enter fading in below the saucer's lane (below the mothership on
+        // a boss level) rather than flying down through the score line.
+        e.y = s.boss ? 122 : 72; e.vy = 60; e.bombed = false; e.crunch = false; e.fade = FADE;
         // A diver flies home to its slot; a mini has no slot and dives again.
         if (e.kind === 'm') { e.vx = 0; e.x = 60 + s.rnd() * (G.W - 120); }
         else e.state = 'return';
@@ -332,15 +349,21 @@
     }
 
     // Divers and minis fall with gravity and steer toward the cannon until
-    // they are low; then they are committed and can be sidestepped.
+    // they are low; then they are committed and can be sidestepped. Minis
+    // come in pairs and keep coming back, so they commit earlier and turn
+    // less sharply than a diver.
     function updateFlier(s, e, dt) {
         if (e.state === 'return') { returnToSlot(s, e, dt); return; }
         var mini = e.kind === 'm';
         e.vy = Math.min(mini ? 150 : 215, e.vy + 300 * dt);
-        if (e.y < 400) e.vx = G.clamp(e.vx + (s.player.x > e.x ? 1 : -1) * 340 * dt, -190, 190);
+        var lock = mini ? 330 : 400, turn = mini ? 140 : 190;
+        if (e.y < lock) e.vx = G.clamp(e.vx + (s.player.x > e.x ? 1 : -1) * 340 * dt, -turn, turn);
         e.x = G.clamp(e.x + e.vx * dt, 20, G.W - 20);
         e.y += e.vy * dt;
-        if (!e.bombed && e.y > 250 && e.y < 380) { e.bombed = true; dropBomb(s, e.x, e.y + 10, 0, s.cfg.bombV, 'bolt'); }
+        // A diver bombs once on its way down. Minis only ram: they burst out
+        // right above the cannon that shot their parent, and a bomb from
+        // there would arrive before anyone could react.
+        if (!mini && !e.bombed && e.y > 250 && e.y < 380) { e.bombed = true; dropBomb(s, e.x, e.y + 10, 0, s.cfg.bombV, 'bolt'); }
         if (e.y > G.H + 24) { wrapFlier(s, e); return; }
         crunchBunker(s, e);
         if (G.aabb({ x: e.x - 12, y: e.y - 9, w: 24, h: 18 }, playerBox(s)) && s.invuln <= 0) {
@@ -376,25 +399,31 @@
         s.bombs.push({ x: x, x0: x, y: y, vx: vx, vy: vy, kind: kind, t: 0 });
     }
 
-    // Picks who bombs next: usually a random column, sometimes the one above
+    // Picks who bombs next: a random column or, when aimed, the one nearest
     // the cannon, and always the lowest invader of that column.
-    function pickShooter(s) {
+    function pickShooter(s, aimed) {
         var form = s.inv.filter(function (e) { return e.state === 'form'; }), px = s.player.x;
         if (!form.length) return null;
         var pick = form[Math.floor(s.rnd() * form.length)];
-        if (s.rnd() < 0.35) form.forEach(function (e) { if (Math.abs(e.x - px) < Math.abs(pick.x - px)) pick = e; });
+        if (aimed) form.forEach(function (e) { if (Math.abs(e.x - px) < Math.abs(pick.x - px)) pick = e; });
         form.forEach(function (e) { if (Math.abs(e.x - pick.x) < 4 && e.y > pick.y) pick = e; });
         return pick;
     }
 
+    // About a third of the bombs are aimed at the cannon's column. A parked
+    // cannon draws nearly all of them, twice as often, and slanted so that
+    // they also reach it beside the formation or in a corner: its bunker is
+    // chewed away and it has to move.
     function scheduleBombs(s, dt) {
+        var sit = parked(s), cfg = s.cfg;
         s.bombT -= dt;
-        if (s.bombT > 0 || s.bombs.length >= s.cfg.maxBombs) return;
-        var e = pickShooter(s);
+        if (s.bombT > 0 || s.bombs.length >= cfg.maxBombs + (sit ? 1 : 0)) return;
+        var e = pickShooter(s, s.rnd() < (sit ? 0.9 : 0.35));
         if (!e) return;
-        s.bombT = s.cfg.bomb * (0.6 + s.rnd() * 0.8);
-        var zig = s.rnd() < (s.cfg.zig || 0);
-        dropBomb(s, e.x, e.y + HALF_H, 0, s.cfg.bombV * (zig ? 0.8 : 1), zig ? 'zig' : 'bolt');
+        s.bombT = cfg.bomb * (0.6 + s.rnd() * 0.8) * (sit ? 0.5 : 1);
+        var zig = s.rnd() < (cfg.zig || 0), vy = cfg.bombV * (zig ? 0.8 : 1), y = e.y + HALF_H;
+        var vx = sit ? G.clamp((s.player.x - e.x) * vy / Math.max(60, PY - y), -0.6 * vy, 0.6 * vy) : 0;
+        dropBomb(s, e.x, y, vx, vy, zig ? 'zig' : 'bolt');
         G.tone(330, 0.12, { type: 'triangle', slide: 120, vol: 0.07 });
     }
 
@@ -471,7 +500,7 @@
     // ------------------------------------------------------------------
 
     function dropCapsule(s, x, y, force) {
-        if (!s.cfg.caps || s.caps.length >= 2 || (!force && s.rnd() > 0.09)) return;
+        if (!s.cfg.caps || s.caps.length >= 2 || (!force && s.rnd() > 0.06)) return;
         s.caps.push({ x: x, y: y, kind: CAPS[Math.floor(s.rnd() * CAPS.length)] });
     }
 
@@ -509,7 +538,7 @@
 
     function applyCapsule(s, kind) {
         if (kind === 'shield') s.shield = true;
-        else s.power[kind] = kind === 'rapid' ? 10 : 12;
+        else s.power[kind] = kind === 'rapid' ? 8 : 10;
         G.addScore(50);
         G.popup(s.player.x, PY - 26, kind.toUpperCase(), C.alert);
         G.sfx('power');
@@ -673,6 +702,7 @@
     function update(s, dt) {
         tickTimers(s, dt);
         movePlayer(s, dt);
+        trackCamp(s, dt);
         fire(s);
         if (updateInvaders(s, dt)) {
             // Touchdown: the level is lost and starts over.
@@ -748,7 +778,7 @@
             ctx.globalAlpha = invaderAlpha(s, e);
             drawSprite(ctx, SPR[k.spr][s.frame], e.x, e.y, e.flash > 0 ? C.white : k.color);
             if (e.kind === 's' && e.hp > 1) {
-                ctx.strokeStyle = C.alert; ctx.lineWidth = 2;
+                ctx.strokeStyle = C.alert; ctx.lineWidth = 3;
                 ctx.beginPath(); ctx.arc(e.x, e.y + 2, 20, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
             }
             if (e.kind === 'l' && e.hp > 1) { ctx.fillStyle = C.bg; ctx.fillRect(e.x - 2, e.y - 6, 4, 4); }
@@ -761,9 +791,10 @@
             var x = b.src.x, y = b.src.y + 14, live = b.t >= CHARGE;
             ctx.fillStyle = C.alert;
             if (!live) {
-                // Charging: a flickering hairline that thickens as it fills.
+                // Charging: a flickering line that brightens as it fills (4 px
+                // wide so it survives a phone's 40% scale).
                 ctx.globalAlpha = 0.25 + 0.5 * (b.t / CHARGE) * (Math.sin(G.t * 40) > 0 ? 1 : 0.5);
-                ctx.fillRect(x - 1, y, 2, GROUND_Y - y);
+                ctx.fillRect(x - 2, y, 4, GROUND_Y - y);
             } else {
                 ctx.globalAlpha = 0.35; ctx.fillRect(x - 16, y, 32, GROUND_Y - y);
                 ctx.globalAlpha = 1; ctx.fillRect(x - 7, y, 14, GROUND_Y - y);
@@ -822,22 +853,25 @@
         ctx.globalAlpha = 1;
     }
 
+    // Shots, bombs and capsules are drawn a little larger than their hit
+    // boxes: on a phone the canvas is shown at 40-60% size and a 3 px bar
+    // would all but vanish.
     function drawProjectiles(s, ctx) {
         ctx.fillStyle = C.white;
-        s.shots.forEach(function (sh) { ctx.fillRect(sh.x - 1.5, sh.y, 3, 12); });
+        s.shots.forEach(function (sh) { ctx.fillRect(sh.x - 2, sh.y, 4, 14); });
         ctx.fillStyle = C.alert;
         s.bombs.forEach(function (b) {
             // Bolts are a straight bar; zig bombs are drawn as a wriggle.
             var k = b.kind === 'zig' ? (Math.floor(b.t * 14) % 2 ? 3 : -3) : 0;
-            ctx.fillRect(b.x - 2 + k, b.y - 6, 4, 6);
-            ctx.fillRect(b.x - 2 - k, b.y, 4, 6);
+            ctx.fillRect(b.x - 3 + k, b.y - 7, 6, 7);
+            ctx.fillRect(b.x - 3 - k, b.y, 6, 7);
         });
         s.caps.forEach(function (c) {
             ctx.fillStyle = C.alert;
-            ctx.fillRect(c.x - 13, c.y - 8, 26, 16);
+            ctx.fillRect(c.x - 16, c.y - 13, 32, 26);
             ctx.fillStyle = C.bg;
-            ctx.fillRect(c.x - 11, c.y - 6, 22, 12);
-            G.text(c.kind.charAt(0).toUpperCase(), c.x, c.y + 5, { size: 13, bold: true, color: C.alert, align: 'center' });
+            ctx.fillRect(c.x - 13, c.y - 10, 26, 20);
+            G.text(c.kind.charAt(0).toUpperCase(), c.x, c.y + 7, { size: 20, bold: true, color: C.alert, align: 'center' });
         });
     }
 
@@ -867,8 +901,8 @@
         title: 'FORMATION',
         blurb: 'Destroy the formation before it lands. It marches faster as it thins.',
         controls: [
-            '← → move the cannon · SPACE fire (hold)',
-            'Shots and bombs chew through the bunkers; shots can pick bombs out of the air',
+            '← → move the cannon · SPACE / FIRE shoot (hold)',
+            'Bunkers erode where they are hit · keep moving: a parked cannon draws fire',
             'Capsules: R rapid fire · D double barrel · S shield',
             'Mothership: aim for the core while it glows'
         ],
@@ -888,6 +922,10 @@
             drums: { k: 'x.....x.x.......', s: '....x.......x...', h: '..x...x...x...x.' },
             leadWave: 'square', bassWave: 'triangle', arpWave: 'triangle', leadOct: 2
         },
-        init: init, update: update, draw: draw, hud: hud
+        init: init, update: update, draw: draw, hud: hud,
+        // Pad-native: two big direction buttons and FIRE. No auto-fire on a
+        // phone: each thumb has one job (steer left, hold FIRE right), and
+        // holding fire back is how a player spares a bunker.
+        touch: { a: 'FIRE', hide: ['up', 'down', 'b'] }
     });
 })();
