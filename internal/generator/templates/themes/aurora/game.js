@@ -15,6 +15,7 @@
     var G = window.SnoGame;
     var HORIZON = 98;                 // screen y where the sky strip ends and the slope begins
     var START_X = 480, GATE0 = 700;   // skier start column, world y of the first gate
+    var ROW0 = 560;                   // first row of hazards: the skier is up to speed by then
     var EDGE = 34, SKIER_R = 9;       // snow bank at both sides, skier's collision radius
     var GRAVITY = 800, TUCK_SPEED = 440;
     // The avalanche never falls further behind than this, and a crash throws
@@ -22,7 +23,8 @@
     var LEASH = 300;
     // A chute's tree walls stand at least CHUTE from the racing line, and
     // nothing else stands within LANE of it.
-    var CHUTE = 132, LANE = 78;
+    var CHUTE = 150, LANE = 90;
+    var CHASE = 5;                    // seconds a yeti keeps up its chase
     var GREEN = '#00ffb3', TEAL = '#00cfe8', PURPLE = '#c084fc', NAVY = '#050d1a', SNOW = '#e0f8f0', RED = '#ff5d7a';
     var PINE_TIERS = ['#0b4a44', '#0f6457', '#14806b'];
     var TAU = Math.PI * 2;
@@ -36,30 +38,40 @@
     // ------------------------------------------------------------------
 
     // Everything that changes from level to level lives here, so the rest of
-    // the code only asks the config what the level has.
+    // the code only asks the config what the level has. The slope of every
+    // number is gentle on purpose: a late level is harder mostly through what
+    // it adds (wind, yeti, ice, avalanche, dark, storm), and its course is
+    // only a little tighter than the first one, so that the storm run can be
+    // finished by a player who reacts in a quarter of a second.
     function config(level) {
-        var gap = 560 - level * 14, len = 14000 + level * 1400;
+        var gap = 560 - level * 10, len = 14000 + level * 1400;
+        // On the touch pad one thumb works both TUCK and JUMP, so a hop comes
+        // later and costs the tuck: the phone gets a wider lane, lighter wind
+        // and slower chasers to make up for it.
+        var soft = G.isTouch() ? 1 : 0;
         return {
-            level: level, len: len, gap: gap, gateW: 150 - level * 6,
+            level: level, len: len, gap: gap, gateW: 150 - level * 4,
             // The lateral step between two gates is capped by their spacing,
             // otherwise a late level would ask for turns nobody can make.
-            swing: Math.min(120 + level * 10, gap * 0.45),
-            rowGap: 118 - level * 6, cruise: 300 + level * 4,
-            // Free space either side of the racing line. It stops shrinking
-            // late on: wind and ice already push the skier off the line there.
-            clear: Math.max(44, 62 - level * 2.4),
+            swing: Math.min(120 + level * 6, gap * 0.45),
+            rowGap: 118 - level * 4, cruise: 300 + level * 4,
+            // Free space either side of the racing line. It shrinks only a
+            // little: wind and ice already push the skier off the line late on.
+            clear: 66 - level + soft * 8,
             rocks: level >= 2, ramps: level >= 2, cracks: level >= 3,
-            wind: level >= 3 ? Math.min(90, 50 + level * 6) : 0,
+            wind: level >= 3 ? (40 + level * 3) * (1 - soft * 0.2) : 0,
             // The yeti is a little faster than an upright skier going straight
             // (cruise + 18) and much faster than one who is carving, but far
-            // slower than a tuck: an upright skier who keeps turning is caught
-            // within the seven seconds of a chase, speed is the defence.
-            yeti: level >= 4 ? 318 + level * 4 : 0,
+            // slower than a tuck: an upright skier who keeps turning can be
+            // caught within the CHASE seconds, a tucked one never is.
+            yeti: level >= 4 ? 318 + level * 4 - soft * 8 : 0,
             chasm: level < 5 ? 0 : (level === 5 ? 0.36 : 0.2),
             bumps: level >= 6,
-            aval: level >= 8 ? 266 + level * 4 : 0,
+            aval: level >= 8 ? 250 + level * 4 - soft * 14 : 0,
             dark: level === 9, storm: level === 10,
-            time: len / (268 + level * 2) + 6
+            // Enough for an upright run with some missed gates and a crash;
+            // dawdling or missing every other gate still runs it out.
+            time: len / (240 + level * 2) + 10
         };
     }
 
@@ -96,17 +108,22 @@
     // the sideways travel per unit of descent that its launch gives the
     // skier. A flight can hardly be steered, so a ramp just below a gate
     // (where the line turns) would otherwise throw the skier off the course.
+    // It aims at where the line is 380px on, about where a flight ends (320px
+    // for a plain launch, up to 470 for a popped one at tuck speed), so even
+    // a flight across a gate comes down near the line.
     function addRamp(s, y) {
-        var aim = (lineX(s, y + 300) - lineX(s, y + 20)) / 280;
+        var aim = (lineX(s, y + 380) - lineX(s, y + 20)) / 360;
         s.obs.push({ k: 'ramp', x: lineX(s, y), y: y, w: 52, h: 16, aim: aim });
     }
 
     // A chasm lies across the racing line and has to be jumped; half of them
     // come with a ramp just uphill, which carries the skier over for points.
+    // Returns whether it got one.
     function addChasm(s, x, y) {
-        var w = 300 + s.rnd() * 140;
+        var w = 300 + s.rnd() * 140, ramp = s.rnd() < 0.5;
         s.obs.push({ k: 'crev', x: G.clamp(x, EDGE + w / 2, G.W - EDGE - w / 2), y: y, w: w, h: 26 });
-        if (s.rnd() < 0.5) addRamp(s, y - 70);
+        if (ramp) addRamp(s, y - 70);
+        return ramp;
     }
 
     function addMoguls(s, x, y) {
@@ -116,12 +133,15 @@
     }
 
     // One set piece at most between two gates, placed on the racing line so
-    // that following the course means dealing with it.
+    // that following the course means dealing with it. The flight off a
+    // chasm's ramp comes down only about a hundred pixels short of where the
+    // next chasm would lie, too close to jump again, so that one is left out.
     function buildFeatures(s) {
-        var cfg = s.cfg, g = s.gates;
+        var cfg = s.cfg, g = s.gates, flown = false;
         for (var i = 1; i < g.length - 1; i++) {
-            var v = s.rnd(), y = g[i].y + cfg.gap * 0.5, x = lineX(s, y);
-            if (v < cfg.chasm) addChasm(s, x, y);
+            var v = s.rnd(), y = g[i].y + cfg.gap * 0.5, x = lineX(s, y), landing = flown;
+            flown = false;
+            if (v < cfg.chasm) flown = !landing && addChasm(s, x, y);
             else if (cfg.ramps && v < cfg.chasm + 0.22) addRamp(s, g[i].y + 70);
             else if (cfg.bumps && v < cfg.chasm + 0.4) addMoguls(s, x, y);
             else if (cfg.bumps && v < cfg.chasm + 0.58) s.obs.push({ k: 'ice', x: x, y: y, rx: 90 + s.rnd() * 60, ry: 55 + s.rnd() * 35 });
@@ -130,13 +150,17 @@
 
     // A flight cannot be steered much, so the strip it lands in (along the
     // racing line) is kept free of scattered hazards: a long one below every
-    // ramp, and a shorter, wider one below every chasm, because that jump is
-    // forced and its landing spot is not the player's choice either.
+    // ramp (the longest flight plus room to react after touching down),
+    // and a shorter, wider one below every chasm, because that jump is
+    // forced and its landing spot is not the player's choice either. An ice
+    // patch gets one too, from its top edge to well below it: the skier
+    // slides across with next to no grip and needs room to catch the line.
     function landingStrips(obs) {
         var strips = [];
         obs.forEach(function (o) {
-            if (o.k === 'ramp') strips.push({ y: o.y, len: 470, half: 100 });
+            if (o.k === 'ramp') strips.push({ y: o.y, len: 620, half: 100 });
             else if (o.k === 'crev') strips.push({ y: o.y, len: 270, half: 110 });
+            else if (o.k === 'ice') strips.push({ y: o.y - o.ry, len: o.ry * 2 + 220, half: 110 });
         });
         return strips;
     }
@@ -174,8 +198,8 @@
     function buildRows(s) {
         // Only the set pieces exist yet, so every crevasse here is a chasm.
         var cfg = s.cfg, strips = landingStrips(s.obs);
-        for (var y = 420; y < cfg.len - 260; y += cfg.rowGap) {
-            var n = 2 + (s.rnd() < cfg.level * 0.09 ? 1 : 0) + (s.rnd() < cfg.level * 0.04 ? 1 : 0);
+        for (var y = ROW0; y < cfg.len - 260; y += cfg.rowGap) {
+            var n = 2 + (s.rnd() < cfg.level * 0.06 ? 1 : 0) + (s.rnd() < cfg.level * 0.025 ? 1 : 0);
             for (var j = 0; j < n; j++) addHazard(s, 40 + s.rnd() * 880, y + s.rnd() * cfg.rowGap * 0.8, strips);
             if (chuteAt(cfg, y)) addWalls(s, y);
         }
@@ -271,7 +295,7 @@
         // direction pad so that a sliding thumb never tucks by accident.
         sk.tuck = G.key.down || G.key.b;
         if (sk.buf > 0) { jump(s, 230, false); return; }
-        var lat = sk.tuck ? 190 : 270, grip = sk.ice ? 0.5 : 7;
+        var lat = sk.tuck ? 190 : 270, grip = sk.ice ? 1 : 7;
         sk.vx += (dir * lat + s.wind.v - sk.vx) * Math.min(1, grip * dt);
         var term = (sk.tuck ? TUCK_SPEED : cfg.cruise) * (dir ? 0.84 : 1);
         sk.vy += (term - sk.vy) * (term > sk.vy ? 1 : 1.6) * dt;
@@ -282,7 +306,7 @@
         var sk = s.sk, dir = (G.key.right ? 1 : 0) - (G.key.left ? 1 : 0);
         sk.inv = Math.max(0, sk.inv - dt);
         // A short buffer lets a jump pressed a moment early still happen.
-        sk.buf = G.hit.a ? 0.12 : Math.max(0, sk.buf - dt);
+        sk.buf = G.hit.a ? 0.2 : Math.max(0, sk.buf - dt);
         if (sk.stun > 0) { sk.stun -= dt; sk.tuck = false; return; }
         if (sk.z > 0) {
             // Airborne: no edges to carve with. Leaning still drifts the
@@ -463,7 +487,7 @@
         if (w.t > 0) return;
         if (w.to) {
             w.to = 0;
-            w.t = cfg.storm ? 0.8 + s.rnd() * 0.8 : 3 + s.rnd() * 2;
+            w.t = cfg.storm ? 1.5 + s.rnd() * 1.5 : 3 + s.rnd() * 2;
         } else {
             w.to = (s.rnd() < 0.5 ? -1 : 1) * cfg.wind;
             w.t = 2.5 + s.rnd() * 1.5;
@@ -489,7 +513,7 @@
 
     function startChase(s) {
         var ye = s.yeti, sk = s.sk;
-        ye.mode = 'chase'; ye.t = 7; ye.slow = 0;
+        ye.mode = 'chase'; ye.t = CHASE; ye.slow = 0;
         ye.x = G.clamp(sk.x + (s.rnd() < 0.5 ? -220 : 220), 40, G.W - 40);
         ye.y = sk.y - 240;
         roar();
