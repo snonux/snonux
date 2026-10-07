@@ -28,18 +28,24 @@
     var GLYPHS = '01<>[]{}=+*#$%&/|:;?ZXKTNHM';
 
     // range is how far a bullet flies before it fades, rate the world-time
-    // seconds between the player's shots, cap the most rounds they can carry.
+    // seconds between the player's shots, cap the most rounds they can carry,
+    // drop the rounds in a gun a deleted agent leaves behind (a gun lying in
+    // the room at the start holds two more). Drops are generous so that less
+    // of a room is spent running unarmed for the next gun: that run is where
+    // most players are shot.
     var GUNS = {
-        pistol: { n: 1, spread: 0, range: 2000, rate: 0.4, cap: 12, drop: 4 },
-        shotgun: { n: 6, spread: 0.42, range: 330, rate: 0.8, cap: 6, drop: 2 }
+        pistol: { n: 1, spread: 0, range: 2000, rate: 0.4, cap: 12, drop: 5 },
+        shotgun: { n: 6, spread: 0.42, range: 330, rate: 0.8, cap: 6, drop: 3 }
     };
 
     // wind is the aiming time before a shot, cool the reload after it, keep
     // the distance an agent tries to close to before it stops advancing.
+    // The shotgun and the dodger aim longer than the plain agent: a fan of
+    // pellets and a target that sidesteps both need more time to answer.
     var KINDS = {
         a: { speed: 95, wind: 0.55, cool: 1.3, range: 520, keep: 240, gun: 'pistol', score: 100, color: GREEN },
-        s: { speed: 85, wind: 0.75, cool: 2.0, range: 290, keep: 170, gun: 'shotgun', score: 150, color: '#c8ff3a' },
-        d: { speed: 110, wind: 0.5, cool: 1.2, range: 520, keep: 240, gun: 'pistol', score: 200, color: '#5dffd0', dodge: true }
+        s: { speed: 85, wind: 0.95, cool: 2.3, range: 290, keep: 170, gun: 'shotgun', score: 150, color: '#c8ff3a' },
+        d: { speed: 110, wind: 0.6, cool: 1.4, range: 520, keep: 240, gun: 'pistol', score: 200, color: '#5dffd0', dodge: true }
     };
 
     // Rooms, in tile coordinates. walls/glass are [x, y, w, h] rectangles.
@@ -105,9 +111,9 @@
             walls: [[10, 2, 1, 5], [10, 12, 1, 5], [21, 2, 1, 5], [21, 12, 1, 5]],
             glass: [[10, 7, 1, 5], [21, 7, 1, 5], [5, 8, 1, 3], [14, 5, 4, 1], [14, 13, 4, 1], [25, 6, 1, 3]],
             waves: [[['a', 12, 3, 19, 3], ['a', 12, 15, 19, 15], ['d', 16, 9, 16, 7], ['a', 27, 3, 27, 8],
-                ['s', 28, 15, 23, 15], ['s', 29, 9, 29, 5], ['d', 24, 11, 29, 11]],
+                ['s', 28, 15, 23, 15], ['a', 29, 9, 29, 5], ['d', 24, 11, 29, 11]],
                 [['a', 30, 2], ['a', 30, 16], ['d', 16, 2], ['s', 16, 16]],
-                [['a', 30, 9], ['d', 1, 2], ['s', 30, 2], ['a', 11, 9]]]
+                [['s', 30, 9], ['d', 1, 2], ['s', 30, 2], ['a', 11, 9]]]
         },
         { // 9: rooftop: agents lead their shots, and each later wave brings another sentinel
             start: [2, 9], ammo: 8, cache: [2, 16], guns: [[3, 3, 'shotgun'], [14, 9, 'pistol']],
@@ -117,7 +123,7 @@
                 [['a', 30, 9], ['s', 1, 16], ['d', 16, 9], ['a', 30, 2], ['d', 1, 2], ['z', 30, 16]]]
         },
         { // 10: the lobby: rows of pillars, four waves of everything and a sentinel in each wave after the first
-            start: [2, 9], ammo: 8, cache: [2, 16], guns: [[3, 3, 'pistol'], [3, 15, 'shotgun']],
+            start: [2, 9], ammo: 10, cache: [2, 16], guns: [[3, 3, 'pistol'], [3, 15, 'shotgun']],
             walls: [[5, 5, 2, 2], [10, 5, 2, 2], [15, 5, 2, 2], [20, 5, 2, 2], [25, 5, 2, 2],
                 [5, 12, 2, 2], [10, 12, 2, 2], [15, 12, 2, 2], [20, 12, 2, 2], [25, 12, 2, 2], [28, 8, 1, 3]],
             waves: [[['a', 8, 3, 8, 15], ['a', 13, 15, 13, 3], ['s', 18, 3, 18, 15], ['d', 23, 15, 23, 3], ['a', 29, 4, 29, 6], ['s', 29, 14, 29, 12]],
@@ -203,17 +209,22 @@
 
     // Difficulty that rises with the level besides the room itself: agents
     // aim faster, bullets fly faster, and late agents lead a moving target.
+    // The steps are small (with one life every extra bullet counts): by
+    // level 10 the aiming time is two thirds of level 1's and bullets are a
+    // quarter faster.
     function tune(level, lv) {
         return {
-            wind: 1.5 - level * 0.07, shot: 270 + level * 11, lead: level >= 9 ? 0.55 : 0,
-            cover: level >= 2, drone: 92 + level * 2, trace: lv.trace || 8, drop: lv.drop || 3
+            wind: 1.5 - level * 0.05, shot: 270 + level * 8, lead: level >= 9 ? 0.55 : 0,
+            cover: level >= 2, drone: 90 + level * 1.5, trace: lv.trace || 8, drop: lv.drop || 3
         };
     }
 
     function spawn(s, spec, late) {
         var x = mid(spec[1]), y = mid(spec[2]);
+        // Reinforcements (late) take a moment to materialise or wake, long
+        // enough to finish the last enemy of the wave before and turn round.
         if (spec[0] === 'z') {
-            s.drones.push({ x: x, y: y, vx: 0, vy: 0, r: 13, hp: 3, wake: late ? 1.5 : 2.5, ping: 0, swim: s.rnd() * TAU });
+            s.drones.push({ x: x, y: y, vx: 0, vy: 0, r: 13, hp: 3, wake: late ? 2.2 : 2.5, ping: 0, swim: s.rnd() * TAU });
             return;
         }
         var px = spec.length > 3 ? mid(spec[3]) : x, py = spec.length > 3 ? mid(spec[4]) : y;
@@ -221,7 +232,7 @@
             kind: spec[0], k: KINDS[spec[0]], x: x, y: y, r: 11, vx: 0, vy: 0,
             face: spec.length > 3 ? Math.atan2(py - y, px - x) : Math.atan2(s.p.y - y, s.p.x - x),
             home: { x: x, y: y }, post: { x: px, y: py }, out: true,
-            cool: 0.3 + s.rnd() * 0.7, wind: 0, react: late ? 0.4 : 0, spawn: late ? 0.9 : 0,
+            cool: 0.3 + s.rnd() * 0.7, wind: 0, react: late ? 0.4 : 0, spawn: late ? 1.3 : 0,
             dodge: 0, dodgeCool: 0, dvx: 0, dvy: 0, mx: 0, my: 0, sealed: 0, cover: null, flash: 0, dead: false
         });
     }
