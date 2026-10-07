@@ -53,7 +53,9 @@
         { w: 1920, g: 58, fuel: 100, start: [130, 110, 20], amp: 14, hint: 'MATCH EACH FERRY DECK, THEN SET DOWN',
             floor: [[0, 380], [120, 420], [220, 500], [380, 470], [520, 515], [700, 480], [860, 515], [1000, 470], [1150, 515], [1300, 480], [1450, 515], [1600, 470], [1720, 515], [1840, 440], [1920, 400]],
             pads: [{ x: 560, y: 330, w: 108, sway: [150, 0.28], kind: 'relay' }, { x: 1420, y: 300, w: 96, sway: [190, 0.3], kind: 'goal' }] },
-        { w: 2880, g: 55, fuel: 40, start: [100, 160, 30], amp: 9, hint: 'LOW TANK — GRAB THE FUEL CANISTERS', gap: 184,
+        // Half a tank at the start: enough for a cautious pilot to reach the
+        // first canister at a crawl, little enough that every canister counts.
+        { w: 2880, g: 55, fuel: 50, start: [100, 160, 30], amp: 9, hint: 'LOW TANK — GRAB THE FUEL CANISTERS', gap: 184,
             cave: [[0, 190], [250, 210], [450, 290], [650, 230], [850, 170], [1050, 300], [1250, 360], [1450, 270], [1650, 190], [1850, 260], [2050, 350], [2250, 300], [2450, 220], [2650, 260], [2880, 270]],
             cans: [[520, 270], [1250, 360], [1900, 280], [2450, 220]], pads: [{ i: 112, n: 4, kind: 'goal' }] },
         { w: 2400, g: 58, fuel: 100, start: [120, 100, 30], amp: 10, hint: 'KEEP MOVING — FLAK HITS SLOW SHIPS',
@@ -62,19 +64,23 @@
         { w: 1920, g: 58, fuel: 100, start: [900, 100, 0], amp: 10, hint: 'FETCH THE CARGO IN THE WEST, DELIVER IT EAST',
             floor: [[0, 300], [96, 300], [192, 300], [300, 460], [450, 420], [600, 480], [760, 430], [900, 500], [1050, 440], [1200, 480], [1350, 420], [1500, 470], [1680, 360], [1776, 360], [1920, 300]],
             cans: [[1250, 300]], pads: [{ i: 4, n: 4, kind: 'cargo' }, { i: 70, n: 4, kind: 'goal' }] },
-        { w: 2400, g: 24, fuel: 60, start: [90, 190, 20], amp: 6, hint: 'LOW GRAVITY — SMALL BURNS, MIND THE MINES', gap: 190,
+        { w: 2400, g: 30, fuel: 60, start: [90, 190, 20], amp: 6, hint: 'LOW GRAVITY — SMALL BURNS, MIND THE MINES', gap: 220,
             cave: [[0, 190], [250, 210], [400, 340], [560, 380], [720, 255], [900, 170], [1080, 280], [1250, 385], [1420, 305], [1600, 205], [1780, 300], [1960, 360], [2140, 250], [2300, 300], [2400, 300]],
-            // Mines bob at the bends, where the outside of the turn leaves room to
-            // pass; the two after the beacon bob less, as a ship's width of
-            // room is too little for a capsule drifting in low gravity.
-            mines: [[560, 380, 40, 1.2], [1600, 205, 30, 1.5], [1960, 360, 30, 1.7]],
+            // Gravity is half the usual, not less: at 24 a brief burn too many
+            // sent a casual pilot into the roof. Mines bob at the bends, pushed
+            // towards the inside of each turn, so the outside always leaves a
+            // lane some three capsules wide: a capsule drifting in low gravity
+            // cannot be timed through a gap that opens and shuts.
+            mines: [[560, 358, 26, 1.0], [1600, 228, 24, 1.2], [1960, 338, 24, 1.3]],
             cans: [[900, 170], [2140, 250]], pads: [{ i: 52, n: 3, kind: 'relay' }, { i: 95, n: 3, kind: 'goal' }] },
         { w: 1920, g: 96, fuel: 100, start: [960, 90, 0], amp: 9, wind: [12, 5], hint: 'HEAVY WORLD — CARGO WEST, DELIVERY EAST',
             floor: [[0, 400], [144, 400], [240, 400], [350, 480], [500, 440], [650, 490], [800, 450], [950, 500], [1100, 460], [1250, 500], [1400, 450], [1550, 490], [1656, 420], [1752, 420], [1920, 380]],
             turrets: [29], cans: [[330, 150], [900, 190], [1250, 250], [1550, 280]], pads: [{ i: 6, n: 4, kind: 'cargo' }, { i: 69, n: 4, kind: 'goal' }] },
+        // The arms sweep at about 40 px/s (spin * d) and their decks are three
+        // capsules wide: slow and wide enough to match by eye, with a crate on.
         { w: 960, g: 0, fuel: 100, start: [130, 120, 25], amp: 0, hint: 'CARRY THE CRATE FROM ONE ARM TO THE OTHER — MATCH THE SPIN',
-            station: { x: 480, y: 290, r: 58, d: 122, spin: 0.4, g: 40, debris: [[205, -0.45, 0], [205, -0.45, Math.PI], [235, 0.35, 1]] },
-            pads: [{ w: 64, arm: 0, kind: 'cargo' }, { w: 64, arm: Math.PI, kind: 'goal' }] }
+            station: { x: 480, y: 290, r: 58, d: 122, spin: 0.32, g: 40, debris: [[205, -0.45, 0], [205, -0.45, Math.PI], [235, 0.35, 1]] },
+            pads: [{ w: 72, arm: 0, kind: 'cargo' }, { w: 72, arm: Math.PI, kind: 'goal' }] }
     ];
 
     // ---------------------------------------------------------------- setup
@@ -768,7 +774,10 @@
         ],
         levelNames: ['First Contact', 'Razor Canyon', 'Crosswind', 'Ferry Decks', 'Fuel Run', 'Flak Alley', 'Cargo Haul', 'Selene Caverns', 'Iron Giant', 'Starbase Halo'],
         colors: { bg: C.bg, fg: C.silver, accent: C.teal, dim: '#5d8a9a' },
-        lives: 3,
+        // Four lives: a crash restarts the whole route, and the late levels
+        // (mines, flak, the spinning station) each have a spot that takes a try
+        // or two to learn.
+        lives: 4,
         // A slow lydian tune: long sine notes over a sparse pulse, calm
         // enough to concentrate on a landing.
         music: {
