@@ -271,8 +271,8 @@
         title: 'BRICK BREAKER',
         blurb: 'Clear every brick. Aim with the edge of the paddle.',
         controls: [
-            '← → or mouse: move the paddle',
-            'SPACE or click: serve, and fire while the laser capsule is active',
+            '← → or mouse: move the paddle (touch: ◀ ▶, or drag on the board)',
+            'SPACE / SERVE or click: serve, and fire while the laser capsule is active',
             'Capsules: W wide · M multiball · L laser · S slow · + extra life'
         ],
         levelNames: ['Warm-up', 'Stripes', 'Checker', 'Pyramid', 'Fortress', 'Diamond', 'Columns', 'Invader', 'Rubble', 'The Wall'],
@@ -284,6 +284,9 @@
             arp: '0121', drums: { k: 'x...x...x...x...', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
             leadWave: 'square', bassWave: 'triangle'
         },
+        // Phone pad: only left, right and one button are used. A finger on the
+        // board works like the mouse — the paddle follows it and a tap serves.
+        touch: { a: 'SERVE', hide: ['up', 'down', 'b'] },
         init: init, update: update, draw: draw, hud: hud
     });
 })();

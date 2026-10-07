@@ -371,12 +371,14 @@ export async function testRotation(page, base, shots) {
     await page.eval(`SnoGame.launch('breakout')`);
     await page.waitFor(`${STATE} && ${STATE}.registered`, 'the game script to register');
     await page.eval('SnoGame.debug.start(1)');
+    // The pad must match whatever this game declares, not the default set.
+    const touch = await page.eval('SnoGame.debug.def().touch');
     let l;
     for (const [i, phone] of [land, port, land, port].entries()) {
         await page.emulatePhone(phone.width, phone.height);
         await page.waitFor(`Math.abs(document.getElementById('sno-game').clientWidth-${phone.width})<=1`, `the overlay to follow turn ${i} to ${phone.name}`);
         await sleep(150);
-        try { l = await checkPad(page, phone, null); } catch (err) { err.message = `turn ${i} to ${phone.name}: ${err.message}`; throw err; }
+        try { l = await checkPad(page, phone, touch); } catch (err) { err.message = `turn ${i} to ${phone.name}: ${err.message}`; throw err; }
         if (shots) await page.screenshot(join(shots, `rotation-${i}-${phone.name}.jpg`));
     }
     await checkCloseQuits(page, l);
