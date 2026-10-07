@@ -285,6 +285,14 @@ node integrationtests/games/e2e.mjs --touch mytheme --shots=/tmp/shots
 node integrationtests/games/play.mjs mytheme --touch --shot=/tmp/phone.jpg
 ```
 
+`GAMES_GPU=1 node integrationtests/games/cpu.mjs [theme…]` measures what a
+game costs: frame rate, JS time per frame and Chrome's CPU use on levels 1
+and 10. A game should hold 60 fps at well under one core. Its cost is mostly
+the canvas calls the browser has to rasterise, not its JS: keep a frame to a
+few hundred calls, draw static scenery (walls, mazes, backdrops) once into an
+offscreen canvas and blit it, batch same-coloured shapes into one path, and
+avoid `shadowBlur` on anything drawn many times.
+
 `play.mjs --eval` evaluates one expression in the page. The test hooks:
 
 | | |

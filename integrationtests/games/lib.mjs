@@ -56,9 +56,13 @@ function findChrome() {
 
 // Starts headless Chrome and resolves with the DevTools HTTP endpoint.
 export function launchChrome(work) {
+    // Tests render in software so they behave the same on any machine.
+    // GAMES_GPU=1 uses the real GPU instead: the only way to get CPU and
+    // frame-rate figures that mean something for this machine.
+    const gpu = process.env.GAMES_GPU ? ['--use-angle=gl', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'] : ['--disable-gpu'];
     const proc = spawn(findChrome(), [
         '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${join(work, 'chrome')}`,
-        '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--no-sandbox',
+        '--no-first-run', '--no-default-browser-check', ...gpu, '--no-sandbox',
         '--autoplay-policy=no-user-gesture-required', '--window-size=1280,800', 'about:blank',
     // detached puts Chrome and all its helper processes in one process group,
     // so the whole group can be killed at the end (see stopChrome).
