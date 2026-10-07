@@ -17,6 +17,7 @@
     var MID = 286, CEIL_MIN = 50, FLOOR_MAX = 524;
     var SUB_MIN = 50, SUB_MAX = 600;           // screen range the sub may trim across
     var SUB_R = 10, SINK = 70;                 // hull radius; the boat is a little heavy
+    var GRIND = 1.2;                           // a scrape this soon after the last one is grinding
     var COL_W = 110;                           // reach of a bubble column
     var ARM_SEGS = 10;
     var CURTAIN_STEP = 29;                     // spacing of the jellyfish in a curtain
@@ -30,18 +31,20 @@
     // feature listed twice is twice as likely); currents and dark are numbers
     // of zones; swarm adds jellyfish to each field; crates: N puts a repair
     // crate in every Nth slot on top of its feature, because the tight late
-    // caves cost hull even when flown well.
+    // caves cost hull even when flown well. Speed and gap change in small
+    // steps: the late levels add hazards, so the cave itself stays flyable
+    // (level 8 is a little wider again, the vents need the room).
     var LEVELS = [
         { len: 6400, speed: 105, gap: 300, slot: 560, mix: ['jelly', 'crate', 'rest', 'jelly'] },
-        { len: 7400, speed: 112, gap: 270, slot: 500, swarm: 2, mix: ['curtain', 'curtain', 'jelly', 'jelly', 'crate', 'rest'] },
-        { len: 8000, speed: 118, gap: 250, slot: 480, mix: ['mine', 'mine', 'mine', 'jelly', 'crate', 'rest'] },
-        { len: 8600, speed: 122, gap: 235, slot: 470, mix: ['angler', 'angler', 'angler', 'jelly', 'mine', 'crate', 'rest'] },
-        { len: 9200, speed: 126, gap: 222, slot: 460, currents: 6, mix: ['jelly', 'mine', 'angler', 'crate', 'rest', 'mine'] },
-        { len: 9600, speed: 130, gap: 210, slot: 450, currents: 1, mix: ['esub', 'esub', 'mine', 'jelly', 'angler', 'crate', 'rest'] },
-        { len: 10000, speed: 134, gap: 200, slot: 440, dark: 3, mix: ['angler', 'angler', 'jelly', 'jelly', 'mine', 'esub', 'crate'] },
-        { len: 10400, speed: 138, gap: 208, slot: 430, crates: 4, dark: 1, currents: 2, mix: ['vent', 'vent', 'vent', 'mine', 'angler', 'esub', 'jelly', 'crate'] },
-        { len: 10800, speed: 142, gap: 192, slot: 420, crates: 3, dark: 2, currents: 2, mix: ['stal', 'stal', 'stal', 'vent', 'mine', 'angler', 'jelly', 'esub', 'crate'] },
-        { len: 9600, speed: 146, gap: 200, slot: 420, crates: 3, dark: 2, currents: 2, boss: true, mix: ['stal', 'vent', 'mine', 'angler', 'jelly', 'esub', 'crate', 'mine'] }
+        { len: 7400, speed: 110, gap: 270, slot: 500, swarm: 2, mix: ['curtain', 'curtain', 'jelly', 'jelly', 'crate', 'rest'] },
+        { len: 8000, speed: 114, gap: 250, slot: 480, mix: ['mine', 'mine', 'mine', 'jelly', 'crate', 'rest'] },
+        { len: 8600, speed: 118, gap: 238, slot: 470, mix: ['angler', 'angler', 'angler', 'jelly', 'mine', 'crate', 'rest'] },
+        { len: 9200, speed: 122, gap: 228, slot: 460, currents: 6, mix: ['jelly', 'mine', 'angler', 'crate', 'rest', 'mine'] },
+        { len: 9600, speed: 126, gap: 220, slot: 450, currents: 1, mix: ['esub', 'esub', 'mine', 'jelly', 'angler', 'crate', 'rest'] },
+        { len: 10000, speed: 130, gap: 214, slot: 440, dark: 3, mix: ['angler', 'angler', 'jelly', 'jelly', 'mine', 'esub', 'crate'] },
+        { len: 10400, speed: 133, gap: 218, slot: 430, crates: 4, dark: 1, currents: 2, mix: ['vent', 'vent', 'vent', 'mine', 'angler', 'esub', 'jelly', 'crate'] },
+        { len: 10800, speed: 136, gap: 210, slot: 420, crates: 3, dark: 2, currents: 2, mix: ['stal', 'stal', 'stal', 'vent', 'mine', 'angler', 'jelly', 'esub', 'crate'] },
+        { len: 9600, speed: 138, gap: 212, slot: 420, crates: 3, dark: 2, currents: 2, boss: true, mix: ['stal', 'vent', 'mine', 'angler', 'jelly', 'esub', 'crate', 'mine'] }
     ];
     // Force of the three kinds of current: up-welling, down-draught, head-on.
     var FLOWS = [{ x: 0, y: -300 }, { x: 0, y: 300 }, { x: -330, y: 0 }];
@@ -103,7 +106,11 @@
 
     // The channel is a centre line of two summed sines with a gap around it.
     // The narrower the gap, the more room the centre line has to wander, so
-    // tight levels also wind harder. Both ends open out into calm water.
+    // tight levels also wind harder. A wide cave winds by at least 0.55 of
+    // its gap, more than fits between CEIL_MIN and FLOOR_MAX: the clamps cut
+    // the bends flat there, and no straight line leads through an early
+    // level, which a boat merely held level used to survive. Both ends open
+    // out into calm water.
     function buildCave(s, rnd) {
         var cfg = s.cfg, n = Math.ceil((cfg.len + G.W) / CS) + 4;
         var p1 = rnd() * TAU, p2 = rnd() * TAU, p3 = rnd() * TAU;
@@ -111,7 +118,7 @@
             var x = i * CS;
             var open = Math.max(G.clamp(1 - x / 500, 0, 1), G.clamp((x - (cfg.len - 400)) / 400, 0, 1));
             var gap = G.lerp(cfg.gap * (1 + 0.18 * Math.sin(x / 410 + p3)), 440, open);
-            var amp = Math.min(150, Math.max(0, (FLOOR_MAX - CEIL_MIN - gap) / 2)) * (1 - open);
+            var amp = Math.min(150, Math.max(gap * 0.55, (FLOOR_MAX - CEIL_MIN - gap) / 2)) * (1 - open);
             var mid = MID + amp * (0.62 * Math.sin(x / 300 + p1) + 0.38 * Math.sin(x / 130 + p2));
             // The roughness is clamped too, so CEIL_MIN / FLOOR_MAX are hard limits.
             s.top.push(Math.max(CEIL_MIN, mid - gap / 2 + (rnd() - 0.5) * 14));
@@ -211,7 +218,7 @@
 
     function newKraken(s) {
         return {
-            x: s.cfg.len + G.W - 120, y: MID, hp: 30, max: 30, t: 0, ink: 2, awake: false, hurt: 0, raged: false,
+            x: s.cfg.len + G.W - 120, y: MID, hp: 26, max: 26, t: 0, ink: 2, awake: false, hurt: 0, raged: false,
             arms: [{ off: -70, ph: 0, stun: 0, reach: 0 }, { off: 70, ph: 2.1, stun: 0, reach: 0 }, { off: 0, ph: 4.2, stun: 0, reach: 0 }]
         };
     }
@@ -220,7 +227,7 @@
         var cfg = LEVELS[level - 1], rnd = G.rng(level * 7919 + 13);
         var s = {
             cfg: cfg, t: 0, cam: 0, scroll: cfg.speed, top: [], bot: [], drain: 3.2 + level * 0.1,
-            sub: { x: 220, y: MID, vx: 0, vy: 0 }, hull: 100, o2: 100, inv: 0, dark: 0,
+            sub: { x: 220, y: MID, vx: 0, vy: 0 }, hull: 100, o2: 100, inv: 0, dark: 0, scraped: -9, chain: 0,
             ents: [], next: 0, torps: [], charges: [], shots: [],
             reload: 0, chargeReload: 0, ping: 1.5, ring: 9, engine: 0, alarm: 0, gulp: 0, flow: null, boss: null
         };
@@ -282,10 +289,14 @@
         }
     }
 
-    // Rock gives a shorter grace than other hits: a boat left to grind along
-    // the floor must not survive the trench.
+    // Rock gives a shorter grace than other hits, and scrapes that follow
+    // each other within GRIND seconds cost two and then three times as much:
+    // a glancing touch is cheap (7), but a boat left to grind along the
+    // floor must not survive the trench.
     function scrape(s) {
-        if (!hurt(s, 10, 0.5)) return;
+        var chain = s.t - s.scraped < GRIND ? Math.min(3, s.chain + 1) : 1;
+        if (!hurt(s, 7 * chain, 0.5)) return;
+        s.scraped = s.t; s.chain = chain;
         G.burst(s.sub.x, s.sub.y, { n: 8, color: C.aqua, speed: 120, life: 0.4 });
     }
 
@@ -386,7 +397,8 @@
     }
 
     // An enemy boat holds station at the right of the screen, follows the
-    // player's depth with a lag and fires along it. It gives up after a while
+    // player's depth with a lag and fires along it, slowly enough that each
+    // torpedo can be shot down or stepped out of. It gives up after a while
     // so they never pile up.
     function updateEsub(s, e, dt) {
         e.life -= dt;
@@ -397,7 +409,7 @@
         if (e.life <= 0 && e.sx > G.W + 100) { e.dead = true; return; }
         e.fire -= dt;
         if (e.fire <= 0 && e.sx < 900 && e.life > 0) {
-            e.fire = 2.1;
+            e.fire = 2.4;
             s.shots.push({ x: e.x - 26, y: e.y, vx: s.scroll - 280, vy: 0, r: 6, dmg: 20, torp: true });
             SND.enemyShot();
         }
@@ -668,7 +680,8 @@
         if (!k.raged && k.hp <= k.max / 2) { k.raged = true; SND.roar(); G.shake(10, 0.5); G.flash(C.coral, 0.2); }
         updateArms(s, k, dt);
         k.ink -= dt;
-        if (k.ink <= 0) { k.ink = k.raged ? 1.3 : 1.8; spit(s, k); }
+        // Ink comes slowly enough to leave a gap for the dash to the air.
+        if (k.ink <= 0) { k.ink = k.raged ? 1.5 : 2; spit(s, k); }
     }
 
     // ------------------------------------------------------------------
