@@ -5,7 +5,7 @@
  * bounces off line segments and circles, two flippers pass their swing on to
  * it, and a spring plunger serves it up the lane on the right. Every level is
  * a mission on a rebuilt table (ring the bumpers, light the lanes, drop the
- * targets, lock two balls for multiball ...) plus a points target. Three balls
+ * targets, lock two balls for multiball ...) plus a points target. Four balls
  * per level; the mission's progress survives a lost ball, but not game over.
  *
  * On a phone (coarse pointer) the pad's ◀ ▶ are one stick under one thumb, so
@@ -24,33 +24,44 @@
     // Eight sub-steps per tick keep both the ball and a flipper tip under 3px
     // of travel per step, so neither can tunnel through the other.
     var SUB = 8;
-    var FLIP = { len: 66, r: 6, rest: 0.45, up: -0.5, y: 478, dx: 80, upSpeed: 14, downSpeed: 9 };
+    // The flippers are long enough to leave only 30 px between their resting
+    // tips, about two balls: a ball dropping straight down the middle is the
+    // exception, not the rule.
+    var FLIP = { len: 72, r: 6, rest: 0.45, up: -0.5, y: 478, dx: 80, upSpeed: 14, downSpeed: 9 };
+    // Flipper coils: a flip while no ball is below `reach` is a wasted one
+    // and adds 1 to the heat, which cools by `cool` a second. At `warn` the
+    // table says so, at `trip` the flippers rest until the heat is back
+    // under `reset`. Timed flips never heat anything, so this only stops a
+    // player who flaps non-stop from keeping the ball alive by luck.
+    var HEAT = { reach: 330, cool: 0.7, warn: 5, trip: 8, reset: 4, max: 10 };
     var COL = {
         field: '#071d24', glow: '#163b40', cabinet: '#101218', chrome: '#dce9ed', cyan: '#20e7f2',
         red: '#ff3d4e', yellow: '#ffd43b', ink: '#f8fbf2', muted: '#a9bdc0', dark: '#0a2a33'
     };
 
-    // One entry per level: the mission (goal kind, how many, points target),
+    // One entry per level: the mission (goal kind, how many, points target;
+    // the targets are sized so that a mission played to the end has usually
+    // made the points on the way),
     // up to three short lines of briefing (short, so that they fit the card in
     // type a phone can show), and the fixtures bolted onto the bare table.
     var LEVELS = [
         { goal: 'bumper', need: 12, target: 1500, brief: ['Wake the table up:', 'ring the pop bumpers.'],
             bumpers: [[416, 170], [516, 170], [466, 236]] },
-        { goal: 'lane', need: 3, target: 2000, brief: ['Flip the ball up the', 'top lanes and light', 'all three.'],
+        { goal: 'lane', need: 3, target: 1700, brief: ['Flip the ball up the', 'top lanes and light', 'all three.'],
             lanes: true, bumpers: [[366, 235], [566, 235]] },
-        { goal: 'target', need: 6, target: 3600, brief: ['Knock down both banks', 'of drop targets.'],
+        { goal: 'target', need: 6, target: 2700, brief: ['Knock down both banks', 'of drop targets.'],
             banks: true, bumpers: [[466, 175]] },
         { goal: 'spin', need: 27, target: 4000, brief: ['Crank the dynamo: shoot', 'through the spinner.'],
             spinner: [466, 150], lanes: true, bumpers: [[384, 225], [548, 225]] },
-        { goal: 'lock', need: 2, target: 15000, brief: ['Lock two balls in the', 'saucers for multiball.'],
+        { goal: 'lock', need: 2, target: 5000, brief: ['Lock two balls in the', 'saucers for multiball.'],
             saucers: [[317, 170], [615, 170]], locks: true, bumpers: [[430, 205], [502, 205]] },
-        { goal: 'rover', need: 8, target: 4500, brief: ['Chase the Rover: hit', 'the bumper that will', 'not sit still.'],
+        { goal: 'rover', need: 7, target: 4500, brief: ['Chase the Rover: hit', 'the bumper that will', 'not sit still.'],
             rover: 190, centre: [118, 3], bumpers: [[362, 265], [570, 265]] },
-        { goal: 'zap', need: 3, target: 4200, brief: ['Feed the coils: flip', 'the ball into a live', 'magnet.'],
+        { goal: 'zap', need: 3, target: 3400, brief: ['Feed the coils: flip', 'the ball into a live', 'magnet.'],
             magnets: [[400, 255], [532, 255]], lanes: true, bumpers: [[466, 165]] },
-        { goal: 'hot', need: 8, target: 5500, brief: ['Only the flashing', 'targets are live.', 'Hit those.'],
+        { goal: 'hot', need: 7, target: 5200, brief: ['Only the flashing', 'targets are live.', 'Hit those.'],
             hot: true, spinner: [466, 160], bumpers: [[420, 228], [512, 228]] },
-        { goal: 'saucer', need: 5, target: 5500, brief: ['Blackout! Each saucer', 'is a fuse: every one', 'widens the light.'],
+        { goal: 'saucer', need: 5, target: 4500, brief: ['Blackout! Each saucer', 'is a fuse: every one', 'widens the light.'],
             dark: true, saucers: [[317, 170], [615, 170], [466, 125]], bumpers: [[416, 228], [516, 228]] },
         { goal: 'wizard', need: 20, target: 15500, brief: ['Drop the targets, lock', 'two balls, then ring', 'bumpers in multiball.'],
             banks: true, saucers: [[317, 170], [615, 170]], locks: true, rover: 135, magnets: [[466, 305]],
@@ -223,7 +234,7 @@
             cfg: cfg, level: level, time: 0, need: cfg.need, done: 0, pts: 0,
             walls: [], slings: [], bumpers: [], targets: [], lanes: [], saucers: [], magnets: [], spinner: null,
             flippers: [newFlipper(-1), newFlipper(1)], balls: [], lights: [],
-            charge: 0, laneIdle: 0, autoT: 0, save: 0, saveArmed: true, tilt: 0, tilted: false, nudgeT: 0,
+            charge: 0, laneIdle: 0, autoT: 0, save: 0, saveArmed: true, tilt: 0, tilted: false, nudgeT: 0, heat: 0, hot: false,
             multiball: false, locked: 0, lockLit: !!cfg.locks && cfg.goal !== 'wizard',
             hotT: 10, resetT: 0, laneFlash: 0, bolt: 0, boltT: 3, msg: '', msgT: 0, clickT: 0,
             touch: coarse(), ctl: { left: false, right: false, plunge: false, hitL: false, hitR: false, nudge: false }
@@ -261,10 +272,10 @@
     }
 
     // Clearing the targets on the last level lights the locks and, as the
-    // mission is a long one, pays an extra ball (never above three).
+    // mission is a long one, pays an extra ball (never above four).
     function openLocks(s) {
         s.lockLit = true;
-        G.addLife(3);
+        G.addLife(4);
         say(s, 'LOCKS LIT + EXTRA BALL');
         SND.knock();
     }
@@ -490,11 +501,13 @@
     }
 
     // The saver starts counting only once the ball is really on the table.
+    // It is long on the early tables (19 s) and still 10 s on the last, so a
+    // ball that drains before the player has had a real go at it comes back.
     function leaveLane(s, b) {
         b.inLane = false;
         if (!s.saveArmed) return;
         s.saveArmed = false;
-        s.save = 12 - s.level * 0.8;
+        s.save = 20 - s.level;
     }
 
     // MAX_V is a hard limit: it is what the sub-step count is sized for, so
@@ -524,8 +537,9 @@
     }
 
     function substep(s, h) {
-        moveFlipper(s.flippers[0], !s.tilted && s.ctl.left, h);
-        moveFlipper(s.flippers[1], !s.tilted && s.ctl.right, h);
+        var live = !s.tilted && !s.hot;
+        moveFlipper(s.flippers[0], live && s.ctl.left, h);
+        moveFlipper(s.flippers[1], live && s.ctl.right, h);
         var i, j, n = s.balls.length;
         for (i = 0; i < n; i++) if (!s.balls[i].held) stepBall(s, s.balls[i], h);
         for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) collidePair(s.balls[i], s.balls[j]);
@@ -601,11 +615,32 @@
         c.nudge = G.hit.down || (s.touch && G.hit.b);
     }
 
+    // A flip is wasted when no ball is in the lower playfield to be hit by
+    // it. Wasted flips go on heating resting coils, so flapping on through
+    // the rest keeps the flippers off.
+    function heatCoils(s) {
+        var near = s.balls.some(function (b) { return !b.held && !b.inLane && b.y > HEAT.reach; });
+        if (near) return;
+        s.heat = Math.min(HEAT.max, s.heat + 1);
+        if (s.hot || s.heat < HEAT.warn) return;
+        if (s.heat < HEAT.trip) { say(s, 'COILS WARM: FLIP AT THE BALL'); return; }
+        s.hot = true;
+        say(s, 'COILS HOT: FLIPPERS REST');
+        SND.tilt();
+    }
+
+    function flipPressed(s, dir) {
+        heatCoils(s);
+        if (s.hot) { SND.dud(); return; }
+        SND.flip();
+        shiftLanes(s, dir);
+    }
+
     function readControls(s) {
         readInput(s);
         if (s.tilted) return;
-        if (s.ctl.hitL) { SND.flip(); shiftLanes(s, -1); }
-        if (s.ctl.hitR) { SND.flip(); shiftLanes(s, 1); }
+        if (s.ctl.hitL) flipPressed(s, -1);
+        if (s.ctl.hitR) flipPressed(s, 1);
         if (s.ctl.nudge && s.nudgeT <= 0) nudge(s);
     }
 
@@ -616,6 +651,8 @@
     function tickTimers(s, dt) {
         ['save', 'msgT', 'clickT', 'nudgeT', 'laneFlash', 'bolt'].forEach(function (k) { s[k] = Math.max(0, s[k] - dt); });
         s.tilt = Math.max(0, s.tilt - dt * 0.4);
+        s.heat = Math.max(0, s.heat - dt * HEAT.cool);
+        if (s.hot && s.heat < HEAT.reset) { s.hot = false; say(s, 'FLIPPERS BACK'); }
         fade(s.bumpers, dt); fade(s.targets, dt); fade(s.walls, dt);
         if (s.resetT > 0 && (s.resetT -= dt) <= 0) {
             s.targets.forEach(function (t) { t.down = false; });
@@ -999,7 +1036,7 @@
         s.flippers.forEach(function (f) {
             var tx = f.px + Math.cos(f.a) * FLIP.len, ty = f.py + Math.sin(f.a) * FLIP.len;
             line(ctx, f.px, f.py, tx, ty, FLIP.r * 2 + 3, COL.chrome);
-            line(ctx, f.px, f.py, tx, ty, FLIP.r * 2 - 1, s.tilted ? '#5a2a30' : COL.red);
+            line(ctx, f.px, f.py, tx, ty, FLIP.r * 2 - 1, s.tilted || s.hot ? '#5a2a30' : COL.red);
             disc(ctx, f.px, f.py, 4, COL.chrome);
         });
     }
@@ -1184,14 +1221,14 @@
         title: 'ELECTRO BALL',
         blurb: 'Keep the ball alive, finish the mission and make the points.',
         controls: [
-            '← → flippers (they also shift the top-lane lights)',
+            '← → flippers (shift the lane lights) · wild flapping overheats them',
             'SPACE / PLUNGE: hold to charge the plunger, release to serve',
             '↓ / NUDGE nudge the table — three in quick succession and it tilts',
             'Phone: tap a side to flip; PLUNGE is the right flipper too'
         ],
         levelNames: ['First Spark', 'Lane Change', 'Drop Zone', 'Dynamo', 'Lock & Load', 'Rover', 'Magneto', 'Hot Wire', 'Blackout', 'Overload'],
         colors: { bg: COL.cabinet, fg: COL.ink, accent: COL.yellow, dim: COL.muted },
-        lives: 3,
+        lives: 4,
         // A ragtime-flavoured stride: oom-pah bass on root, octave and fifth,
         // off-beat chord stabs, and a syncopated lead over I-I-IV-IV-I-vi-ii-V.
         music: {
