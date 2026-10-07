@@ -229,7 +229,7 @@
     // A phone has no hover and no right button, so there the game aims for
     // the player (see touchAim). Asked on every init and kept in s.
     function coarse() {
-        return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        return G.isTouch();
     }
 
     function init(level) {

@@ -188,7 +188,13 @@ async function checkStick(page, l, part, fourWay) {
     const want = fourWay ? left.code : `${up.code}+${left.code}`;
     check(held(st) === want, `${part}: a thumb up-left of centre gave "${held(st)}", want "${want}"`);
     await page.touch('touchMove', [centre(right)]);
-    st = await page.eval(keyState(codes));
+    // Chrome delivers a touch move with its next frame, which on a busy
+    // machine can be after the command has returned: give it a moment.
+    for (let i = 0; i < 20; i++) {
+        st = await page.eval(keyState(codes));
+        if (held(st) === right.code) break;
+        await sleep(50);
+    }
     check(held(st) === right.code, `${part}: sliding to the right gave "${held(st)}"`);
     await page.touch('touchEnd', []);
     st = await page.eval(keyState(codes));
@@ -360,6 +366,32 @@ export async function testNoFullscreen(page, base, shots) {
             await finish(page, l, shots, `terminal-nofullscreen-${phone.width}x${phone.height}`);
         } catch (err) { err.message = `no fullscreen, ${phone.width}x${phone.height}: ${err.message}`; throw err; }
     }
+}
+
+// Some phone browsers report a fine main pointer (Chrome in the stock
+// Android emulator does). A game launched by a finger must get the pad and
+// the phone wording there too, and a launch by key afterwards must not.
+export async function testFinePointerPhone(page, base, shots) {
+    const phone = PHONES[0];
+    await page.send('Emulation.setDeviceMetricsOverride', { width: phone.width, height: phone.height, deviceScaleFactor: 2, mobile: true });
+    await page.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+    await page.goto(`${base}/index.html`);
+    check(!(await page.eval(`matchMedia('(pointer: coarse)').matches`)), 'expected a fine pointer for this test');
+    const btn = '#splash-overlay .splash-game-btn';
+    await page.waitFor(`document.querySelector('${btn}')`, 'the splash "Play" button');
+    const r = await page.eval(`(function(){var b=document.querySelector('${btn}').getBoundingClientRect();return {x:b.left,y:b.top,w:b.width,h:b.height};})()`);
+    await page.tap(centre(r).x, centre(r).y);
+    await page.waitFor(`SnoGame.active && ${STATE} && ${STATE}.screen==='title'`, 'the title screen after a tap on a fine-pointer phone');
+    check(await page.eval('SnoGame.isTouch()'), 'SnoGame.isTouch() is false after a launch by finger');
+    await page.eval('SnoGame.debug.start(1)');
+    const l = await checkPad(page, phone, (await page.eval('SnoGame.debug.def()')).touch);
+    if (shots) await page.screenshot(join(shots, 'fine-pointer-phone.jpg'));
+    await checkCloseQuits(page, l);
+    // The same visitor now presses a key: that is a keyboard, not a phone.
+    await page.press('KeyA');
+    await page.waitFor(`SnoGame.active && ${STATE} && ${STATE}.screen==='title'`, 'the game after the A key');
+    check(!(await page.eval(`!!document.querySelector('.sno-game-pad')`)), 'a launch by key still built the touch pad');
+    await page.eval('SnoGame.quit()');
 }
 
 // Turning the phone while a game is open, without fullscreen: every turn

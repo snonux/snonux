@@ -84,6 +84,7 @@ State and flow:
 | `G.win(bonus)` | level cleared; `bonus` is added to the score |
 | `G.die()` | lose a life and restart the level from `init` (after a one-second freeze) |
 | `G.loseLife()` | lose a life but keep playing; returns lives left (0 means the engine already showed game over) |
+| `G.isTouch()` | true when the player is on the touch pad (see Touch) |
 | `G.gameOver()` | end the run at once, whatever lives are left (a clock that ran out, a trace that completed) |
 | `G.addScore(n)` | add to the score |
 | `G.addLife(max)` | one extra life unless that would exceed `max` (default 5); never removes one; do not write `G.lives` yourself |
@@ -108,7 +109,7 @@ A game that uses the mouse must still be fully playable with the keyboard.
 
 ### Touch
 
-On a phone (any device whose main pointer is coarse) the engine goes
+On a phone the engine goes
 fullscreen and asks for landscape where the browser allows it, and adds an
 on-screen pad. The pad never covers the playfield: in landscape the canvas
 shrinks to leave a gutter on each side (direction pad left, action buttons
@@ -116,6 +117,18 @@ right), in portrait the canvas sits at the top with the pad below it. The
 `✕` button quits. A tap anywhere but on the pad or `✕` confirms every menu
 screen; on the title screen a tap on a level box (or ◀ ▶ on the pad) picks
 that level, and a tap that only just misses a box does nothing.
+
+A phone is any device whose main pointer is coarse, and also any visitor
+whose last action was a finger on the screen (some phone browsers report a
+fine pointer; a touch-screen laptop gets the pad when it is touched and
+loses it for the next game once a key or mouse button is used).
+`G.isTouch()` tells a game which it is: ask it in `init` if the game has a
+slimmer phone variant, and never query `(pointer: coarse)` yourself. The HUD
+and the title screen's small print are drawn larger on a phone.
+
+While a game is open the page's own `requestAnimationFrame` callbacks (the
+theme's animated backdrop) are parked and handed back on quit, so the
+backdrop costs the game nothing.
 
 The pad holds keys, so a game needs no touch code of its own:
 

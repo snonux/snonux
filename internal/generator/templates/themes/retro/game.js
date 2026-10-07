@@ -264,7 +264,7 @@
 
     // A phone: the pad and the canvas are the only controls there.
     function coarse() {
-        return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        return G.isTouch();
     }
 
     function init(level) {

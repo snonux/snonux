@@ -276,7 +276,7 @@
 
     // A phone has no keyboard, only the pad (see `steer` for what changes).
     function coarse() {
-        return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        return G.isTouch();
     }
 
     function init(level) {

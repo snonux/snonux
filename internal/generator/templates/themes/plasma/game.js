@@ -793,7 +793,7 @@
 
     // A phone: its main pointer is a finger, and the engine shows the pad.
     function coarse() {
-        return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        return G.isTouch();
     }
 
     function init(level) {

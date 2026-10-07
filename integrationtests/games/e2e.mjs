@@ -25,7 +25,7 @@
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { sleep, startSession, themesWithGames } from './lib.mjs';
-import { testNoFullscreen, testPadConfigs, testRotation, testThemeTouch } from './touch.mjs';
+import { testFinePointerPhone, testNoFullscreen, testPadConfigs, testRotation, testThemeTouch } from './touch.mjs';
 
 const LEVELS = 10;
 const BOT_TICKS = 900; // 15 seconds of game time per level
@@ -261,6 +261,32 @@ async function testStepMemory(page, base) {
     await page.eval('SnoGame.quit()');
 }
 
+// While a game is open the page's own animation frames are parked (the
+// theme backdrop would otherwise render behind the overlay and eat the
+// game's frame rate) and handed back when it closes. A frame cancelled in
+// between, during the game or after it by its parked id, must never run.
+async function testBackdropHeld(page, base) {
+    await page.goto(`${base}/index.html`);
+    await page.eval(`SnoGame.launch('breakout')`);
+    await page.waitFor(`${STATE} && ${STATE}.screen==='title'`, 'the title screen');
+    await page.eval(`window.__raf={ran:0,dropped:0,late:0};
+        requestAnimationFrame(function(){__raf.ran++;});
+        cancelAnimationFrame(requestAnimationFrame(function(){__raf.dropped++;}));
+        __raf.lateId=requestAnimationFrame(function(){__raf.late++;});`);
+    const age = (await page.eval(STATE)).age;
+    await sleep(300);
+    check((await page.eval('__raf.ran')) === 0, 'a page animation frame ran while the game was open');
+    check((await page.eval(STATE)).age > age, 'the game itself stopped while page frames were parked');
+    // Quit and cancel in the same task: the frame is already rescheduled.
+    await page.eval('SnoGame.quit(); cancelAnimationFrame(__raf.lateId)');
+    await page.waitFor('__raf.ran===1', 'the parked animation frame to run after the game closed');
+    await sleep(100);
+    const r = await page.eval('__raf');
+    check(r.dropped === 0, 'a frame cancelled during the game ran anyway');
+    check(r.late === 0, 'a frame cancelled by its parked id after the game ran anyway');
+    check(await page.eval('new Promise(function(ok){requestAnimationFrame(function(){ok(true);});})'), 'animation frames must work again after the game');
+}
+
 async function main() {
     const opts = parseArgs(process.argv.slice(2));
     const themes = opts.themes.length ? opts.themes : themesWithGames();
@@ -272,7 +298,11 @@ async function main() {
         console.log('ok   save parsing and unknown-theme guard');
         await testStepMemory(page, base);
         console.log('ok   debug.step keeps held buttons across calls');
+        await testBackdropHeld(page, base);
+        console.log('ok   page animation frames are parked while a game is open');
         if (opts.touch) {
+            await testFinePointerPhone(page, base, opts.shots);
+            console.log('ok   a tap launch on a phone that reports a fine pointer still gets the pad');
             await testPadConfigs(page, base, opts.shots);
             console.log('ok   def.touch variants (twin, 4-way, hidden buttons, labels) in both orientations');
             await testNoFullscreen(page, base, opts.shots);

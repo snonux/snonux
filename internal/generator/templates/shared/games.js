@@ -672,8 +672,35 @@
     var PAD_GAP = 8, CLOSE_W = 48, CLOSE_H = 44, DEAD_ZONE = 0.18;
     var pad = null;         // { el, move, fire, act, parts } while a pad is on screen
 
+    // Whether the player is on a touch screen. The media query alone is not
+    // enough: some phones' browsers report a fine pointer (Chrome in the
+    // stock Android emulator does), which left a tap-launched game with no
+    // pad at all. So the last thing the visitor did also counts: a finger on
+    // the screen means touch until a key or a mouse button says otherwise
+    // (a laptop with a touch screen gets the pad only when it is touched).
+    var lastTouch = false;
+
     function isCoarse() {
-        return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        return lastTouch || !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    }
+
+    // SnoGame.isTouch() — true when the pad is the player's controls. Games
+    // ask this (in init) to pick their phone variant.
+    G.isTouch = isCoarse;
+
+    function notePointer(e) {
+        if (e.pointerType === 'touch') lastTouch = true;
+        else if (e.pointerType === 'mouse') lastTouch = false;
+    }
+
+    // A first finger on a game that opened without a pad (launched by key or
+    // mouse on a touch-screen laptop) brings the pad up. Fullscreen is asked
+    // for here because this tap is the user gesture browsers require.
+    function onFirstTouch(e) {
+        notePointer(e);
+        if (!lastTouch || pad || !dom || !cur) return;
+        setupPad(cur.def && cur.def.touch);
+        if (pad) enterFullscreen(dom.root);
     }
 
     function padConfig(t) {
@@ -1330,12 +1357,15 @@
         var c = colors(), name = levelName(cur.level);
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillRect(0, 0, W, HUD_H);
-        G.text('LV ' + cur.level + '/' + LEVELS + (name ? '  ' + name : ''), 12, 21, { size: 15, color: c.fg, max: 300 });
-        G.text(pad6(G.score), W / 2, 21, { size: 16, color: c.accent, align: 'center', bold: true });
+        // On a phone the canvas is about half size, so the HUD text is as
+        // large as the bar allows there.
+        var px = pad ? 21 : 15, y = pad ? 23 : 21;
+        G.text('LV ' + cur.level + '/' + LEVELS + (name ? '  ' + name : ''), 12, y, { size: px, color: c.fg, max: 300 });
+        G.text(pad6(G.score), W / 2, y, { size: px + 1, color: c.accent, align: 'center', bold: true });
         var extra = cur.def.hud ? guard(function () { return cur.def.hud(cur.s, G); }) : '';
         var lives = maxLives() > 0 ? new Array(Math.max(0, Math.floor(G.lives) || 0) + 1).join('♥') : '';
         // The right edge stays clear of the overlay's ESC button.
-        G.text((extra ? extra + '   ' : '') + lives, W - 84, 21, { size: 15, color: c.fg, align: 'right', max: 380 });
+        G.text((extra ? extra + '   ' : '') + lives, W - 84, y, { size: px, color: c.fg, align: 'right', max: 380 });
     }
 
     function dimScreen(ctx, alpha) {
@@ -1359,19 +1389,23 @@
 
     function drawTitle(ctx) {
         var c = colors(), d = cur.def, lines = d.controls || [], name = levelName(cur.sel);
-        dimScreen(ctx, 0.74);
+        // Dark enough that the level's own banners and readouts underneath
+        // cannot be mistaken for (or run into) the title text.
+        dimScreen(ctx, 0.87);
+        // Bigger small print on a phone, where the canvas is about half size.
+        var small = pad ? 18 : 15, hint = pad ? 17 : 14;
         G.text(d.title || TITLES[cur.theme], W / 2, 112, { size: 60, bold: true, color: c.accent, align: 'center', glow: c.accent, max: W - 60 });
         G.text(d.blurb || '', W / 2, 154, { size: 18, color: c.fg, align: 'center', max: W - 80 });
         for (var i = 0; i < lines.length; i++) {
-            G.text(lines[i], W / 2, 200 + i * 24, { size: 15, color: c.dim, align: 'center', max: W - 80 });
+            G.text(lines[i], W / 2, (pad ? 194 : 200) + i * 24, { size: small, color: c.dim, align: 'center', max: W - 80 });
         }
         drawLevelBoxes(ctx, c);
         G.text('LEVEL ' + cur.sel + (name ? ' — ' + name : ''), W / 2, 430, { size: 18, color: c.fg, align: 'center', max: W - 80 });
         // The hints name what the player actually has in hand.
         G.text(pad ? 'TAP to start · ' + (pad.move && pad.move.x ? '◀ ▶ or ' : '') + 'tap a box: level · ✕ quit'
             : 'ENTER start · ← → level · P pause · M ' + (muted ? 'unmute' : 'mute') + ' · ESC quit',
-            W / 2, 478, { size: 14, color: c.dim, align: 'center' });
-        G.text('HI ' + pad6(cur.save.hi) + (cur.save.won ? '  ★ COMPLETED' : ''), W / 2, 508, { size: 14, color: c.accent, align: 'center' });
+            W / 2, 478, { size: hint, color: c.dim, align: 'center', max: W - 40 });
+        G.text('HI ' + pad6(cur.save.hi) + (cur.save.won ? '  ★ COMPLETED' : ''), W / 2, 508, { size: hint, color: c.accent, align: 'center' });
     }
 
     function drawBanner(ctx, big, small, tint) {
@@ -1456,7 +1490,7 @@
 
     function loop(now) {
         if (!G.active) return;
-        raf = requestAnimationFrame(loop);
+        raf = engineRaf(loop);
         acc += Math.min(0.1, (now - lastTime) / 1000);
         lastTime = now;
         while (acc >= STEP) { tick(); acc -= STEP; }
@@ -1508,6 +1542,8 @@
         // On the whole overlay, not just the canvas: a long press on a pad
         // button would otherwise open the browser's context menu.
         root.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+        // Capture phase: the pad has to exist before the tap is handled.
+        root.addEventListener('pointerdown', onFirstTouch, true);
         root.addEventListener('pointerdown', onOverlayTap);
         root.tabIndex = -1;
         document.body.appendChild(root);
@@ -1560,6 +1596,48 @@
         if (cur && cur.theme === theme && !cur.def) boot(theme);
     };
 
+    // While a game is open the theme's animated backdrop (three.js on most
+    // themes) is hidden behind the overlay but would keep rendering, which
+    // on a phone costs the game most of its frame rate. So the page's
+    // requestAnimationFrame is parked: callbacks asked for during a game are
+    // kept and handed to the browser when the game closes. The engine's own
+    // loop uses the real function (rafReal).
+    var rafReal = null, rafCancelReal = null, rafParked = null, rafNext = -1;
+    var rafMoved = {};      // parked id -> real id, for a cancel after release
+
+    function engineRaf(cb) { return (rafReal || window.requestAnimationFrame).call(window, cb); }
+
+    function cancelRaf(id) {
+        if (rafParked && rafParked[id]) { delete rafParked[id]; return; }
+        if (rafMoved[id]) { id = rafMoved[id]; }
+        (rafCancelReal || window.cancelAnimationFrame).call(window, id);
+    }
+
+    function holdBackdrop() {
+        if (rafParked) return;
+        // The browser's own pair is taken once: cancelRaf stays installed
+        // after the first game and must never be mistaken for it.
+        if (!rafReal) {
+            rafReal = window.requestAnimationFrame;
+            rafCancelReal = window.cancelAnimationFrame;
+        }
+        rafParked = {};
+        window.requestAnimationFrame = function (cb) { rafParked[rafNext] = cb; return rafNext--; };
+        window.cancelAnimationFrame = cancelRaf;
+    }
+
+    // Hands every parked callback back to the browser. A caller may still
+    // hold a parked id, so cancelling by it keeps working until it has run.
+    function releaseBackdrop() {
+        if (!rafParked) return;
+        var parked = rafParked, real = rafReal;
+        window.requestAnimationFrame = rafReal;
+        rafParked = null;
+        Object.keys(parked).forEach(function (id) {
+            rafMoved[id] = real.call(window, function (t) { delete rafMoved[id]; parked[id](t); });
+        });
+    }
+
     function pauseAmbient() {
         ambientWasPlaying = !!(window.snonuxAmbientIsPlaying && window.snonuxAmbientIsPlaying());
         if (ambientWasPlaying && window.snonuxAmbientPause) window.snonuxAmbientPause('game');
@@ -1576,6 +1654,7 @@
         stepMem = newStepMem();
         clearInput(); clearFx();
         pauseAmbient();
+        holdBackdrop();
         openOverlay();
         // Must happen inside the tap that launched the game: browsers only
         // grant fullscreen from a user gesture.
@@ -1585,7 +1664,7 @@
         cur = { theme: theme, def: null, s: null, screen: 'loading', timer: 0, age: 0, level: 1, sel: 1, save: loadSave(theme) };
         if (defs[theme]) boot(theme); else loadGameScript(theme);
         lastTime = performance.now(); acc = 0;
-        raf = requestAnimationFrame(loop);
+        raf = engineRaf(loop);
         return true;
     };
 
@@ -1593,7 +1672,8 @@
     G.quit = function () {
         if (!G.active) return;
         G.active = false;
-        cancelAnimationFrame(raf);
+        cancelRaf(raf);
+        releaseBackdrop();
         if (cur && cur.def) writeSave();
         musicStop();
         closeAudio();
@@ -1615,6 +1695,10 @@
         if (splash && !splash.classList.contains('splash--dismissed')) splash.focus({ preventScroll: true });
     };
 
+    // Outside a game these only keep track of how the visitor is driving
+    // the page, so a launch knows whether to bring up the touch pad.
+    window.addEventListener('pointerdown', function (e) { if (!G.active) notePointer(e); }, true);
+    window.addEventListener('keydown', function (e) { if (!G.active && e.isTrusted) lastTouch = false; }, true);
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
     window.addEventListener('resize', resize);
