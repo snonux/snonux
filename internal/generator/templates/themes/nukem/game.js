@@ -906,17 +906,16 @@
     }
 
     // The warhead: the last twenty seconds are counted out loud, and at zero
-    // it takes every life at once. There is no second try at a nuke. The
-    // loop counts the lives itself: G.loseLife() does nothing once the level
-    // is over (the exit reached on this very tick), and waiting for it to
-    // return zero would then never end.
+    // the run is over whatever lives are left. There is no second try at a
+    // nuke. (G.gameOver() does nothing if the exit was reached on this very
+    // tick and the level is already won.)
     function countdown(s) {
         if (s.clock < 20 && s.clock > 0 && gate(s, 'tick', 1)) G.sfx(s.clock < 8 ? 'alarm' : 'blip');
         if (s.clock > 0) return;
         G.sfx('bigboom');
         G.flash('#ffffff', 0.8);
         G.shake(16, 0.8);
-        for (var n = Math.ceil(G.lives); n > 0; n--) G.loseLife();
+        G.gameOver();
     }
 
     function follow(s, p, dt) {

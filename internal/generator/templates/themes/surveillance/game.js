@@ -803,12 +803,11 @@
     }
 
     // A finished trace ends the run whatever lives are left: lives pay for
-    // catches, nothing pays for time. The engine only takes lives one at a
-    // time, hence the loop (bounded, in case it ever refuses).
+    // catches, nothing pays for time.
     function traceComplete() {
         G.flash(RED, 0.4);
         G.tone(300, 0.7, { type: 'sawtooth', slide: 80, vol: 0.22 });
-        for (var i = 0; i < 9 && G.loseLife() > 0; i++);
+        G.gameOver();
     }
 
     function update(s, dt) {

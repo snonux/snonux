@@ -1172,6 +1172,16 @@
         setScreen('over');
     }
 
+    // G.gameOver() — ends the run at once, whatever lives are left: for rules
+    // such as "the clock ran out" or "the trace completed". One hurt cue, then
+    // the usual game-over screen.
+    G.gameOver = function () {
+        if (!cur || cur.screen !== 'play') return;
+        G.lives = 0;
+        engineSfx('hurt'); G.shake(8, 0.3);
+        gameOver();
+    };
+
     // G.loseLife() — costs one life but the game carries on from where it is
     // (the game handles its own respawn). Returns the lives left.
     G.loseLife = function () {

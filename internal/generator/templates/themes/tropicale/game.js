@@ -444,7 +444,7 @@
         var p = s.p;
         G.burst(p.x + 10, p.y + 14, { n: 16, color: '#f97316', speed: 220, gravity: 500 });
         if (!flooded) { if (G.loseLife() > 0) respawn(s); return; }
-        for (var n = G.lives; n > 0; n--) G.loseLife();
+        G.gameOver();
     }
 
     function camTarget(s, p) {
