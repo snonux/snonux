@@ -57,19 +57,23 @@
     // len: segments to the finish. curve/hold/alt/straight shape the bends,
     // hill the height changes. traffic, oil and works are counts per 1000
     // segments; oncoming is the size of the pool of cars driving toward you.
-    // pace is the share of top speed the clock expects on average. Every
-    // level has a palette of its own, so no two stages look alike.
+    // pace is the share of top speed the clock expects on average. It is set
+    // per level from what a casual driver holds there (late on the wheel,
+    // wide in the bends, a few bumps and verge trips per run), not as a rising
+    // series: the hairpins of level 6 and the storm, oil and oncoming cars of
+    // levels 9 and 10 cost far more speed than the open roads before them.
+    // Every level has a palette of its own, so no two stages look alike.
     var LEVELS = [
         { pal: 'sunset', len: 2800, cps: 3, curve: 2, hold: 1, straight: 0.4, hill: 0, traffic: 9, side: ['palm', 'pylon'], gap: 6, sideOff: 1.5, spread: 0.8, pace: 0.58 },
         { pal: 'miami', len: 3000, cps: 3, curve: 3, hold: 0.5, alt: true, straight: 0.1, hill: 0, traffic: 11, side: ['palm'], gap: 3, sideOff: 1.25, spread: 0.25, pace: 0.62 },
         { pal: 'dusk', len: 3200, cps: 3, curve: 2.5, hold: 1, straight: 0.3, hill: 30, traffic: 12, side: ['pyramid', 'palm'], gap: 6, sideOff: 1.4, spread: 1.2, pace: 0.68 },
         { pal: 'night', city: true, len: 3400, cps: 3, curve: 2.5, hold: 1, straight: 0.5, hill: 0, traffic: 24, trucks: 0.3, side: ['tower', 'lamp'], gap: 4, sideOff: 1.3, spread: 0.5, pace: 0.705 },
-        { pal: 'dawn', len: 3600, cps: 3, curve: 3.2, hold: 1, straight: 0.3, hill: 12, traffic: 14, oil: 14, side: ['palm', 'rock'], gap: 5, sideOff: 1.4, spread: 1, pace: 0.73 },
-        { pal: 'canyon', len: 3600, cps: 4, curve: 5.5, hold: 1.4, straight: 0.25, hill: 30, traffic: 10, side: ['rock'], gap: 2, sideOff: 1.2, spread: 0.3, pace: 0.68 },
+        { pal: 'dawn', len: 3600, cps: 3, curve: 3.2, hold: 1, straight: 0.3, hill: 12, traffic: 14, oil: 14, side: ['palm', 'rock'], gap: 5, sideOff: 1.4, spread: 1, pace: 0.71 },
+        { pal: 'canyon', len: 3600, cps: 4, curve: 5.5, hold: 1.4, straight: 0.25, hill: 30, traffic: 10, side: ['rock'], gap: 2, sideOff: 1.2, spread: 0.3, pace: 0.52 },
         { pal: 'highway', len: 3800, cps: 4, curve: 3, hold: 1, straight: 0.35, hill: 15, traffic: 16, oncoming: 3, side: ['lamp', 'pylon'], gap: 5, sideOff: 1.3, spread: 0.6, pace: 0.7 },
-        { pal: 'works', city: true, len: 4000, cps: 4, curve: 3.5, hold: 1, straight: 0.4, hill: 15, traffic: 16, trucks: 0.35, works: 6, side: ['tower', 'pylon'], gap: 5, sideOff: 1.3, spread: 0.6, pace: 0.74 },
-        { pal: 'storm', len: 4200, cps: 4, curve: 4, hold: 1, straight: 0.3, hill: 25, traffic: 14, oncoming: 3, oil: 7, storm: true, wind: true, side: ['lamp', 'palm'], gap: 5, sideOff: 1.35, spread: 0.8, pace: 0.757 },
-        { pal: 'finale', len: 4800, cps: 4, curve: 5, hold: 1.1, straight: 0.3, hill: 35, traffic: 18, trucks: 0.25, oncoming: 4, oil: 8, works: 3, wind: true, side: ['rock', 'palm', 'pylon'], gap: 4, sideOff: 1.3, spread: 0.7, pace: 0.75 }
+        { pal: 'works', city: true, len: 4000, cps: 4, curve: 3.5, hold: 1, straight: 0.4, hill: 15, traffic: 16, trucks: 0.35, works: 6, side: ['tower', 'pylon'], gap: 5, sideOff: 1.3, spread: 0.6, pace: 0.7 },
+        { pal: 'storm', len: 4200, cps: 4, curve: 4, hold: 1, straight: 0.3, hill: 25, traffic: 14, oncoming: 3, oil: 7, storm: true, wind: true, side: ['lamp', 'palm'], gap: 5, sideOff: 1.35, spread: 0.8, pace: 0.68 },
+        { pal: 'finale', len: 4800, cps: 4, curve: 5, hold: 1.1, straight: 0.3, hill: 35, traffic: 18, trucks: 0.25, oncoming: 4, oil: 8, works: 3, wind: true, side: ['rock', 'palm', 'pylon'], gap: 4, sideOff: 1.3, spread: 0.7, pace: 0.635 }
     ];
 
     // w/h: drawn size in world units. col: width that collides. hit: what
