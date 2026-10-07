@@ -19,9 +19,9 @@
     var WALL = 7;                                           // grid value of blocks; 1..6 are cycle ids
     var MAX_RING = 15;                                      // the collapse stops here, leaving a 50x12 core
     var BOOST = 1.75, COUNT_STEP = 0.6;
-    var LOCK_AT = 20;                                       // seconds of a round after which fading trails stop fading
+    var LOCK_AT = 12;                                       // seconds of a round after which fading trails stop fading
     var GRACE = 3;                                          // seconds of a round before riders hunt or boost
-    var REACT = 0.25;                                       // seconds of the player's path ahead that riders keep out of
+    var REACT = 0.4;                                        // seconds of the player's path ahead that riders keep out of
     var C = { bg: '#0b001a', cyan: '#00f5ff', magenta: '#ff00cc', yellow: '#ffe700', fg: '#e0f8ff', dim: '#7d6aa8', block: '#8a4dff' };
     var RIDER_COLORS = ['#ff00cc', '#ffe700', '#ff7a1a', '#5dff6e', '#b78cff'];
     // Start cell and heading: the player first, then up to five riders. No two
@@ -33,28 +33,34 @@
     // checks and so rides into dead ends); aggr: how hard it steers to cut off
     // the nearest other cycle; wobble: chance per cell of a needless turn; miss: chance per
     // cell of reacting late; boost: whether it uses its charge.
+    // Tuned so that every rider blunders now and then: even the expert misses
+    // a turn about once in forty cells and checks only a few hundred cells of
+    // room, so a casual player can outlast it in most rounds.
     var SKILL = {
-        rookie: { look: 4, flood: 0, aggr: 0, wobble: 0.03, miss: 0.035, jitter: 6, boost: false },
-        scout: { look: 8, flood: 40, aggr: 0, wobble: 0.015, miss: 0.04, jitter: 5, boost: false },
-        hunter: { look: 10, flood: 150, aggr: 0.5, wobble: 0.005, miss: 0.02, jitter: 3, boost: true },
-        ace: { look: 12, flood: 500, aggr: 0.7, wobble: 0, miss: 0.008, jitter: 2, boost: true },
-        expert: { look: 14, flood: N, aggr: 0.85, wobble: 0, miss: 0, jitter: 1, boost: true }
+        rookie: { look: 4, flood: 0, aggr: 0, wobble: 0.03, miss: 0.06, jitter: 6, boost: false },
+        scout: { look: 8, flood: 20, aggr: 0, wobble: 0.015, miss: 0.06, jitter: 5, boost: false },
+        hunter: { look: 10, flood: 60, aggr: 0.3, wobble: 0.005, miss: 0.045, jitter: 3, boost: true },
+        ace: { look: 12, flood: 200, aggr: 0.4, wobble: 0, miss: 0.03, jitter: 2, boost: true },
+        expert: { look: 14, flood: 300, aggr: 0.35, wobble: 0, miss: 0.025, jitter: 2, boost: true }
     };
 
     // need: round wins to clear; speed: cells per second; decay: trail length
     // in cells before the wall fades; shrink: seconds until the first ring
-    // collapses and between rings.
+    // collapses and between rings. The slope is gentle on purpose (speeds of
+    // 12 to 18, slow collapses, two wins on every level but the last): a
+    // casual player who sees the arena a quarter second late should still
+    // clear level 10 in most tries with the four lives.
     var LEVELS = [
-        { need: 2, speed: 13, riders: ['rookie'] },
-        { need: 2, speed: 14, riders: ['rookie', 'scout'] },
-        { need: 2, speed: 15, riders: ['scout', 'scout'], layout: 'pillars', blocks: 5 },
-        { need: 2, speed: 17, riders: ['scout', 'hunter', 'rookie'], pods: true },
-        { need: 2, speed: 17, riders: ['hunter', 'scout', 'rookie'], pods: true, decay: 70 },
-        { need: 2, speed: 18, riders: ['hunter', 'hunter', 'rookie', 'rookie'], pods: true, layout: 'bars', blocks: 6 },
-        { need: 2, speed: 19, riders: ['ace', 'hunter', 'scout', 'rookie'], pods: true, decay: 90, layout: 'pillars', blocks: 4 },
-        { need: 3, speed: 20, riders: ['hunter', 'hunter', 'scout'], pods: true, shrink: { start: 8, every: 4.5 } },
-        { need: 2, speed: 21, riders: ['hunter', 'hunter', 'scout', 'rookie', 'rookie'], pods: true, decay: 110, layout: 'bars', blocks: 4, shrink: { start: 10, every: 5 } },
-        { need: 3, speed: 20, riders: ['expert'], pods: true, layout: 'pillars', blocks: 2, shrink: { start: 9, every: 4.5 } }
+        { need: 2, speed: 12, riders: ['rookie'] },
+        { need: 2, speed: 13, riders: ['rookie', 'scout'] },
+        { need: 2, speed: 14, riders: ['scout', 'scout'], layout: 'pillars', blocks: 5 },
+        { need: 2, speed: 15, riders: ['scout', 'hunter', 'rookie'], pods: true },
+        { need: 2, speed: 15, riders: ['hunter', 'scout', 'rookie'], pods: true, decay: 70 },
+        { need: 2, speed: 16, riders: ['hunter', 'hunter', 'rookie', 'rookie'], pods: true, layout: 'bars', blocks: 6 },
+        { need: 2, speed: 16, riders: ['ace', 'hunter', 'scout', 'rookie'], pods: true, decay: 90, layout: 'pillars', blocks: 4 },
+        { need: 2, speed: 17, riders: ['hunter', 'scout', 'scout'], pods: true, shrink: { start: 12, every: 7 } },
+        { need: 2, speed: 18, riders: ['hunter', 'hunter', 'scout', 'rookie', 'rookie'], pods: true, decay: 110, layout: 'bars', blocks: 4, shrink: { start: 14, every: 7 } },
+        { need: 3, speed: 18, riders: ['expert'], pods: true, layout: 'pillars', blocks: 2, shrink: { start: 12, every: 6 } }
     ];
 
     // ------------------------------------------------------------------
@@ -681,7 +687,7 @@
         ],
         levelNames: ['Grid Zero', 'Crossfire', 'Pillars', 'Overclock', 'Fading Light', 'The Maze', 'Ghost Trails', 'Collapse', 'Meltdown', 'The Expert'],
         colors: { bg: C.bg, fg: C.fg, accent: C.cyan, dim: C.dim },
-        lives: 3,
+        lives: 4,
         music: {
             bpm: 132, root: 45, scale: 'pentatonic', prog: [0, 0, 2, 2, 4, 4, 3, 3],
             bass: 'x.xox.xox.xox.o5',
