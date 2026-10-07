@@ -898,11 +898,55 @@
         return 2;
     }
 
-    function strokePalm(ctx, x, y, u, dir, leaf) {
+    // Palms and rocks are drawn from pictures. Stroking the curves of thirty
+    // palms, or filling and outlining the 180 rocks of the canyon, anew
+    // every frame and each at its own size cost the browser a third of a CPU
+    // core. Each is painted once per size class instead ("tier": tier 0 is
+    // PIC_TOP device pixels per world unit, each further tier smaller by
+    // the square root of 2) and scaled down from there by under a third,
+    // which keeps thin lines intact. Only what is nearer than tier 0 is
+    // still drawn directly. A box is the space a thing takes around its foot,
+    // in world units. The pictures belong to one palette and one canvas
+    // resolution (`px`, device pixels per logical pixel): a new level or a
+    // resized window starts the collection afresh.
+    var PIC_TOP = 0.25, PIC_STEP = Math.SQRT2;
+    var PALM_BOX = { half: 1150, up: 2750, down: 60 }, ROCK_BOX = { half: 800, up: 1500, down: 80 };
+    var pics = { pal: null, px: 0, all: {} };
+
+    // The picture of one variant of a thing at one tier; paint(ctx, x, y, u,
+    // variant, pal) draws it with its foot at (x, y).
+    function picture(pal, px, id, tier, box, paint, variant) {
+        var u = PIC_TOP / px / Math.pow(PIC_STEP, tier), pic, g;
+        if (pics.pal !== pal || pics.px !== px) pics = { pal: pal, px: px, all: {} };
+        id += '/' + tier;
+        pic = pics.all[id];
+        if (pic) return pic;
+        pic = document.createElement('canvas');
+        pic.width = Math.ceil(2 * box.half * u * px);
+        pic.height = Math.ceil((box.up + box.down) * u * px);
+        g = pic.getContext('2d');
+        g.scale(px, px);
+        paint(g, box.half * u, box.up * u, u, variant, pal);
+        pics.all[id] = pic;
+        return pic;
+    }
+
+    // Draws a thing from its picture, or directly when it is too near.
+    function blit(ctx, x, y, u, pal, name, variant, box, paint) {
+        var px = ctx.canvas.width / W, du = u * px, tier, pic, k;
+        if (du > PIC_TOP) { paint(ctx, x, y, u, variant, pal); return; }
+        tier = Math.floor(Math.log(PIC_TOP / du) / Math.log(PIC_STEP));
+        pic = picture(pal, px, name + variant, tier, box, paint, variant);
+        // k: logical pixels per pixel of the picture, at this thing's size.
+        k = du * Math.pow(PIC_STEP, tier) / PIC_TOP / px;
+        ctx.drawImage(pic, x - box.half * u, y - box.up * u, pic.width * k, pic.height * k);
+    }
+
+    function strokePalm(ctx, x, y, u, dir, pal) {
         var lean = dir * 160 * u, tx = x + lean, ty = y - 1950 * u, i, a;
         ctx.strokeStyle = '#2a0f4a'; ctx.lineWidth = Math.max(1, 110 * u);
         ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x - lean * 0.6, y - 900 * u, tx, ty); ctx.stroke();
-        ctx.strokeStyle = leaf; ctx.lineWidth = Math.max(1, 60 * u);
+        ctx.strokeStyle = pal.leaf; ctx.lineWidth = Math.max(1, 60 * u);
         ctx.beginPath();
         // Seven fronds fanned over the crown, each drooping at its tip.
         for (i = 0; i < 7; i++) {
@@ -913,42 +957,8 @@
         ctx.stroke();
     }
 
-    // Palms are drawn from pictures. Stroking the curves of the thirty palms
-    // of a tropical level anew every frame, each at its own size, cost the
-    // browser a third of a CPU core. A palm is painted once per size class
-    // instead ("tier": tier 0 is PALM_TOP device pixels per world unit, each
-    // further tier half of that) and scaled down by at most a half, which
-    // keeps the thin fronds intact. Only a palm nearer than tier 0 is still
-    // stroked. PALM_BOX is the space a palm takes around its foot, in world
-    // units. The pictures belong to one leaf colour and one canvas
-    // resolution (`px`, device pixels per logical pixel): a new level or a
-    // resized window starts the collection afresh.
-    var PALM_TOP = 0.25, PALM_BOX = { half: 1150, up: 2750, down: 60 };
-    var palms = { key: '', pics: {} };
-
-    function palmPicture(leaf, dir, tier, px) {
-        var key = leaf + '@' + px, id = dir + '/' + tier, u = PALM_TOP / px / Math.pow(2, tier), pic, g;
-        if (palms.key !== key) palms = { key: key, pics: {} };
-        pic = palms.pics[id];
-        if (pic) return pic;
-        pic = document.createElement('canvas');
-        pic.width = Math.ceil(2 * PALM_BOX.half * u * px);
-        pic.height = Math.ceil((PALM_BOX.up + PALM_BOX.down) * u * px);
-        g = pic.getContext('2d');
-        g.scale(px, px);
-        strokePalm(g, PALM_BOX.half * u, PALM_BOX.up * u, u, dir, leaf);
-        palms.pics[id] = pic;
-        return pic;
-    }
-
     function drawPalm(ctx, x, y, u, spr, s) {
-        var px = ctx.canvas.width / W, du = u * px, tier, pic, k;
-        if (du > PALM_TOP) { strokePalm(ctx, x, y, u, spr.dir, s.pal.leaf); return; }
-        tier = Math.floor(Math.log(PALM_TOP / du) / Math.LN2);
-        pic = palmPicture(s.pal.leaf, spr.dir, tier, px);
-        // k: this palm's size as a share of the picture's, between 0.5 and 1.
-        k = du * Math.pow(2, tier) / PALM_TOP / px;
-        ctx.drawImage(pic, x - PALM_BOX.half * u, y - PALM_BOX.up * u, pic.width * k, pic.height * k);
+        blit(ctx, x, y, u, s.pal, 'palm', spr.dir, PALM_BOX, strokePalm);
     }
 
     function drawPylon(ctx, x, y, u, spr, s) {
@@ -994,14 +1004,19 @@
         ctx.beginPath(); ctx.arc(x + arm, y - h, Math.max(1, 80 * u), 0, Math.PI * 2); ctx.fill();
     }
 
-    function drawRock(ctx, x, y, u, spr, s) {
-        var w = 650 * u, h = (900 + spr.c * 130) * u;
+    // `c` picks one of four heights.
+    function fillRock(ctx, x, y, u, c, pal) {
+        var w = 650 * u, h = (900 + c * 130) * u;
         ctx.beginPath();
         ctx.moveTo(x - w, y); ctx.lineTo(x - w * 0.7, y - h * 0.6); ctx.lineTo(x - w * 0.2, y - h);
         ctx.lineTo(x + w * 0.3, y - h * 0.75); ctx.lineTo(x + w * 0.75, y - h * 0.9); ctx.lineTo(x + w, y);
         ctx.closePath();
-        ctx.fillStyle = s.pal.ridge; ctx.fill();
-        ctx.strokeStyle = s.pal.edge; ctx.lineWidth = Math.max(1, 22 * u); ctx.stroke();
+        ctx.fillStyle = pal.ridge; ctx.fill();
+        ctx.strokeStyle = pal.edge; ctx.lineWidth = Math.max(1, 22 * u); ctx.stroke();
+    }
+
+    function drawRock(ctx, x, y, u, spr, s) {
+        blit(ctx, x, y, u, s.pal, 'rock', spr.c, ROCK_BOX, fillRock);
     }
 
     function drawChevron(ctx, x, y, u, spr, s) {
@@ -1140,16 +1155,17 @@
         ctx.fillStyle = g; ctx.fillRect(0, HORIZON - 30, W, 76);
     }
 
+    // Every streak is stroked on its own. As one path, ninety loose lines
+    // spread over the whole screen cost the browser several times what
+    // ninety single lines do (measured: about a seventh of a CPU core).
     function drawRain(s, ctx) {
         var i, x, y, slant = s.wind * 14 - 5, t = s.clock;
         ctx.strokeStyle = '#9fb4ff'; ctx.globalAlpha = 0.4; ctx.lineWidth = 1.5;
-        ctx.beginPath();
         for (i = 0; i < 90; i++) {
             x = (i * 97.3 + t * (120 + s.wind * 400)) % W; if (x < 0) x += W;
             y = G.HUD + (i * 53.7 + t * (1100 + i * 9)) % (H - G.HUD);
-            ctx.moveTo(x, y); ctx.lineTo(x + slant, y + 24);
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + slant, y + 24); ctx.stroke();
         }
-        ctx.stroke();
         ctx.globalAlpha = 1;
     }
 
