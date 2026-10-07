@@ -34,6 +34,12 @@
     // Saucers hold their fire this close to the ship: a shot from nearer
     // could not be dodged.
     var FOE_HOLD = 150, FOE_TELL = 0.45;
+    // Saucer shots are slow enough to see coming and sidestep from across
+    // the screen; a big saucer reloads slower and aims worse than a sniper.
+    var FOE_SHOT = 215, FOE_RELOAD = { big: 2.3, small: 1.8 }, FOE_ERR = { big: 0.36, small: 0.22 };
+    // Four ships: the late levels pile saucers, beams and moving wells on
+    // top of the rocks, and one stray shot should not decide a run.
+    var LIVES = 4;
     var ROCK_R = [0, 12, 22, 38], ROCK_PTS = [0, 100, 50, 20];
     var CORE_R = { star: 20, hole: 18, pulsar: 15, giant: 46 };
     var C = { bg: '#020214', gold: '#ffd166', purple: '#9b5de5', blue: '#4cc9f0', fg: '#d4e8ff', red: '#ff5d73', dim: '#6f7fa8' };
@@ -71,11 +77,11 @@
             wells: [{ kind: 'pulsar', cx: 250, cy: 285, gm: 0.8e6, beam: 200, bw: 0.7 },
                 { kind: 'hole', cx: 720, cy: 285, gm: 0.55e6, or: 70, ow: -0.5 },
                 { kind: 'hole', cx: 720, cy: 285, gm: 0.55e6, or: 70, ow: -0.5, ph: Math.PI }] },
-        { rocks: [4, 4, 3], iron: 1, saucer: 11, maxFoes: 2, spawns: [[100, 450], [860, 100], [300, 50]], hint: 'A rogue black hole is drifting through',
+        { rocks: [4, 4, 3], iron: 1, saucer: 13, maxFoes: 2, spawns: [[100, 450], [860, 100], [300, 50]], hint: 'A rogue black hole is drifting through',
             wells: [{ kind: 'pulsar', cx: 480, cy: 285, gm: 0.8e6, beam: 230, bw: -0.8 },
                 { kind: 'hole', cx: 150, cy: 150, gm: 0.6e6, dvx: 26, dvy: 16 },
                 { kind: 'star', cx: 800, cy: 440, gm: 0.6e6 }] },
-        { rocks: [4, 4, 4], iron: 1, saucer: 9, sniper: 0.6, maxFoes: 2, swirl: true,
+        { rocks: [4, 4, 4], iron: 1, saucer: 10, sniper: 0.6, maxFoes: 2, swirl: true,
             spawns: [[70, 80], [890, 80], [70, 490], [890, 490]], hint: 'Everything circles the giant. So should you',
             wells: [{ kind: 'giant', cx: 480, cy: 285, gm: 4.5e6 },
                 { kind: 'pulsar', cx: 480, cy: 285, gm: 0.12e6, or: 250, ow: 0.2, beam: 160, bw: 1.0 }] }
@@ -583,9 +589,9 @@
     }
 
     function foeFire(s, f) {
-        var p = s.ship, err = f.small ? 0.2 : 0.32;
+        var p = s.ship, err = f.small ? FOE_ERR.small : FOE_ERR.big;
         var a = Math.atan2(dY(p.y - f.y), dX(p.x - f.x)) + G.rnd(-err, err);
-        s.foeShots.push({ x: f.x, y: f.y, vx: Math.cos(a) * 230, vy: Math.sin(a) * 230, life: 2.4 });
+        s.foeShots.push({ x: f.x, y: f.y, vx: Math.cos(a) * FOE_SHOT, vy: Math.sin(a) * FOE_SHOT, life: 2.4 });
         G.tone(520, 0.14, { type: 'sawtooth', slide: 140, vol: 0.1 });
     }
 
@@ -608,7 +614,7 @@
         f.fireT -= dt;
         if (f.fireT <= 0) {
             if (canFire(s, f)) foeFire(s, f);
-            f.fireT = f.small ? 1.7 : 2.1;
+            f.fireT = f.small ? FOE_RELOAD.small : FOE_RELOAD.big;
         }
         return f.x > -30 && f.x < PW + 30;
     }
@@ -979,7 +985,7 @@
         levelNames: ['First Light', 'Twin Suns', 'Binary Waltz', 'Visitors', 'Three-Body Problem',
             'Iron Belt', 'Lighthouse', 'Crossfire', 'Rogue Hole', 'Event Horizon'],
         colors: { bg: C.bg, fg: C.fg, accent: C.blue, dim: C.dim },
-        lives: 3,
+        lives: LIVES,
         // Slow D dorian: long held lead notes stand in for pads over a
         // rolling sine arpeggio and a sparse, half-time beat.
         music: {
