@@ -83,7 +83,8 @@ async function checkButtonsOnce(page) {
 // From the header, by keyboard: Enter on the focused button opens the menu
 // (not the selected post), and after a game and Esc focus is back on it.
 async function checkHeaderByKeyboard(page) {
-    await page.eval(`document.querySelector('.header-arcade-btn').focus()`);
+    await page.eval(`var d=document.createElement('div');d.id='arcade-test-inert';d.inert=true;document.body.appendChild(d);
+      document.querySelector('.header-arcade-btn').focus()`);
     await page.press('Enter');
     await page.waitFor('SnoArcade.isOpen()', 'the menu to open with Enter on the header button');
     await checkPlayAndReturn(page, false);
@@ -91,6 +92,12 @@ async function checkHeaderByKeyboard(page) {
     await page.waitFor('!SnoArcade.isOpen()', 'the menu to close');
     check(await page.eval(`document.activeElement.classList.contains('header-arcade-btn')`), 'focus did not return to the button that opened the menu');
     check(!(await page.eval(`!!document.querySelector('[data-sno-arcade-inert]')`)), 'the page stayed inert after the menu closed');
+    check(await page.eval(`document.getElementById('arcade-test-inert').inert`), 'closing the menu woke up an element that was inert before it opened');
+    // The Play button next to it answers to Enter the same way.
+    await page.eval(`document.querySelector('.header-game-btn').focus()`);
+    await page.press('Enter');
+    await page.waitFor(`SnoGame.active && ${STATE} && ${STATE}.screen==='title'`, 'the game to start with Enter on the header Play button');
+    await page.eval('SnoGame.quit()');
 }
 
 // A card starts its game; quitting the game leads back to the menu, on the

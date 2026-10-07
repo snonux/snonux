@@ -8,7 +8,8 @@
  * theme is; quitting it comes back here.
  *
  * It is opened from an "All games" button that sits next to each launch
- * button (splash and header), and closed with Esc, the close button or a
+ * button (splash and header; on a screen narrower than 600px the header one
+ * is hidden, see shared.css), and closed with Esc, the close button or a
  * click beside the panel.
  *
  * The pictures are themes/<theme>/game-thumb.jpg, written by
@@ -203,8 +204,10 @@
     function wrapTab(e) {
         var stops = root.querySelectorAll('button');
         var first = stops[0], last = stops[stops.length - 1];
-        var edge = e.shiftKey ? first : last;
-        if (document.activeElement !== edge && root.contains(document.activeElement)) return;
+        var edge = e.shiftKey ? first : last, at = document.activeElement;
+        // The dialog itself holds focus after a click on its padding; from
+        // there the browser would step out as well.
+        if (at !== edge && at !== root && root.contains(at)) return;
         e.preventDefault();
         (e.shiftKey ? last : first).focus();
     }
@@ -217,6 +220,9 @@
         e.stopImmediatePropagation();
         if (e.code === 'Escape') { e.preventDefault(); closeMenu(); return; }
         if (e.code === 'Tab') { wrapTab(e); return; }
+        // Enter held on the button that opened the menu keeps repeating, and
+        // a repeat would press the card that now has focus.
+        if (e.repeat && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); return; }
         if (/^Arrow/.test(e.code)) { e.preventDefault(); moveFocus(e.code); }
     }
 
