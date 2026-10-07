@@ -1056,12 +1056,16 @@ body[data-sno-theme="dos"] .post-text img { animation:sno-matrix-decode 0.8s eas
 }
 .header-game-btn:hover { opacity:1; }
 .header-game-btn:focus-visible { outline:1px solid currentColor; outline-offset:3px; }
-/* A finger needs a bigger target than a mouse. any-pointer, because some
-   phone browsers report their main pointer as fine. */
-@media (any-pointer: coarse) {
+/* A finger needs a bigger target than a mouse. Some phone browsers report
+   no coarse pointer at all (Chrome in the stock Android emulator), so a
+   phone-sized screen counts too, and so does a page that has been touched
+   (games.js sets .sno-touch). */
+@media (any-pointer: coarse), (max-width: 900px) {
   .header-game-btn { min-height:44px; padding:0.5rem 0.8rem; font-size:0.9rem; }
   .splash-game-btn { min-height:48px; padding:0.7rem 1.2rem; font-size:1rem; }
 }
+.sno-touch .header-game-btn { min-height:44px; padding:0.5rem 0.8rem; font-size:0.9rem; }
+.sno-touch .splash-game-btn { min-height:48px; padding:0.7rem 1.2rem; font-size:1rem; }
 body.sno-game-on { overflow:hidden; }
 #sno-game {
   position:fixed; inset:0; z-index:10000; background:#000; display:flex;

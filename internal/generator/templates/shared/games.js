@@ -688,9 +688,12 @@
     // ask this (in init) to pick their phone variant.
     G.isTouch = isCoarse;
 
+    // The class lets the stylesheet give fingers bigger launch buttons on
+    // devices whose media queries deny having a touch screen.
     function notePointer(e) {
         if (e.pointerType === 'touch') lastTouch = true;
         else if (e.pointerType === 'mouse') lastTouch = false;
+        document.documentElement.classList.toggle('sno-touch', lastTouch);
     }
 
     // A first finger on a game that opened without a pad (launched by key or
@@ -1353,6 +1356,12 @@
 
     function pad6(n) { return ('000000' + Math.floor(n)).slice(-6); }
 
+    // Right edge of the HUD text. It stays clear of the ESC button, which
+    // lies on the canvas except in the touch layout (there it is in a gutter).
+    function hudRight() {
+        return dom.root.classList.contains('sno-game-touch') ? W - 12 : W - 84;
+    }
+
     function drawHud(ctx) {
         var c = colors(), name = levelName(cur.level);
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -1360,12 +1369,14 @@
         // On a phone the canvas is about half size, so the HUD text is as
         // large as the bar allows there.
         var px = pad ? 21 : 15, y = pad ? 23 : 21;
-        G.text('LV ' + cur.level + '/' + LEVELS + (name ? '  ' + name : ''), 12, y, { size: px, color: c.fg, max: 300 });
+        // The side blocks squeeze rather than run into the score in the
+        // middle (about 100px wide at either size).
+        var mid = 56, right = hudRight();
+        G.text('LV ' + cur.level + '/' + LEVELS + (name ? '  ' + name : ''), 12, y, { size: px, color: c.fg, max: W / 2 - mid - 12 });
         G.text(pad6(G.score), W / 2, y, { size: px + 1, color: c.accent, align: 'center', bold: true });
         var extra = cur.def.hud ? guard(function () { return cur.def.hud(cur.s, G); }) : '';
         var lives = maxLives() > 0 ? new Array(Math.max(0, Math.floor(G.lives) || 0) + 1).join('♥') : '';
-        // The right edge stays clear of the overlay's ESC button.
-        G.text((extra ? extra + '   ' : '') + lives, W - 84, y, { size: px, color: c.fg, align: 'right', max: 380 });
+        G.text((extra ? extra + '   ' : '') + lives, right, y, { size: px, color: c.fg, align: 'right', max: right - W / 2 - mid });
     }
 
     function dimScreen(ctx, alpha) {
