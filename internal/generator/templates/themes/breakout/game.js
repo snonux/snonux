@@ -32,7 +32,7 @@
         function (c, r) { return r < 8 ? (c % 3 === 1 ? (r === 7 ? STEEL : 0) : 1 + (r % 3)) : 0; },
         function (c, r) { return invaderBit(c, r) ? 2 + (r < 3 ? 1 : 0) : 0; },
         function (c, r, rnd) { return r < 8 && rnd() < 0.72 ? 1 + Math.floor(rnd() * 3) : 0; },
-        function (c, r) { return r < 8 ? ((c + r) % 5 === 0 && r > 4 ? STEEL : (r < 2 ? 3 : (r < 5 ? 2 : 1))) : 0; }
+        function (c, r) { return r < 7 ? ((c + r) % 5 === 0 && r > 4 ? STEEL : (r < 1 ? 3 : (r < 3 ? 2 : 1))) : 0; }
     ];
     var INVADER = ['..x......x..', '...x....x...', '..xxxxxxxx..', '.xx.xxxx.xx.', 'xxxxxxxxxxxx', 'x.xxxxxxxx.x', 'x.x......x.x', '...xx..xx...'];
 
@@ -56,10 +56,13 @@
         return { x: s.paddle.x, y: PADDLE_Y - BALL_R - 1, vx: 0, vy: 0, stuck: true };
     }
 
+    // The paddle shrinks and the ball quickens only a little per level (106 px
+    // and 410 px/s on level 10): the layouts are what make a late level hard,
+    // and a ball much faster than that cannot be followed on the keys.
     function init(level) {
         var s = {
-            paddle: { x: G.W / 2, w: 132 - level * 5, base: 132 - level * 5 },
-            speed: 320 + level * 20, bricks: buildBricks(level), balls: [], caps: [], shots: [],
+            paddle: { x: G.W / 2, w: 136 - level * 3, base: 136 - level * 3 },
+            speed: 310 + level * 10, bricks: buildBricks(level), balls: [], caps: [], shots: [],
             timers: { wide: 0, laser: 0, slow: 0 }, cooldown: 0, lastMouseX: G.mouse.x
         };
         s.balls.push(newBall(s));
@@ -95,15 +98,17 @@
         if (b.vy <= 0 || b.y + BALL_R < PADDLE_Y || b.y - BALL_R > PADDLE_Y + 14) return;
         if (b.x < p.x - p.w / 2 - BALL_R || b.x > p.x + p.w / 2 + BALL_R) return;
         var off = G.clamp((b.x - p.x) / (p.w / 2), -1, 1), a = -Math.PI / 2 + off * 1.05;
-        // Each return speeds the ball up a little (capped), so a level never
-        // drags on once only a few bricks are left.
-        var sp = Math.min(s.speed * 1.6, Math.hypot(b.vx, b.vy) * 1.03);
+        // Each return speeds the ball up a little, so a level never drags on
+        // once only a few bricks are left; the cap keeps it returnable.
+        var sp = Math.min(s.speed * 1.4, Math.hypot(b.vx, b.vy) * 1.03);
         b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; b.y = PADDLE_Y - BALL_R;
         G.tone(300 + off * 80, 0.06, { type: 'triangle', vol: 0.18 });
     }
 
+    // About one brick in four drops a capsule: they are what carries a
+    // player through the long late layouts.
     function dropCapsule(s, br) {
-        if (Math.random() > 0.16) return;
+        if (Math.random() > 0.24) return;
         s.caps.push({ x: br.x + br.w / 2, y: br.y + br.h / 2, kind: G.pick(POWERS) });
     }
 
@@ -147,7 +152,7 @@
         G.addScore(50);
         if (kind === 'life') { G.addLife(5); return; }
         if (kind === 'multi') { splitBalls(s); return; }
-        s.timers[kind] = 12;
+        s.timers[kind] = 14;
     }
 
     function splitBalls(s) {
@@ -277,7 +282,7 @@
         ],
         levelNames: ['Warm-up', 'Stripes', 'Checker', 'Pyramid', 'Fortress', 'Diamond', 'Columns', 'Invader', 'Rubble', 'The Wall'],
         colors: { bg: '#1b1c1a', fg: '#f2eddf', accent: '#d98255', dim: '#96958f' },
-        lives: 3,
+        lives: 4,
         music: {
             bpm: 126, root: 45, scale: 'mixolydian', prog: [0, 3, 4, 0],
             bass: 'x..x..x.x..x.o..', lead: ['4.4.7.4.2...4...', '5.5.7.5.3...2...', '6.6.8.6.4...6...', '4.2.0.2.4---....'],
