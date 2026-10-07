@@ -54,7 +54,9 @@
 
     // A boss fights through its phases in order; each phase runs one or more
     // of the PATTERNS below at the same time and owns an equal share of hp.
-    // The hp is tuned so that every boss outlasts the one before it.
+    // The hp is tuned so that every boss outlasts the one before it; the last
+    // step is a small one, because THE EYE's four phases are already the
+    // hardest patterns in the game.
     var BOSSES = [
         { name: 'EMBER', hp: 420, phases: [['fan'], ['rings']] },
         { name: 'CORONA', hp: 900, phases: [['rings'], ['fan', 'rain']] },
@@ -65,7 +67,7 @@
         { name: 'DETONATOR', hp: 1850, phases: [['curve'], ['lances', 'rings'], ['cross', 'fan']] },
         { name: 'ION WARDEN', hp: 2000, phases: [['lances', 'fan'], ['spiral', 'rain'], ['curve', 'lances']] },
         { name: 'PRISM HEART', hp: 2500, phases: [['curve', 'fan'], ['cross', 'rain'], ['lances', 'spiral'], ['curve', 'rings']] },
-        { name: 'THE EYE', hp: 3400, phases: [['lances', 'curve'], ['cross', 'rain'], ['spiral', 'fan'], ['summon', 'rings', 'lances']] }
+        { name: 'THE EYE', hp: 2700, phases: [['lances', 'curve'], ['cross', 'rain'], ['spiral', 'fan'], ['summon', 'rings', 'lances']] }
     ];
 
     // ------------------------------------------------------------------
@@ -313,8 +315,9 @@
         var last = d.swarm && !s.enemies.some(function (o) { return o !== e && !o.gone && o.squad === e.squad; });
         if (last || s.rnd() < d.drop) dropOrb(s, e.x, e.y);
         // The storm's eye: on the last level every wreck fires one parting
-        // shot, unless it died too close for that to be dodgeable.
-        if (s.level === 10 && s.stage !== 'outro' && e.y < s.p.y - 140) fan(s, e, 1, 0, 190, MG, { r: 4 });
+        // shot, unless it died too close for that to be dodgeable. The shot
+        // is slower than a drone's: a swarm dying at once fires a whole volley.
+        if (s.level === 10 && s.stage !== 'outro' && e.y < s.p.y - 200) fan(s, e, 1, 0, 150, MG, { r: 4 });
     }
 
     function damage(s, e, dmg) {
@@ -372,7 +375,9 @@
             G.tone(420, 0.12, { type: 'triangle', slide: 210, vol: 0.07 });
         },
         spiral: function (s, b, dt) {
-            if (every(b, 'spiral', 0.09, dt)) ring(s, b.x, b.y, 3 + Math.floor(s.level / 3), 150, b.age * 1.9, YL);
+            // Five arms at most: a sixth closes the gaps a casual player can
+            // still steer through at the last levels' bullet speed.
+            if (every(b, 'spiral', 0.09, dt)) ring(s, b.x, b.y, Math.min(5, 3 + Math.floor(s.level / 3)), 150, b.age * 1.9, YL);
         },
         cross: function (s, b, dt) {
             if (!every(b, 'cross', 0.13, dt)) return;
@@ -796,8 +801,10 @@
         return G.isTouch();
     }
 
+    // Fire rates and bullet speeds rise 4.5% per level (k), a slope gentle
+    // enough that level 10 is still readable at an average player's reactions.
     function init(level) {
-        var rnd = G.rng(level * 7919 + 13), touch = coarse(), k = 1 + (level - 1) * 0.055;
+        var rnd = G.rng(level * 7919 + 13), touch = coarse(), k = 1 + (level - 1) * 0.045;
         return {
             level: level, rnd: rnd, touch: touch, drag: null,
             k: k, bk: k * (touch ? TOUCH_BULLETS : 1),           // k scales fire rates, bk bullet speed
@@ -1090,7 +1097,8 @@
         ],
         levelNames: ['First Sparks', 'Ring Lightning', 'Crosswind', 'Lancers', 'Spiral Front', 'Dart Swarm', 'Minefield', 'Ion Gates', 'Prism Bloom', 'Eye of the Storm'],
         colors: { bg: BG, fg: FG, accent: CY, dim: '#9a8fc0' },
-        lives: 3,
+        // Four lives: the late bosses cost an average player two or three.
+        lives: 4,
         // E minor at speed: a galloping saw bass under a lead that climbs
         // through i - i - VI - VII, then i - i - iv - v.
         music: {
