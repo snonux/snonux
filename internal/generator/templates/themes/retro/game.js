@@ -44,20 +44,23 @@
     // hazards on the lane the packet is NOT on (they punish flipping by
     // rhythm). kinds: pattern weights.
     // The numbers are tuned with a bot that presses mid-window with Gaussian
-    // timing error: its losses must rise from level to level. Level 8 is
-    // nearly as tight as level 9 because its double-speed stretches hold only
-    // plain hazards and would otherwise be a rest.
+    // timing error (0.15s, a casual player): it clears level 7 about nine
+    // times in ten and level 10 about seven in ten. `react` therefore falls
+    // gently; speed, the mix of kinds and the stretches carry the rest of
+    // the rise. Level 8 is not much
+    // wider than level 9 because its double-speed stretches hold only plain
+    // hazards and would otherwise be a rest.
     var LEVELS = [
         { v: 270, secs: 46, react: 1.10, tight: 0.6, keep: 0, kinds: { spike: 1 } },
         { v: 290, secs: 50, react: 0.95, tight: 0.6, keep: 0.12, kinds: { spike: 3, gap: 3 } },
         { v: 310, secs: 54, react: 0.85, tight: 0.6, keep: 0.15, kinds: { spike: 2, gap: 2, slider: 3 } },
         { v: 325, secs: 57, react: 0.75, tight: 0.6, keep: 0.18, kinds: { spike: 2, gap: 2, slider: 1, burst: 3 } },
-        { v: 340, secs: 60, react: 0.66, tight: 0.90, keep: 0.20, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 3 } },
-        { v: 350, secs: 62, react: 0.58, tight: 0.75, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 4 } },
-        { v: 360, secs: 64, react: 0.50, tight: 0.80, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 4 } },
-        { v: 370, secs: 68, react: 0.36, tight: 0.70, keep: 0.26, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, turbo: 1.5 } },
-        { v: 380, secs: 70, react: 0.35, tight: 0.65, keep: 0.28, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, fog: 2 } },
-        { v: 395, secs: 78, react: 0.28, tight: 0.60, keep: 0.30, kinds: { spike: 2, gap: 2, slider: 2, burst: 2, zig: 2, mover: 2, jam: 2, turbo: 1.5, fog: 1.5 } }
+        { v: 340, secs: 60, react: 0.70, tight: 0.90, keep: 0.20, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 3 } },
+        { v: 350, secs: 62, react: 0.66, tight: 0.75, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 4 } },
+        { v: 360, secs: 64, react: 0.60, tight: 0.80, keep: 0.22, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 4 } },
+        { v: 370, secs: 68, react: 0.54, tight: 0.70, keep: 0.26, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, turbo: 1.5 } },
+        { v: 380, secs: 70, react: 0.48, tight: 0.65, keep: 0.28, kinds: { spike: 2, gap: 2, slider: 1, burst: 1, zig: 1, mover: 1, jam: 1, fog: 2 } },
+        { v: 395, secs: 78, react: 0.36, tight: 0.60, keep: 0.30, kinds: { spike: 2, gap: 2, slider: 2, burst: 2, zig: 2, mover: 2, jam: 2, turbo: 1.5, fog: 1.5 } }
     ];
     // Every kind a level enables appears at least once before the relay and
     // once after it, whatever the seed rolls. The slots of a half are spread
