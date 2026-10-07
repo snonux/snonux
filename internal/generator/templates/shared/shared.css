@@ -1063,31 +1063,77 @@ body[data-sno-theme="dos"] .post-text img { animation:sno-matrix-decode 0.8s eas
 /* === Theme games (games.js) ===
    Launch buttons plus the fullscreen overlay the game canvas lives in. The
    overlay sits above every other layer (wild-mode effects top out at 9999). */
-.splash-game-choice { margin-top:0.6rem; display:flex; justify-content:center; }
-.header-game-btn {
+.splash-game-choice { margin-top:0.6rem; display:flex; gap:0.6rem; justify-content:center; flex-wrap:wrap; }
+.header-game-btn, .header-arcade-btn {
   font:inherit; font-size:0.8rem; letter-spacing:0.04em; white-space:nowrap; cursor:pointer;
   color:inherit; background:transparent; border:1px solid currentColor; border-radius:3px;
   padding:0.25rem 0.6rem; opacity:0.82;
 }
-.header-game-btn:hover { opacity:1; }
-.header-game-btn:focus-visible { outline:1px solid currentColor; outline-offset:3px; }
+.header-game-btn:hover, .header-arcade-btn:hover { opacity:1; }
+.header-game-btn:focus-visible, .header-arcade-btn:focus-visible { outline:1px solid currentColor; outline-offset:3px; }
 /* A finger needs a bigger target than a mouse. Some phone browsers report
    no coarse pointer at all (Chrome in the stock Android emulator), so a
    phone-sized screen counts too, and so does a page that has been touched
    (games.js sets .sno-touch). */
 @media (any-pointer: coarse), (max-width: 900px) {
-  .header-game-btn { min-height:44px; padding:0.5rem 0.8rem; font-size:0.9rem; }
-  .splash-game-btn { min-height:48px; padding:0.7rem 1.2rem; font-size:1rem; }
+  .header-game-btn, .header-arcade-btn { min-height:44px; padding:0.5rem 0.8rem; font-size:0.9rem; }
+  .splash-game-btn, .splash-arcade-btn { min-height:48px; padding:0.7rem 1.2rem; font-size:1rem; }
 }
 /* A phone held upright has no room for the game's name in the header (it
    pushed the feed link off screen or sat on the site title): icon only. */
 @media (max-width: 600px) {
-  .header-game-btn { min-width:44px; padding:0.5rem; flex:0 0 auto; }
+  .header-game-btn, .header-arcade-btn { min-width:44px; padding:0.5rem; flex:0 0 auto; }
   .header-game-btn .sno-game-launch-text { display:none; }
 }
-.sno-touch .header-game-btn { min-height:44px; padding:0.5rem 0.8rem; font-size:0.9rem; }
-.sno-touch .splash-game-btn { min-height:48px; padding:0.7rem 1.2rem; font-size:1rem; }
-body.sno-game-on { overflow:hidden; }
+/* The "All games" button beside it gives up its words much earlier: the
+   header has to hold two buttons now. */
+@media (max-width: 1100px) {
+  .header-arcade-btn .sno-game-launch-text { display:none; }
+}
+.sno-touch .header-game-btn, .sno-touch .header-arcade-btn { min-height:44px; padding:0.5rem 0.8rem; font-size:0.9rem; }
+.sno-touch .splash-game-btn, .sno-touch .splash-arcade-btn { min-height:48px; padding:0.7rem 1.2rem; font-size:1rem; }
+body.sno-game-on, body.sno-arcade-on { overflow:hidden; }
+/* === Game overview menu (arcade.js) ===
+   One card per game. It brings its own dark panel and a plain system font
+   instead of the theme's, so the text reads the same on every theme. Below
+   the game overlay in source order, so a game started from it covers it. */
+#sno-arcade {
+  position:fixed; inset:0; z-index:10000; overflow-y:auto; overscroll-behavior:contain;
+  background:rgba(4,5,10,0.9); color:#f2f3f7; padding:1rem;
+  font:400 15px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; letter-spacing:0;
+}
+.sno-arcade-panel {
+  max-width:1280px; margin:0 auto; background:#12141d; border:1px solid #343a52;
+  border-radius:10px; padding:1rem;
+}
+.sno-arcade-head { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:0.9rem; }
+.sno-arcade-heading { margin:0; font:700 1.25rem/1.2 inherit; font-family:inherit; color:#fff; letter-spacing:0.02em; text-transform:none; text-shadow:none; }
+.sno-arcade-close {
+  font:600 13px monospace; letter-spacing:0.1em; color:#fff; background:#232738;
+  border:1px solid #5a6183; border-radius:4px; padding:0.55rem 0.8rem; min-height:44px; cursor:pointer;
+}
+.sno-arcade-close:hover { background:#30364f; }
+.sno-arcade-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(215px, 1fr)); gap:0.8rem; }
+.sno-arcade-card {
+  display:flex; flex-direction:column; align-items:stretch; text-align:left; cursor:pointer;
+  margin:0; padding:0 0 0.7rem; overflow:hidden; font:inherit; color:inherit; letter-spacing:0;
+  background:#1b1e2b; border:1px solid #343a52; border-radius:8px;
+  transition:transform 0.12s ease, border-color 0.12s ease;
+}
+.sno-arcade-card:hover, .sno-arcade-card:focus-visible { border-color:#9fb4ff; transform:translateY(-2px); outline:none; }
+.sno-arcade-card:focus-visible { box-shadow:0 0 0 2px #9fb4ff; }
+.sno-arcade-shot { display:block; width:100%; height:auto; aspect-ratio:16 / 9; background:#000; }
+.sno-arcade-title { font-weight:700; font-size:1.05rem; color:#fff; padding:0.55rem 0.7rem 0; }
+.sno-arcade-theme { font-size:0.74rem; text-transform:uppercase; letter-spacing:0.08em; color:#9fb4ff; padding:0.1rem 0.7rem 0; }
+.sno-arcade-blurb { font-size:0.86rem; color:#c9cde0; padding:0.35rem 0.7rem 0; }
+@media (max-width: 520px) {
+  #sno-arcade { padding:0.4rem; }
+  .sno-arcade-panel { padding:0.6rem; }
+  .sno-arcade-grid { grid-template-columns:repeat(2, 1fr); gap:0.5rem; }
+  .sno-arcade-title { font-size:0.95rem; }
+  .sno-arcade-blurb { font-size:0.8rem; }
+}
+@media (prefers-reduced-motion: reduce) { .sno-arcade-card { transition:none; } }
 #sno-game {
   position:fixed; inset:0; z-index:10000; background:#000; display:flex;
   align-items:center; justify-content:center; touch-action:none; user-select:none;

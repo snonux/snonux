@@ -188,22 +188,32 @@ func TestRun_writesGameAssets(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	wantIn := map[string]string{
-		"games.js":                  "window.SnoGame",
-		"index.html":                `<script src="games.js" defer></script>`,
-		"shared.css":                "#sno-game",
-		"shared.js":                 "snonuxGameLaunch",
-		"themes/breakout/game.js":   "G.register('breakout'",
-		"themes/breakout/theme.css": "",
+	wantIn := map[string][]string{
+		"games.js": {"window.SnoGame"},
+		// The menu of all games needs the engine, so it is loaded after it.
+		"index.html":                     {`<script src="games.js" defer></script>`, `<script src="arcade.js" defer></script>`},
+		"arcade.js":                      {"window.SnoArcade"},
+		"shared.css":                     {"#sno-arcade", "#sno-game {"},
+		"shared.js":                      {"snonuxGameLaunch"},
+		"themes/breakout/game.js":        {"G.register('breakout'"},
+		"themes/breakout/game-thumb.jpg": {"JFIF"},
+		"themes/breakout/theme.css":      {""},
 	}
-	for name, needle := range wantIn {
+	for name, needles := range wantIn {
 		data, err := os.ReadFile(filepath.Join(out, filepath.FromSlash(name)))
 		if err != nil {
 			t.Errorf("%s: %v", name, err)
 			continue
 		}
-		if !strings.Contains(string(data), needle) {
-			t.Errorf("%s does not contain %q", name, needle)
+		// Needles of one file must appear in the order given.
+		rest := string(data)
+		for _, needle := range needles {
+			at := strings.Index(rest, needle)
+			if at < 0 {
+				t.Errorf("%s does not contain %q (after the needles before it)", name, needle)
+				break
+			}
+			rest = rest[at+len(needle):]
 		}
 	}
 

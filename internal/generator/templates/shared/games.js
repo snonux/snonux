@@ -1698,12 +1698,16 @@
         pad = null;
         if (dom && dom.root.parentNode) dom.root.parentNode.removeChild(dom.root);
         document.body.classList.remove('sno-game-on');
+        var theme = cur ? cur.theme : '';
         dom = null; cur = null;
         if (ambientWasPlaying && window.snonuxAmbientStart) window.snonuxAmbientStart('game');
         // Give keyboard focus back to the splash when the game was launched
         // from it, so Enter still opens the blog.
         var splash = document.getElementById('splash-overlay');
         if (splash && !splash.classList.contains('splash--dismissed')) splash.focus({ preventScroll: true });
+        // Last, so a listener sees a fully closed game: the overview menu
+        // (arcade.js) reopens itself after a game that was started from it.
+        document.dispatchEvent(new CustomEvent('sno-game-quit', { detail: { theme: theme } }));
     };
 
     // Outside a game these only keep track of how the visitor is driving

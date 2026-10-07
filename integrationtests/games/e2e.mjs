@@ -25,6 +25,7 @@
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { sleep, startSession, themesWithGames } from './lib.mjs';
+import { testArcadeMenu } from './arcade.mjs';
 import { testFinePointerPhone, testNoFullscreen, testPadConfigs, testRotation, testThemeTouch } from './touch.mjs';
 
 const LEVELS = 10;
@@ -300,6 +301,8 @@ async function main() {
         console.log('ok   debug.step keeps held buttons across calls');
         await testBackdropHeld(page, base);
         console.log('ok   page animation frames are parked while a game is open');
+        await testArcadeMenu(page, base, opts.shots, opts.touch);
+        console.log('ok   game overview menu: every game listed, play one and come back');
         if (opts.touch) {
             await testFinePointerPhone(page, base, opts.shots);
             console.log('ok   a tap launch on a phone that reports a fine pointer still gets the pad');

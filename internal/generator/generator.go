@@ -274,8 +274,8 @@ func jsonStringOrNull(s string) template.JS {
 	return template.JS(strings.TrimSpace(string(b))) //nolint:gosec // filename is tool-generated
 }
 
-// writeSharedAssets dumps shared.css, shared.js and games.js (the arcade
-// engine) to the output dir. They are linked from every page and cached by
+// writeSharedAssets dumps shared.css, shared.js, games.js (the arcade engine)
+// and arcade.js (the menu of all games) to the output dir. They are linked from every page and cached by
 // browsers across navigations.
 func writeSharedAssets(outputDir string) error {
 	assets := []struct {
@@ -285,6 +285,7 @@ func writeSharedAssets(outputDir string) error {
 		{"shared.css", templates.SharedCSS},
 		{"shared.js", templates.SharedJS},
 		{"games.js", templates.SharedGamesJS},
+		{"arcade.js", templates.SharedArcadeJS},
 	}
 
 	for _, a := range assets {

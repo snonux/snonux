@@ -22,6 +22,9 @@ import (
 //   sounds.json         — required, always present
 //   game.js             — the theme's arcade game; registers itself with
 //                         shared/games.js and is fetched on first play
+//   game-thumb.jpg      — 320x180 picture of that game for the overview
+//                         menu (shared/arcade.js); written by
+//                         integrationtests/games/thumbs.mjs
 //   ambient.ogg         — optional, background music loop
 //   <Family-Weight>.woff2 — optional, one or more self-hosted web fonts
 //   <Family-Weight>.woff  — optional, fallback / non-woff2 web fonts
@@ -37,7 +40,7 @@ import (
 // match at least one file. When you introduce a new font extension
 // that no other theme uses yet, append the matching glob here.
 //
-//go:embed shell.tmpl shared/*.tmpl shared/shared.css shared/shared.js shared/games.js themes/*/theme.css themes/*/theme.js themes/*/game.js themes/*/meta.json themes/*/sounds.json themes/*/*.ogg themes/*/*.woff themes/*/*.woff2 themes/*/FONT_LICENSE.txt themes/*/MUSIC_LICENSE.txt
+//go:embed shell.tmpl shared/*.tmpl shared/shared.css shared/shared.js shared/games.js shared/arcade.js themes/*/theme.css themes/*/theme.js themes/*/game.js themes/*/game-thumb.jpg themes/*/meta.json themes/*/sounds.json themes/*/*.ogg themes/*/*.woff themes/*/*.woff2 themes/*/FONT_LICENSE.txt themes/*/MUSIC_LICENSE.txt
 var FS embed.FS
 
 // themeStandardFiles lists the per-theme files that have dedicated
@@ -129,6 +132,13 @@ func SharedJS() ([]byte, error) {
 // it loads travel with each theme through ThemeExtraFiles.
 func SharedGamesJS() ([]byte, error) {
 	return FS.ReadFile("shared/games.js")
+}
+
+// SharedArcadeJS returns the game overview menu every page references via
+// arcade.js. Its pictures (themes/<name>/game-thumb.jpg) travel with each
+// theme through ThemeExtraFiles, like the games themselves.
+func SharedArcadeJS() ([]byte, error) {
+	return FS.ReadFile("shared/arcade.js")
 }
 
 // ThemeCSS returns the per-theme stylesheet bytes for the named theme.

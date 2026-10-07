@@ -2,10 +2,14 @@
 
 Every theme has its own small arcade game. Visitors start it from the **Play**
 button on the splash screen, the button in the header, the `game` button in the
-fx row, or the `a` key. `Esc` quits from any screen.
+fx row, or the `a` key. `Esc` quits from any screen. The **All games** button
+beside the splash and header buttons opens a menu of every theme's game (see
+[The overview menu](#the-overview-menu)).
 
 - `internal/generator/templates/shared/games.js` — **SnoGame**, the shared engine
+- `internal/generator/templates/shared/arcade.js` — the menu of all games
 - `internal/generator/templates/themes/<theme>/game.js` — one game per theme
+- `internal/generator/templates/themes/<theme>/game-thumb.jpg` — its picture in the menu
 - `integrationtests/games/` — the Chrome test tools (`e2e.mjs`, `play.mjs`)
 
 The engine owns the overlay, the loop, input, audio, effects, menus, the
@@ -268,6 +272,23 @@ screen and restarts with each level.
 
 Write a tune that fits: the lead should be at least four bars and must not be
 a copy of another game's.
+
+## The overview menu
+
+`shared/arcade.js` lists every game as a card: picture, title, theme and the
+game's `blurb`. A card starts that game on whatever theme is active, and
+quitting it returns to the menu (the engine fires a `sno-game-quit` event on
+`document` when a game closes). `Esc`, the close button or a click beside the
+panel closes it; the arrow keys walk the cards.
+
+A new or changed game needs two things for it:
+
+- its `blurb` repeated in the `BLURBS` list of `arcade.js` (the menu cannot
+  read `game.js`, which is only fetched on first play) — `go test` fails when
+  the two differ;
+- its picture: `node integrationtests/games/thumbs.mjs <theme>` plays level 3
+  with a seeded bot and writes `game-thumb.jpg` (320x180). Run it again after
+  changing how the game looks, and commit the file.
 
 ## Testing
 

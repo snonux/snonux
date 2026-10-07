@@ -98,7 +98,9 @@ Each run can use a different visual theme. Use `--list-themes` to see all availa
 Every theme comes with its own small arcade game — ten levels, sound and
 music, progress saved in a cookie. Start it from the **Play** button on the
 splash screen, the button in the header, the `game` button in the fx row, or
-with the `a` key; `Esc` quits. On a phone the game goes fullscreen with an
+with the `a` key; `Esc` quits. **All games**, next to the splash and header
+buttons, opens a menu with a picture and a short description of every theme's
+game, so any of them can be played from any theme. On a phone the game goes fullscreen with an
 on-screen pad beside (or below) the playfield, and `✕` quits.
 
 The shared engine is `internal/generator/templates/shared/games.js`; each
