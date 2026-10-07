@@ -22,9 +22,12 @@
     var WALK = 118, SPRINT = 205, EMP_R = 150, EMP_TIME = 5;
     // feel: a guard notices anyone this close whichever way it faces (drawn
     // as a ring around it); a camera sees nothing outside its cone.
+    // rate: how fast being seen fills the meter (per second, times nearness).
+    // A guard at the far end of its cone needs a second and a half, a drone
+    // one second: long enough to notice the alarm and step back into cover.
     var CAM = { range: 185, fov: 0.9, rate: 1.0, feel: 0 };
-    var GUARD = { range: 150, fov: 1.2, rate: 1.5, feel: 16 };
-    var DRONE_R = 62, LIGHT_R = 44, BEAM_R = 7;
+    var GUARD = { range: 150, fov: 1.2, rate: 1.3, feel: 16 };
+    var DRONE_R = 58, DRONE_RATE = 1.0, LIGHT_R = 44, BEAM_R = 7;
     var RAY_STEP = 0.015;       // radians between the rays of a drawn cone
     var EMP_RECHARGE = 20;      // seconds an empty EMP takes to build one charge
     var BEAM_ON = 1.5;          // seconds a tripwire stays live per blink
@@ -48,6 +51,8 @@
      * guards: one string of waypoint digits per guard, walked in a loop
      *         ('1232' walks 1-2-3 and back). No route may overlook the start.
      * hop: seconds a drone spends at one D before flying to the next (0 = stays home).
+     *      Every changeover sweeps the drones' rings across the rooms between,
+     *      so the hops are long (10s and more) to leave quiet spells for looting.
      * lights: searchlights as [axis they travel on, lane in px, speed, optional
      *         nearest point they travel to — keeps the start corner dark].
      * tip: the hint shown while the level starts.
@@ -59,6 +64,12 @@
      * always crosses a pressure plate. On levels 7, 9 and 10 a plate seals
      * the only way in or out: that is what the EMP is for (and why an empty
      * EMP recharges - wasting the charges must not strand anyone).
+     *
+     * Room for error on the two hardest maps: the vault's drone (level 7)
+     * hovers between the upper pillars, so its ring just misses the drive
+     * below it; on level 9 the long corridor has a wall stub near each end
+     * that stops the travelling beam short of the two drive nooks, and there
+     * are three EMP charges for two plate doors and a drone-watched room.
      */
     var LEVELS = [
         { time: 70, emp: 2, guards: [], tip: 'STAY OUT OF THE CONES - WALLS BLOCK THEM', map: [
@@ -169,7 +180,7 @@
             '#.1...........r............2...#',
             '#............................X.#',
             '################################'] },
-        { time: 105, emp: 2, hop: 7, guards: ['1232', '56'], tip: 'THE VAULT DOORS ARE PLATES - ONE EMP TO GET IN, ONE TO GET OUT', map: [
+        { time: 120, emp: 2, hop: 11, guards: ['1232', '56'], tip: 'THE VAULT DOORS ARE PLATES - ONE EMP TO GET IN, ONE TO GET OUT', map: [
             '################################',
             '#............................1.#',
             '#.S...................D......o.#',
@@ -177,8 +188,8 @@
             '#...###########__###########...#',
             '#...#.....5................#...#',
             '#...#.o.....##....##....o..#...#',
-            '#...#.......##....##.......#...#',
-            '#...#..........D...........#..<#',
+            '#...#.......##.D..##.......#...#',
+            '#...#......................#..<#',
             '#.o.#.......##....##.......#...#',
             '#...#.e.....##.o..##....o..#...#',
             '#...#.....6................#...#',
@@ -205,7 +216,7 @@
             '#.........#....o....#.o......X.#',
             '#....^....#.........#..........#',
             '################################'] },
-        { time: 140, emp: 2, hop: 8, beam: 62, guards: ['12', '34'], tip: 'THE EXIT ROOM IS SEALED BY A PLATE - KEEP AN EMP FOR IT', map: [
+        { time: 160, emp: 3, hop: 10, beam: 52, guards: ['12', '34'], tip: 'THE EXIT ROOM IS SEALED BY A PLATE - KEEP AN EMP FOR IT', map: [
             '################################',
             '#......#...............#.......#',
             '#.S....#.......o.......#...o...#',
@@ -214,7 +225,7 @@
             '#......#...............#.......#',
             '####_#####...#####...#####_#####',
             '#..............................#',
-            '#.o.....1....!.........2.....o.#',
+            '#.o.#...1....!.........2..#..o.#',
             '#..............................#',
             '######.#####_#####.#####_#######',
             '#.........#3.......4#..........#',
@@ -682,11 +693,12 @@
         if (d.mode === 'seek' && there) { d.mode = 'scan'; d.timer = 3; }
         else if (d.mode === 'scan' && (d.timer -= dt) <= 0) d.mode = 'idle';
         d.sees = s.safe <= 0 && droneSees(s, d, p.cx, p.cy);
-        if (d.sees) s.rate += 1.3;
+        if (d.sees) s.rate += DRONE_RATE;
     }
 
-    // Tripwires blink; the dark gap shrinks a little on later levels.
-    function blinkCycle(s) { return BEAM_ON + 1.7 - s.level * 0.03; }
+    // Tripwires blink; the dark gap shrinks a little on later levels (1.74s
+    // on level 3, 1.6s on level 10).
+    function blinkCycle(s) { return BEAM_ON + 1.8 - s.level * 0.02; }
 
     // Travelling beams never go dark.
     function laserLive(s, l) {
@@ -1116,7 +1128,9 @@
         ],
         levelNames: ['Orientation', 'Night Shift', 'Tripwire', 'Pressure', 'Hive', 'Server Farm', 'The Vault', 'Sweep', 'Panopticon', 'Searchlight Grid'],
         colors: { bg: BG, fg: PHOS, accent: GREEN, dim: GREY },
-        lives: 3,
+        // Four lives: a catch sends the player back to the entrance, so each
+        // life is one more whole attempt at the level.
+        lives: 4,
         // Sparse and uneasy: a heartbeat kick, a few held notes, lots of air.
         music: {
             bpm: 92, root: 40, scale: 'phrygian', prog: [0, 0, 1, 0, 0, 5, 1, 0],
