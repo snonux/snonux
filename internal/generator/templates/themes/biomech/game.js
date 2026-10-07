@@ -83,6 +83,10 @@
     // rows above it are where worms enter); spore / para / eye are spawn intervals in
     // seconds (absent = that creature does not appear); regen is the seconds
     // between healing-and-sprouting pulses; queen is her head's hit points.
+    // The pace tops out at ten cells a second: a worm that fast crosses the
+    // turret's zone in about the time a player needs to react, so the late
+    // levels are hard through what they field (swarm, ribs, venom, Queen),
+    // and parasites, the main killer down there, come a little less often.
     var LEVELS = [
         { speed: 6, layout: scatter(0.045), waves: [wave(10, -1, 0, 0), wave(8, 1, 0, 16)] },
         { speed: 6.5, layout: scatter(0.05), spore: 5, waves: [wave(12, 1, 0, 0), wave(10, -1, 0, 18), wave(8, 1, 0, 34)] },
@@ -94,12 +98,12 @@
             waves: [wave(14, -1, 0, 0), wave(1, 1, 0, 5), wave(1, -1, 2, 7), wave(12, 1, 0, 22), wave(10, -1, 0, 40)] },
         { speed: 8.5, layout: scatter(0.09), regen: 2.5, spore: 10, para: 8, eye: 12,
             waves: [wave(10, -1, 0, 0), wave(10, 1, 0, 0), wave(13, -1, 0, 22), wave(10, 1, 0, 40)] },
-        { speed: 10.5, layout: scatter(0.05), top: 3, spore: 8, para: 6, eye: 14, waves: swarm() },
+        { speed: 9.5, layout: scatter(0.05), top: 3, spore: 8, para: 7.5, eye: 14, waves: swarm() },
         { speed: 10, layout: ribs, spore: 7, para: 6, eye: 9, waves: [wave(18, -1, 0, 0), wave(14, 1, 0, 14), wave(12, -1, 0, 28), wave(10, 1, 0, 42)] },
-        { speed: 10.5, layout: bands, regen: 2.5, spore: 8, para: 7, eye: 7,
+        { speed: 10, layout: bands, regen: 2.5, spore: 8, para: 8, eye: 7,
             waves: [wave(12, -1, 0, 0), wave(12, 1, 0, 0), wave(12, -1, 0, 16), wave(12, 1, 0, 16),
                 wave(10, -1, 0, 32), wave(10, 1, 0, 32)] },
-        { speed: 10, layout: scatter(0.05), top: QROW + 1, queen: 70, regen: 4, spore: 8, para: 8, eye: 11,
+        { speed: 9.5, layout: scatter(0.05), top: QROW + 1, queen: 60, regen: 4, spore: 8, para: 9, eye: 11,
             waves: [wave(8, -1, QROW + 1, 0)] }
     ];
 
@@ -433,7 +437,7 @@
         // hugging that wall has time to step away.
         s.bugs.push({
             kind: 'para', x: side < 0 ? -PARA_LEAD : G.W + PARA_LEAD, y: ZONE_Y + G.rnd(0, 60),
-            vx: -side * G.rnd(80, 130), vy: 190, r: 11, hp: 1, turn: 0.4
+            vx: -side * G.rnd(80, 130), vy: 170, r: 11, hp: 1, turn: 0.4
         });
         SND.chitter();
     }
@@ -475,7 +479,7 @@
     // chew through any node they cross, which keeps the zone from clogging.
     function movePara(s, b, dt) {
         b.turn -= dt;
-        if (b.turn <= 0) { b.turn = G.rnd(0.25, 0.7); b.vy = G.pick([-1, 1]) * G.rnd(150, 230); }
+        if (b.turn <= 0) { b.turn = G.rnd(0.25, 0.7); b.vy = G.pick([-1, 1]) * G.rnd(130, 200); }
         b.x += b.vx * dt; b.y += b.vy * dt;
         var top = ZONE_Y - CELL * 3 + b.r, bottom = G.H - b.r;
         if (b.y < top) { b.y = top; b.vy = Math.abs(b.vy); }
