@@ -13,8 +13,13 @@
     var G = window.SnoGame;
     var T = 32, NONE = 99, WATER = 488, LOW = 13;
     var GRAV = 1900, JUMP = 640, CUT = 240, RUN = 230, SPRING = 880, NUT_G = 1000;
+    // Forgiveness for a jump pressed a little late (COYOTE: seconds after
+    // running off a ledge in which a jump still counts) or a little early
+    // (BUFFER: seconds a press is remembered before the feet touch down). At
+    // running speed 0.13s is 30px, about one body width past the edge.
+    var COYOTE = 0.13, BUFFER = 0.15;
     // One tide surge cycle on the storm level: low, rising, high, falling.
-    var TIDE = { period: 11, rise: 5, high: 7, fall: 9.5, lift: 96 };
+    var TIDE = { period: 12, rise: 6, high: 8, fall: 10.5, lift: 96 };
     var DIVE = 1.5;         // seconds a gull's swoop takes, down and back up
     var WARN = 0.45;        // seconds, at least, between a gull's squawk and its swoop
     // The tide clock: every level starts with CLOCK seconds and each flag
@@ -24,6 +29,11 @@
     // How far below a platform's top the feet may be and still step onto it:
     // enough to walk onto a lift that has just left the ground.
     var STEP_UP = 14;
+    // Crumbling slabs: their width (the water between two of them is the
+    // rest of four tiles) and how long one shakes under the feet before it
+    // drops. Wide and patient enough to land on with a misjudged jump and
+    // still line up the next one.
+    var SLAB_W = 80, SLAB_HOLD = 0.6;
     var STOMPABLE = { crab: true, gull: true, monkey: true };
 
     var SETS = {
@@ -80,7 +90,7 @@
         var red = !!L.cfg.red && L.rnd() < 0.5;
         L.foes.push({
             kind: 'crab', x: (a + b) / 2 * T, y: L.h * T - 18, w: 26, h: 18,
-            lo: a * T, hi: b * T - 26, vx: (L.rnd() < 0.5 ? -1 : 1) * (red ? 85 : 42), red: red
+            lo: a * T, hi: b * T - 26, vx: (L.rnd() < 0.5 ? -1 : 1) * (red ? 75 : 42), red: red
         });
     }
 
@@ -110,7 +120,9 @@
             var n = 8 + ri(L, 6), x0 = L.top.length, mid = x0 + Math.floor(n / 2);
             put(L, n, L.h); pines(L, x0 + 1, n - 2, L.h);
             if (L.rnd() < 0.5) L.palms.push({ x: (x0 + 1) * T + 16, row: L.h, tall: 3 + ri(L, 3) });
-            if (L.cfg.dense && n >= 11) { addCrab(L, x0 + 2, mid); addCrab(L, mid + 1, x0 + n - 2); }
+            // Two crabs on a long beach keep two tiles of sand between their
+            // beats: room to come down after hopping the first one.
+            if (L.cfg.dense && n >= 11) { addCrab(L, x0 + 2, mid - 1); addCrab(L, mid + 1, x0 + n - 2); }
             else addCrab(L, x0 + 2, x0 + n - 2);
         },
         urchins: function (L) {
@@ -140,7 +152,9 @@
                 var w = 2 + ri(L, 2), x0 = L.top.length;
                 put(L, w, NONE); pineArc(L, x0, w, L.h);
                 L.h = shift(L, ri(L, 3) - 1);
-                put(L, 2 + ri(L, 2), L.h);
+                // An islet is three or four tiles: long enough to land on
+                // and still take a step before the next jump.
+                put(L, 3 + ri(L, 2), L.h);
             }
             put(L, 2, L.h);
         },
@@ -178,7 +192,7 @@
             for (var k = 2 + ri(L, 3); k > 0; k--) {
                 var x0 = L.top.length;
                 put(L, 4, NONE);
-                L.plats.push({ kind: 'fall', x: (x0 + 2) * T, y: L.h * T, py: L.h * T, home: L.h * T, w: 64, h: 12, vx: 0, vy: 0, state: 0, t: 0 });
+                L.plats.push({ kind: 'fall', x: (x0 + 2) * T, y: L.h * T, py: L.h * T, home: L.h * T, w: SLAB_W, h: 12, vx: 0, vy: 0, state: 0, t: 0 });
                 pines(L, x0 + 2, 2, L.h - 1);
             }
             put(L, 2, NONE); put(L, 3, L.h);
@@ -355,7 +369,7 @@
 
     // A crumbling slab: shakes once stood on, drops, and grows back later.
     function moveFall(s, pl, dt) {
-        if (pl.state === 0 && s.p.on === pl) { pl.state = 1; pl.t = 0.4; G.noise(0.3, { freq: 320, slide: 110, vol: 0.2 }); }
+        if (pl.state === 0 && s.p.on === pl) { pl.state = 1; pl.t = SLAB_HOLD; G.noise(0.3, { freq: 320, slide: 110, vol: 0.2 }); }
         if (pl.state === 1 && (pl.t -= dt) <= 0) { pl.state = 2; pl.vy = 0; }
         if (pl.state === 2) {
             pl.vy += 1400 * dt; pl.y += pl.vy * dt;
@@ -390,8 +404,8 @@
             p.vx = G.clamp(p.vx + dir * acc * dt, -RUN, RUN); p.face = dir;
         } else if (p.ground) p.vx -= G.clamp(p.vx, -1700 * dt, 1700 * dt);
         // Coyote time and jump buffering forgive a press slightly late or early.
-        p.coyote = p.ground ? 0.1 : p.coyote - dt;
-        p.buffer = (G.hit.a || G.hit.up) ? 0.12 : p.buffer - dt;
+        p.coyote = p.ground ? COYOTE : p.coyote - dt;
+        p.buffer = (G.hit.a || G.hit.up) ? BUFFER : p.buffer - dt;
         if (p.buffer > 0 && p.coyote > 0) jump(p);
         // Letting go early cuts the jump short; a spring launch is not cut.
         if (!held && !p.sprung && p.vy < -CUT) p.vy = -CUT;
@@ -499,7 +513,7 @@
         var p = s.p, dx = p.x - f.x, ft = 0.95;
         f.t -= dt;
         if (f.t > 0 || Math.abs(dx) > 330 || s.shots.length >= 8) return;
-        f.t = s.cfg.dense ? 1.8 : 2.5;
+        f.t = s.cfg.dense ? 2.3 : 2.5;
         s.shots.push({ x: f.x + 11, y: f.y, vx: (dx + p.vx * 0.35) / ft, vy: (p.y - f.y) / ft - 0.5 * NUT_G * ft });
         G.tone(300, 0.1, { type: 'triangle', slide: 620, vol: 0.14 });
     }
@@ -935,7 +949,7 @@
         levelNames: ['Shell Beach', 'Palm Springs', 'Raft Lagoon', 'Gull Ridge', 'Monkey Jungle',
             'Echo Cave', 'Crumble Cliffs', 'Coconut Canopy', 'Spring Tide', 'Tiki Summit'],
         colors: { bg: '#0a1e2e', fg: '#fef9e7', accent: '#fbbf24', dim: '#38c9d8' },
-        lives: 3,
+        lives: 4,
         // A syncopated steel-drum line over a 3-3-2 calypso bass, in C major pentatonic.
         music: {
             bpm: 118, root: 48, scale: 'majorpenta', prog: [0, 3, 4, 3],
