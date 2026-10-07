@@ -30,11 +30,11 @@
     var DRY_RELOAD = 1.4;           // a reload forced by an empty click takes this much longer
     var AIM_ACCEL = 5200, AIM_SPEED = 820, AIM_DRAG = 26;
     var SNAP = 50;                  // keyboard aim: releasing the keys this close to a head locks on
-    var LIFE_STREAK = 15;           // this many busts in a row without a miss earn a life...
-    var LIFE_CAP = 4;               // ...up to one more than the level starts with
+    var LIFE_STREAK = 12;           // this many busts in a row without a miss earn a life...
+    var LIFE_CAP = 5;               // ...up to one more than the level starts with
     var TAP_SLOP = 22;              // a fingertip is blunt: a tap this close to a gangster still hits him
-    var HEAD = 20;                  // radius of a head shot: the face and the hat above it
-    var GRACE = 1.2;                // seconds every draw timer pauses after the player is hit
+    var HEAD = 22;                  // radius of a head shot: the face and the hat above it
+    var GRACE = 2;                  // seconds every draw timer pauses after the player is hit
     var DARK_PERIOD = 11, DARK_FROM = 6.5;
 
     // Places a figure can appear. x is the centre; `from` is the edge the
@@ -58,7 +58,7 @@
     // draw: multiplier on the level's draw time; wide: half shoulder width.
     var KINDS = {
         thug: { hostile: true, score: 100 },
-        heavy: { hostile: true, score: 200, hp: 2, draw: 1.3, wide: 37 },
+        heavy: { hostile: true, score: 200, hp: 2, draw: 1.45, wide: 37 },
         hostage: { hostile: true, score: 250, draw: 1.3 },
         runner: { hostile: true, score: 150, draw: 1.15, mover: true },
         car: { hostile: true, score: 300, draw: 1.6, mover: true },
@@ -75,21 +75,25 @@
     // and firing takes a player close to a second per target, so a gap near
     // one second is already a queue that barely drains: measured with a bot
     // of 0.3 s reaction, a gap of 0.7-0.9 s cost a quick player nothing and a
-    // slightly slower one all three lives in twenty seconds. The levels get
-    // harder through shorter draws, more targets at once and nastier kinds;
-    // levels 8 and 10 get a longer gap than their neighbours because heavies
-    // and the Kingpin take extra shots.
+    // slightly slower one every life in twenty seconds. So the gaps stay well
+    // above a casual player's second per target (1.3 s and more) and the
+    // draws near three seconds: a player who needs 0.9 s per target and
+    // misses now and then clears level 10 most of the time, and one a little
+    // slower still about every other time. The levels get harder through
+    // shorter draws, more targets at once and nastier kinds; levels 8 and 10
+    // get a longer gap than their neighbours because heavies and the Kingpin
+    // take extra shots. The quotas are sized for levels of about 60-90 s.
     var LEVELS = [
-        { quota: 38, max: 1, draw: 3.2, gap: 1.3, slots: 'w', mix: { thug: 8, civ: 2 } },
-        { quota: 46, max: 2, draw: 2.9, gap: 1.25, slots: 'wd', mix: { thug: 8, civ: 3 } },
-        { quota: 50, max: 2, draw: 2.7, gap: 1.2, slots: 'wd', mix: { thug: 6, civ: 2, runner: 3 } },
-        { quota: 52, max: 2, draw: 2.5, gap: 1.15, slots: 'wdc', mix: { thug: 7, civ: 2, runner: 2, informant: 3 } },
-        { quota: 56, max: 3, draw: 2.5, gap: 1.1, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 4 } },
-        { quota: 56, max: 3, draw: 2.6, gap: 1.1, slots: 'wdc', dark: true, mix: { thug: 7, civ: 3, runner: 2, informant: 1, hostage: 2 } },
-        { quota: 58, max: 3, draw: 2.3, gap: 1.05, slots: 'wdc', mix: { thug: 6, civ: 2, runner: 2, informant: 1, hostage: 2, car: 3 } },
-        { quota: 58, max: 4, draw: 2.2, gap: 1.15, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 4 } },
-        { quota: 62, max: 4, draw: 2.0, gap: 1.05, slots: 'wdc', dark: true, mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 3, paperboy: 2 } },
-        { quota: 0, max: 2, draw: 2.1, gap: 1.4, slots: 'wd', boss: 28, mix: { thug: 6, civ: 2, runner: 2, hostage: 2 } }
+        { quota: 34, max: 1, draw: 3.4, gap: 1.5, slots: 'w', mix: { thug: 8, civ: 2 } },
+        { quota: 40, max: 2, draw: 3.2, gap: 1.45, slots: 'wd', mix: { thug: 8, civ: 3 } },
+        { quota: 44, max: 2, draw: 3.0, gap: 1.4, slots: 'wd', mix: { thug: 6, civ: 2, runner: 3 } },
+        { quota: 44, max: 2, draw: 2.9, gap: 1.4, slots: 'wdc', mix: { thug: 7, civ: 2, runner: 2, informant: 3 } },
+        { quota: 46, max: 3, draw: 2.9, gap: 1.35, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 4 } },
+        { quota: 46, max: 3, draw: 3.0, gap: 1.35, slots: 'wdc', dark: true, mix: { thug: 7, civ: 3, runner: 2, informant: 1, hostage: 2 } },
+        { quota: 48, max: 3, draw: 2.75, gap: 1.3, slots: 'wdc', mix: { thug: 6, civ: 2, runner: 2, informant: 1, hostage: 2, car: 3 } },
+        { quota: 48, max: 4, draw: 2.9, gap: 1.55, slots: 'wdc', mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 4 } },
+        { quota: 52, max: 4, draw: 2.8, gap: 1.45, slots: 'wdc', dark: true, mix: { thug: 5, civ: 2, runner: 2, informant: 1, hostage: 2, car: 2, heavy: 3, paperboy: 2 } },
+        { quota: 0, max: 2, draw: 2.9, gap: 1.75, slots: 'wd', boss: 24, mix: { thug: 6, civ: 2, runner: 2, hostage: 2 } }
     ];
 
     // ------------------------------------------------------------------
@@ -293,8 +297,9 @@
         if (tg.pop >= 1) { tg.phase = tg.def.hostile ? 'aim' : 'stay'; tg.t = 0; }
     }
 
-    // The timer stands still during the grace period after a hit, so three
-    // gangsters cannot empty all three lives in one instant.
+    // The timer stands still during the grace period after a hit, so several
+    // gangsters cannot empty all the lives in one instant, and a player who
+    // has fallen behind gets a moment to catch up with the queue.
     function phaseAim(s, tg, dt) {
         // A mover keeps moving while the timers are frozen. Once his head has
         // passed the far edge the crosshair cannot reach him, so he must not
@@ -400,7 +405,7 @@
     // The gangster's head shows over the hostage's shoulder; the hostage
     // covers almost everything else.
     function hostageHit(tg, x, y) {
-        if (G.dist(x, y, tg.hx, tg.hy) < 17) return 'head';
+        if (G.dist(x, y, tg.hx, tg.hy) < 19) return 'head';
         if (G.dist(x, y, tg.x - 8, tg.y + 42) < 13) return 'hostage';
         if (x > tg.x - 34 && x < tg.x + 18 && y > tg.y + 52 && y < tg.bottom) return 'hostage';
         return (x >= tg.x + 20 && x < tg.x + 48 && y > tg.y + 38 && y < tg.bottom) ? 'body' : '';
@@ -1097,7 +1102,7 @@
         ],
         levelNames: ['First Watch', 'Back Doors', 'Runners', 'The Informant', 'Human Shields', 'Lights Out', 'Drive-By', 'Heavy Hitters', 'The Long Rain', 'The Kingpin'],
         colors: { bg: FOG, fg: INK, accent: BLOOD, dim: SILVER },
-        lives: 3,
+        lives: 4,
         cursor: 'none',
         // The whole pad stays: the stick is the arrow keys for those who
         // would rather steer the crosshair than tap the alley.
