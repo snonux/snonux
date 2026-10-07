@@ -618,8 +618,8 @@
         if (e.y > ROWS - 1) fn(e.x, e.y - ROWS);
     }
 
-    function drawWalls(s, ctx) {
-        var e = s.edges, hue = s.fright > 0 ? C.fright : WALL_HUES[s.level - 1];
+    function paintWalls(s, ctx, hue) {
+        var e = s.edges;
         ctx.fillStyle = C.fill;
         for (var r = 0; r < ROWS; r++) {
             for (var c = 0; c < COLS; c++) if (s.grid[r][c] === '#') ctx.fillRect(c * T, OY + r * T, T, T);
@@ -632,6 +632,26 @@
         ctx.shadowBlur = 0;
         ctx.fillStyle = C.pink;
         ctx.fillRect(15 * T + 2, OY + 6 * T + 12, 2 * T - 4, 5);
+    }
+
+    // The walls of a maze never move, and their glow (one blurred shadow
+    // under every outline of the maze) is by far the dearest thing this game
+    // draws. So they are painted once, into a picture as large as the game
+    // canvas, and copied from there every frame. They are painted again
+    // when the outline changes colour (a power pellet starts or stops
+    // working), for another level's maze, and when the canvas changes size.
+    var maze = { grid: null, hue: '', w: 0, h: 0, pic: null };
+
+    function drawWalls(s, ctx) {
+        var hue = s.fright > 0 ? C.fright : WALL_HUES[s.level - 1], w = ctx.canvas.width, h = ctx.canvas.height, g;
+        if (maze.grid !== s.grid || maze.hue !== hue || maze.w !== w || maze.h !== h) {
+            maze = { grid: s.grid, hue: hue, w: w, h: h, pic: maze.pic || document.createElement('canvas') };
+            maze.pic.width = w; maze.pic.height = h;    // also wipes the old picture
+            g = maze.pic.getContext('2d');
+            g.setTransform(w / G.W, 0, 0, h / G.H, 0, 0);
+            paintWalls(s, g, hue);
+        }
+        ctx.drawImage(maze.pic, 0, 0, G.W, G.H);
     }
 
     // A closed shutter is a solid bar; an open one leaves two posts, which
