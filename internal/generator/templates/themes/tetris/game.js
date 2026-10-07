@@ -26,7 +26,10 @@
     var MIN_Y = TOP + 4 * CELL;        // the wall is never knocked back further than this: four rows stay in view
     // KICK: pixels the wall is knocked back per cleared line. It is less than a
     // cell, so a player has to out-clear the descent to gain ground at all.
-    var SHOT_SPEED = 1500, KICK = 28;
+    // FIRE_GAP: the launcher's reload. Nobody who aims fires eight blocks a
+    // second, but someone who sweeps the launcher to and fro while hammering
+    // FIRE would: at 0.08s that sprayed enough blocks to clear levels unaimed.
+    var SHOT_SPEED = 1500, KICK = 28, FIRE_GAP = 0.12;
     // Phones (see tapColumn): how far a tap may be from a column that needs a
     // block and still be given to it, and how long the launcher jams after a
     // tapped block missed. With keys a careless shot costs the travel to the
@@ -43,8 +46,10 @@
     // The descent gets faster on every level; what a row asks of the player is
     // tuned so the shots per second needed to hold the wall rise steadily too.
     // Quotas and speeds of levels 6-10 were settled with a bot that needs time
-    // to think, to travel and sometimes mis-aims: a player with 0.35s of thought
-    // per shot keeps two lives on 6-9 and wins 10 about every second try.
+    // to think, to travel, sometimes hesitates and sometimes mis-aims. With the
+    // four lives of this game a player with about 0.45s of thought per shot
+    // keeps two lives on 6-8, one on 9, and wins 10 in about two tries of three;
+    // at 0.4s level 10 is nearly safe, at 0.5s levels 9 and 10 are mostly lost.
     var LEVELS = [
         { speed: 13, quota: 40, gmin: 1, gmax: 2, wide: 0, well: 0, armour: 0, plates: 0, bomb: 0, shift: 0, every: 0, surge: 0 },
         { speed: 14.5, quota: 40, gmin: 2, gmax: 2, wide: 0, well: 0, armour: 0, plates: 0, bomb: 0, shift: 0, every: 0, surge: 0 },
@@ -54,8 +59,8 @@
         { speed: 19, quota: 44, gmin: 2, gmax: 2, wide: 0.2, well: 0.1, armour: 0.15, plates: 1, bomb: 0.24, shift: 0, every: 0, surge: 0 },
         { speed: 20, quota: 44, gmin: 2, gmax: 2, wide: 0.15, well: 0, armour: 0, plates: 0, bomb: 0.1, shift: 0.45, every: 1.6, surge: 0 },
         { speed: 21, quota: 56, gmin: 1, gmax: 1, wide: 0.3, well: 0.25, armour: 0.25, plates: 1, bomb: 0.15, shift: 0, every: 0, surge: 10 },
-        { speed: 21.5, quota: 50, gmin: 1, gmax: 1, wide: 0.4, well: 0.2, armour: 0.15, plates: 2, bomb: 0.1, shift: 0.3, every: 1.5, surge: 0 },
-        { speed: 22, quota: 54, gmin: 1, gmax: 2, wide: 0.3, well: 0.2, armour: 0.15, plates: 2, bomb: 0.2, shift: 0.3, every: 1.4, surge: 12 }
+        { speed: 21.25, quota: 48, gmin: 1, gmax: 1, wide: 0.4, well: 0.2, armour: 0.15, plates: 2, bomb: 0.1, shift: 0.3, every: 1.5, surge: 0 },
+        { speed: 21.5, quota: 50, gmin: 1, gmax: 2, wide: 0.3, well: 0.2, armour: 0.15, plates: 2, bomb: 0.2, shift: 0.3, every: 1.4, surge: 16 }
     ];
     // Tetromino outlines for the silhouettes that drift down the side panels.
     var SHAPES = [
@@ -225,7 +230,7 @@
         s.cool -= dt;
         s.recoil = Math.max(0, s.recoil - dt * 7);
         if (!(G.hit.a || tapped) || s.cool > 0) return;
-        s.cool = 0.08;
+        s.cool = FIRE_GAP;
         s.recoil = 1;
         s.shots.push({ c: s.col, y: LINE, color: s.nextColor, target: aimRow(s, s.col), slides: s.slides, tap: tapped });
         s.nextColor = G.pick(COLORS);
@@ -775,7 +780,7 @@
         ],
         levelNames: ['First Wall', 'Double Gap', 'Wide Open', 'Deep Wells', 'Steel Plate', 'Bomb Squad', 'Sidewinder', 'Surge', 'Steel Slide', 'Block Blaster'],
         colors: { bg: '#080b12', fg: '#f4f7fb', accent: '#36c5f0', dim: '#929cad' },
-        lives: 3,
+        lives: 4,
         // ↑ and B do nothing here. dirs: 4 keeps a thumb that is a little off
         // ← or → from also holding ↓, which would rush the wall down.
         touch: { a: 'FIRE', hide: ['up', 'b'], dirs: 4 },
