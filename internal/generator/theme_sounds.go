@@ -6,7 +6,7 @@ import (
 	"html/template"
 	"sync"
 
-	"github.com/snonux/snonux/internal/generator/templates"
+	"github.com/snonux/snonuxmicroblog/internal/generator/templates"
 )
 
 // melodyNote is a single note in a looping ambient melody.

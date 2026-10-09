@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snonux/snonux/internal/post"
+	"github.com/snonux/snonuxmicroblog/internal/post"
 )
 
 // urlPattern matches http/https URLs in plain text.

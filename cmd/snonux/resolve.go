@@ -5,8 +5,8 @@ import (
 	"log"
 	"math/rand"
 
-	"github.com/snonux/snonux/internal/config"
-	"github.com/snonux/snonux/internal/generator"
+	"github.com/snonux/snonuxmicroblog/internal/config"
+	"github.com/snonux/snonuxmicroblog/internal/generator"
 )
 
 // resolvePaths expands home directories in cfg.InputDir and cfg.OutputDir.

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/snonux/snonux/internal/post"
+	"github.com/snonux/snonuxmicroblog/internal/post"
 	"golang.org/x/image/draw"
 )
 

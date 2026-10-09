@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snonux/snonux/internal/config"
-	"github.com/snonux/snonux/internal/generator"
-	"github.com/snonux/snonux/internal/processor"
-	"github.com/snonux/snonux/internal/version"
+	"github.com/snonux/snonuxmicroblog/internal/config"
+	"github.com/snonux/snonuxmicroblog/internal/generator"
+	"github.com/snonux/snonuxmicroblog/internal/processor"
+	"github.com/snonux/snonuxmicroblog/internal/version"
 )
 
 // cliMode tells main whether to run the pipeline or print and exit.

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/snonux/snonux/internal/generator/templates"
+	"github.com/snonux/snonuxmicroblog/internal/generator/templates"
 )
 
 // gameThumbName is the picture the game overview menu shows for a theme.

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snonux/snonux/internal/config"
-	"github.com/snonux/snonux/internal/post"
+	"github.com/snonux/snonuxmicroblog/internal/config"
+	"github.com/snonux/snonuxmicroblog/internal/post"
 )
 
 // feed is the root element of an Atom 1.0 feed document.

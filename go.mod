@@ -1,4 +1,4 @@
-module github.com/snonux/snonux
+module github.com/snonux/snonuxmicroblog
 
 go 1.25.8
 

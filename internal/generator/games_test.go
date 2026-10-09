@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/snonux/snonux/internal/config"
-	"github.com/snonux/snonux/internal/generator/templates"
-	"github.com/snonux/snonux/internal/post"
+	"github.com/snonux/snonuxmicroblog/internal/config"
+	"github.com/snonux/snonuxmicroblog/internal/generator/templates"
+	"github.com/snonux/snonuxmicroblog/internal/post"
 )
 
 // gameScriptName is the per-theme file that holds a theme's arcade game.

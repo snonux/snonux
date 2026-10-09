@@ -30,8 +30,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snonux/snonux/internal/config"
-	"github.com/snonux/snonux/internal/post"
+	"github.com/snonux/snonuxmicroblog/internal/config"
+	"github.com/snonux/snonuxmicroblog/internal/post"
 )
 
 // PostBuilder is the abstraction used to validate and commit a single post type.

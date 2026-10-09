@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/snonux/snonux/internal/config"
-	"github.com/snonux/snonux/internal/post"
-	"github.com/snonux/snonux/internal/version"
+	"github.com/snonux/snonuxmicroblog/internal/config"
+	"github.com/snonux/snonuxmicroblog/internal/post"
+	"github.com/snonux/snonuxmicroblog/internal/version"
 )
 
 var ctx = context.Background() //nolint:gochecknoglobals // test-only top-level helper used by every test in the file
