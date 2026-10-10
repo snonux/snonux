@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/snonux/snonuxmicroblog/internal/config"
-	"github.com/snonux/snonuxmicroblog/internal/generator"
+	"github.com/snonux/snonux.foo/internal/config"
+	"github.com/snonux/snonux.foo/internal/generator"
 )
 
 var ctx = context.Background() //nolint:gochecknoglobals // test-only top-level helper used by every test in the file

@@ -4,7 +4,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/snonux/snonuxmicroblog/internal/generator/templates"
+	"github.com/snonux/snonux.foo/internal/generator/templates"
 )
 
 // navDefs is the content of templates/shared/nav.tmpl loaded once at startup.

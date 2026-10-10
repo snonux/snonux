@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/snonux/snonuxmicroblog/internal/config"
+	"github.com/snonux/snonux.foo/internal/config"
 )
 
 func TestSplitAndTrim(t *testing.T) {

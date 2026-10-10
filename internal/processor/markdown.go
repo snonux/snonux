@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snonux/snonuxmicroblog/internal/post"
+	"github.com/snonux/snonux.foo/internal/post"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"

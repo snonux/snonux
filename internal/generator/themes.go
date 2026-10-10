@@ -4,7 +4,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/snonux/snonuxmicroblog/internal/generator/templates"
+	"github.com/snonux/snonux.foo/internal/generator/templates"
 )
 
 // fallbackThemeName is used when an unknown name is requested for default

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snonux/snonuxmicroblog/internal/config"
+	"github.com/snonux/snonux.foo/internal/config"
 )
 
 // SNONUX_SYNC_USER overrides the SSH username for rsync (default: current login name).
